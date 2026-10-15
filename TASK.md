@@ -7,7 +7,7 @@ Result: Field-test feedback (feedback/KIT-FEEDBACK-0543-16-10-26.txt, "Gron" mod
 - api: class lookup shows declaration + private constants; `Class.new` shows constructors; private members fall back to source; `-Find` greps the source jar; output names the source (B1-B4).
 - Generators: `-Like <vanilla material>` presets, `-Durability diamond`, `-Recipes` for tool/armor sets, vanilla reference tables, shaped placeholder textures (`-Look`), one-line output (`-List`), checks appended to GeneratedContentTest.java; `batch plan.txt` stops at first failure; TestContext craft/smelt/drops/count; status flags unfilled test scaffolds.
 - Evidence: qa/unit Test-AgentInterface, Test-TestingTools (+broken recipe case), Test-MappedSource (+grep, nested head), Test-Packaging PASS; qa/integration/Test-KitSamples PASS (generators incl. tool/armor recipe sets and generated checks; guide samples).
-- Cold laptop trial: beta.3 first build hit a Forge download timeout (beta.4 names network failures, retries once). beta.4 setup: WinGet said JDK25 already installed (-1978335189) but setup did not accept it; beta.5 waits 60 s for a cold java start, rechecks after "already installed", explains rejected JDKs. beta.6: first build gets 3600 s (was 900) and progress shows the current Mavenizer step.
+- Cold laptop trial fixes: network failures named + one retry (beta.4); WinGet "already installed" rechecked, 60 s JDK probe, rejected JDKs explained (beta.5); first build 3600 s timeout + step-level progress (beta.6). ZIPs pass Test-KitZip.
 
 Not done: full declarative mod.json + apply (C4; batch covers the minimum).
 
