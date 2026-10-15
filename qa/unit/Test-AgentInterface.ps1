@@ -109,6 +109,23 @@ exit 0
     Assert (($arrayOut -join "`n") -match '^created armor jade' -and (Read-Text "$java/ModItems.java") -match 'new int\[\] \{3, 6, 8, 3\}, 10, SoundEvents\.ITEM_ARMOR_EQUIP_DIAMOND, 2\.0F') "unquoted list: $arrayOut"
     $passed.Add('presets, recipe sets, generated checks, reference validation, unquoted lists')
 
+    # Explicit numbers beat -Like (field test: -Speed/-Damage/-Toughness were ignored); -Only limits the set; stats are echoed.
+    $dense = Invoke-Agent @('new', 'tools', 'dense', '-Like', 'diamond', '-Durability', '4683', '-Speed', '24', '-Damage', '17', '-Enchant', '0', '-Only', 'sword', '-Repair', 'minecraft:diamond_block', '-Recipes')
+    $items = Read-Text "$java/ModItems.java"
+    Assert ($items -match 'addToolMaterial\("dense", 3, 4683, 24\.0F, 17\.0F, 0\)' -and $items -match 'DENSE_SWORD = item' -and $items -notmatch 'dense_pickaxe|dense_axe|dense_hoe') "explicit tool numbers, sword only: $dense"
+    Assert ($dense -match 'created tools dense: dense_sword \|' -and $dense -match '1 recipe\(s\)' -and $dense -match 'stats: level 3, 4683 uses, mining speed 24, damage bonus 17, enchantability 0; sword tooltip 21') "tools stats line: $dense"
+    Assert (-not (Test-Path (Join-Path $fixture "$assets/recipes/dense_pickaxe.json"))) 'no recipes for pieces not asked for'
+    $axe = Invoke-Agent @('new', 'tools', 'heavy', '-Like', 'iron', '-AxeDamage', '24', '-AxeSpeed', '-2.5', '-Only', 'axe')
+    Assert ((Read-Text "$java/ModItems.java") -match 'new ToolItems\.Axe\(HEAVY_TOOLS, 24\.0F, -2\.5F\)' -and $axe -match 'axe tooltip 25') "explicit axe numbers: $axe"
+    $denseArmor = Invoke-Agent @('new', 'armor', 'dense', '-Like', 'diamond', '-Durability', '99', '-Protection', '9,24,18,9', '-Toughness', '6', '-Enchant', '3', '-Only', 'chestplate,boots')
+    Assert ((Read-Text "$java/ModItems.java") -match 'new int\[\] \{9, 18, 24, 9\}, 3, SoundEvents\.ITEM_ARMOR_EQUIP_DIAMOND, 6\.0F' -and (Read-Text "$java/ModItems.java") -notmatch 'dense_helmet') "explicit armor numbers, two pieces: $denseArmor"
+    Assert ($denseArmor -match 'stats: chestplate 24 armor/1584 uses, boots 9 armor/1287 uses; toughness 6, enchantability 3; total armor 33' -and $denseArmor -match 'stops counting at 20') "armor stats line: $denseArmor"
+    $wrongKind = Invoke-Agent @('new', 'tools', 'nope', '-Toughness', '6') 1
+    Assert ($wrongKind -match '-Toughness does not apply to new tools \(used by new armor\)' -and (Read-Text "$java/ModItems.java") -notmatch 'NOPE_') "option for another kind rejected: $wrongKind"
+    $badPiece = Invoke-Agent @('new', 'tools', 'nope', '-Only', 'sword,spear') 1
+    Assert ($badPiece -match "Unknown -Only piece 'spear'") "bad -Only piece: $badPiece"
+    $passed.Add('explicit tool/armor numbers win over -Like, -Only, stats line, options for other kinds rejected')
+
     # Batch stops at the first failing line.
     [IO.File]::WriteAllText((Join-Path $fixture 'plan.txt'), "# comment`nnew item amber`nnew recipe broken -Ingredients `"no_such_item`" -Result amber`nnew item never_made`n")
     Push-Location $fixture

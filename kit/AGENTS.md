@@ -20,9 +20,9 @@ If scripts are blocked: `powershell -NoProfile -ExecutionPolicy Bypass -File ./a
 
 1. `status`. Java missing: follow SETUP.md.
 2. Put the request, your decisions and acceptance checks in TASK.md. Keep it short; replace, never append.
-3. Use generators for standard content (several at once: `batch`). For anything else read the one matching guide from docs/INDEX.md.
+3. Generators only for standard content, and only the pieces the user asked for (`-Only`; several at once: `batch`). Custom behavior is hand-written from the one matching guide in docs/INDEX.md; never bend a generator into it.
 4. `check` after each change and fix the first error; hints name the 1.12.2 replacement. Unsure of a name or signature: `api`, never guess.
-5. Generators add their own checks; important custom behavior gets a game test (`new test <id>`, then `check game`).
+5. Generator checks only repeat what the generator wrote: compare its `stats:` line (or the generated code) with the numbers in TASK.md. Important custom behavior gets a game test (`new test <id>`, then `check game`).
 6. Finish with `check server` (or `check game`) passing with no WARN lines, TASK.md updated, `export` if a jar is wanted. Tell the user what was tested automatically and what to look at in the game client (`gradlew.bat runClient`): textures, GUIs, rendering.
 
 ## Rules

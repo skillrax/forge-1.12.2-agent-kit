@@ -38,6 +38,7 @@ param(
     [double]$AxeDamage,
     [double]$AxeSpeed,
     [string]$Repair,
+    [string]$Only,
     [switch]$Recipes,
     [string]$Handle = 'minecraft:stick',
     [string]$Shape,
@@ -61,6 +62,23 @@ $notes = New-Object 'System.Collections.Generic.List[string]'
 $registered = New-Object 'System.Collections.Generic.List[string]'
 $script:checkCount = 0
 $script:recipeCount = 0
+# Inside functions $PSBoundParameters is the function's own; keep the script's to tell "-Speed 0" from no -Speed.
+$bound = $PSBoundParameters
+
+# Options each kind reads; anything else is rejected so no option is silently ignored.
+$commonOptions = @('Kind', 'Name', 'Display', 'Color', 'Force', 'List', 'Json')
+$kindOptions = @{
+    item     = @('Tab', 'StackSize', 'Look')
+    block    = @('Material', 'Hardness', 'Resistance', 'Tool', 'Level', 'Light')
+    ore      = @('Drops', 'Count', 'Xp', 'Level', 'Hardness', 'Veins', 'VeinSize', 'Height', 'Dimension')
+    food     = @('Hunger', 'Saturation', 'Wolf', 'AlwaysEdible', 'Effect')
+    tools    = @('Like', 'Level', 'Durability', 'Speed', 'Damage', 'Enchant', 'AxeDamage', 'AxeSpeed', 'Repair', 'Recipes', 'Handle', 'Only')
+    armor    = @('Like', 'Durability', 'Protection', 'Toughness', 'Enchant', 'Repair', 'Recipes', 'Only')
+    recipe   = @('Shape', 'Key', 'Ingredients', 'Result', 'Count')
+    smelting = @('From', 'Result', 'Count', 'Xp')
+    tile     = @('Ticking', 'Inventory')
+    test     = @()
+}
 
 # Vanilla values (net.minecraft.item.Item.ToolMaterial, ItemArmor.ArmorMaterial, ItemAxe).
 $toolPresets = [ordered]@{
@@ -410,6 +428,15 @@ function Get-Range([string]$Text, [int]$DefaultMin, [int]$DefaultMax, [string]$W
     throw "$What must be N or MIN-MAX, got '$Text'"
 }
 
+# -Only "sword,axe" -> those pieces in set order; no -Only -> the whole set.
+function Get-Pieces([string[]]$All) {
+    if (-not $Only) { return $All }
+    $wanted = @($Only.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+    foreach ($piece in $wanted) { if ($All -notcontains $piece) { throw "Unknown -Only piece '$piece'. Use any of: $($All -join ',')" } }
+    if (-not $wanted.Count) { throw "-Only needs at least one of: $($All -join ',')" }
+    return @($All | Where-Object { $wanted -contains $_ })
+}
+
 function Get-Preset($Table, [string]$PresetName, [string]$What) {
     $key = $PresetName.ToLowerInvariant()
     if ($presetAliases.ContainsKey($key)) { $key = $presetAliases[$key] }
@@ -604,11 +631,12 @@ function Build-Food {
 
 function Build-Tools {
     $const = ConvertTo-Constant $Name
+    $pieces = Get-Pieces @('sword', 'pickaxe', 'axe', 'shovel', 'hoe')
     if ($Recipes -and -not $Repair) { throw '-Recipes needs -Repair <material item> (the ingot/gem the tools are made of).' }
     Assert-ItemRef $Repair 'Repair item'
     if ($Recipes) { Assert-ItemRef $Handle 'Handle' }
     $toolFile = Join-Path $project.dir 'ToolItems.java'
-    if (-not [IO.File]::Exists($toolFile)) {
+    if (($pieces -contains 'pickaxe' -or $pieces -contains 'axe') -and -not [IO.File]::Exists($toolFile)) {
         Write-New $toolFile @"
 package $($project.package);
 
@@ -635,78 +663,92 @@ public final class ToolItems {
     $lvl = if ($Level -ge 0) { $Level } else { $base.level }
     $uses = $base.uses
     if ($Durability) { $uses = if ($Durability -match '^\d+$') { [int]$Durability } else { (Get-Preset $toolPresets $Durability 'tool material').uses } }
-    $spd = if ($PSBoundParameters.ContainsKey('Speed')) { $Speed } else { $base.speed }
-    $dmg = if ($PSBoundParameters.ContainsKey('Damage')) { $Damage } else { $base.damage }
-    $ench = if ($PSBoundParameters.ContainsKey('Enchant')) { $Enchant } else { $base.enchant }
+    $spd = if ($bound.ContainsKey('Speed')) { $Speed } else { $base.speed }
+    $dmg = if ($bound.ContainsKey('Damage')) { $Damage } else { $base.damage }
+    $ench = if ($bound.ContainsKey('Enchant')) { $Enchant } else { $base.enchant }
     # Vanilla axes by harvest level when no -Like: 0 -> 6/-3.2, 1 -> 8/-3.2, 2 -> 8/-3.1, 3+ -> 8/-3.0.
     $axeBase = if ($Like) { $base } else { $toolPresets[@('wood', 'stone', 'iron', 'diamond')[[Math]::Min(3, $lvl)]] }
-    $axeDmg = if ($PSBoundParameters.ContainsKey('AxeDamage')) { $AxeDamage } else { $axeBase.axeDamage }
-    $axeSpd = if ($PSBoundParameters.ContainsKey('AxeSpeed')) { $AxeSpeed } else { $axeBase.axeSpeed }
+    $axeDmg = if ($bound.ContainsKey('AxeDamage')) { $AxeDamage } else { $axeBase.axeDamage }
+    $axeSpd = if ($bound.ContainsKey('AxeSpeed')) { $AxeSpeed } else { $axeBase.axeSpeed }
+    if ($pieces -notcontains 'axe' -and ($bound.ContainsKey('AxeDamage') -or $bound.ContainsKey('AxeSpeed'))) { throw '-AxeDamage/-AxeSpeed need an axe; add axe to -Only.' }
     $mat = "${const}_TOOLS"
-    Add-Import $project.items @('net.minecraft.item.ItemHoe', 'net.minecraft.item.ItemSpade', 'net.minecraft.item.ItemSword', 'net.minecraftforge.common.util.EnumHelper')
-    Add-AtMarker $project.items 'items' @(
-        "/** Tool material: harvest level $lvl, $uses uses, speed $spd, damage bonus $dmg, enchantability $ench; axe $axeDmg damage, $axeSpd speed. */",
-        "public static final Item.ToolMaterial $mat = EnumHelper.addToolMaterial(`"${Name}`", $lvl, $uses, $(F $spd), $(F $dmg), $ench);",
-        "public static final Item ${const}_SWORD = item(`"${Name}_sword`", new ItemSword($mat));",
-        "public static final Item ${const}_PICKAXE = item(`"${Name}_pickaxe`", new ToolItems.Pickaxe($mat));",
-        "public static final Item ${const}_AXE = item(`"${Name}_axe`", new ToolItems.Axe($mat, $(F $axeDmg), $(F $axeSpd)));",
-        "public static final Item ${const}_SHOVEL = item(`"${Name}_shovel`", new ItemSpade($mat));",
-        "public static final Item ${const}_HOE = item(`"${Name}_hoe`", new ItemHoe($mat));")
-    foreach ($piece in @('sword', 'pickaxe', 'axe', 'shovel', 'hoe')) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/handheld' $Name }
+    $classes = [ordered]@{ sword = 'net.minecraft.item.ItemSword'; shovel = 'net.minecraft.item.ItemSpade'; hoe = 'net.minecraft.item.ItemHoe' }
+    Add-Import $project.items (@($classes.Keys | Where-Object { $pieces -contains $_ } | ForEach-Object { $classes[$_] }) + 'net.minecraftforge.common.util.EnumHelper')
+    $makers = @{
+        sword = "new ItemSword($mat)"; pickaxe = "new ToolItems.Pickaxe($mat)"; axe = "new ToolItems.Axe($mat, $(F $axeDmg), $(F $axeSpd))"
+        shovel = "new ItemSpade($mat)"; hoe = "new ItemHoe($mat)"
+    }
+    $axeDoc = if ($pieces -contains 'axe') { "; axe $axeDmg damage, $axeSpd speed" } else { '' }
+    Add-AtMarker $project.items 'items' (@(
+        "/** Tool material: harvest level $lvl, $uses uses, speed $spd, damage bonus $dmg, enchantability $ench$axeDoc. */",
+        "public static final Item.ToolMaterial $mat = EnumHelper.addToolMaterial(`"${Name}`", $lvl, $uses, $(F $spd), $(F $dmg), $ench);") +
+        @($pieces | ForEach-Object { "public static final Item ${const}_$(ConvertTo-Constant $_) = item(`"${Name}_$_`", $($makers[$_]));" }))
+    foreach ($piece in $pieces) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/handheld' $Name }
     if ($Repair) {
         Add-Import $project.mainFile @('net.minecraft.item.Item', 'net.minecraft.item.ItemStack')
         Add-AtMarker $project.mainFile 'init' @("ModItems.$mat.setRepairItem(new ItemStack($(ConvertTo-ItemExpr $Repair)));")
     }
     $ns = $project.modId
-    Add-Check @(
-        "t.require(t.item($(Q "${ns}:${Name}_pickaxe")).getMaxDamage() == $uses, $(Q "${Name} tool durability"));",
-        "t.require(t.item($(Q "${ns}:${Name}_pickaxe")).getHarvestLevel(t.stack($(Q "${ns}:${Name}_pickaxe"), 1), `"pickaxe`", null, null) == $lvl, $(Q "${Name} pickaxe level"));",
-        "t.require(Math.abs(((net.minecraft.item.ItemSword) t.item($(Q "${ns}:${Name}_sword"))).getAttackDamage() - $(F $dmg)) < 0.001F, $(Q "${Name} sword damage bonus"));")
+    $first = "${ns}:${Name}_$($pieces[0])"
+    $checks = @("t.require(t.item($(Q $first)).getMaxDamage() == $uses, $(Q "${Name} tool durability"));")
+    $digger = @($pieces | Where-Object { $_ -in @('pickaxe', 'axe', 'shovel') }) | Select-Object -First 1
+    if ($digger) { $checks += "t.require(t.item($(Q "${ns}:${Name}_$digger")).getHarvestLevel(t.stack($(Q "${ns}:${Name}_$digger"), 1), $(Q $digger), null, null) == $lvl, $(Q "${Name} $digger level"));" }
+    if ($pieces -contains 'sword') { $checks += "t.require(Math.abs(((net.minecraft.item.ItemSword) t.item($(Q "${ns}:${Name}_sword"))).getAttackDamage() - $(F $dmg)) < 0.001F, $(Q "${Name} sword damage bonus"));" }
+    Add-Check $checks
+    # Echo the values actually written so a wrong number is visible without opening ModItems.java.
+    $stats = "stats: level $lvl, $uses uses, mining speed $spd, damage bonus $dmg, enchantability $ench"
+    if ($pieces -contains 'sword') { $stats += "; sword tooltip $(4 + $dmg) attack damage" }
+    if ($pieces -contains 'axe') { $stats += "; axe tooltip $(1 + $axeDmg) attack damage, speed $axeSpd" }
+    $notes.Add($stats)
     if ($Recipes) {
         $shapes = [ordered]@{ sword = @('X', 'X', '#'); pickaxe = @('XXX', ' # ', ' # '); axe = @('XX', 'X#', ' #'); shovel = @('X', '#', '#'); hoe = @('XX', ' #', ' #') }
-        foreach ($piece in $shapes.Keys) { Write-ShapedRecipe "${Name}_$piece" $shapes[$piece] ([ordered]@{ X = $Repair; '#' = $Handle }) "${Name}_$piece" 1 }
+        foreach ($piece in $pieces) { Write-ShapedRecipe "${Name}_$piece" $shapes[$piece] ([ordered]@{ X = $Repair; '#' = $Handle }) "${Name}_$piece" 1 }
     } else { $notes.Add('no crafting recipes generated; add -Recipes (vanilla tool shapes) or use agent.ps1 new recipe') }
 }
 
 function Build-Armor {
     $const = ConvertTo-Constant $Name
+    $pieces = Get-Pieces @('helmet', 'chestplate', 'leggings', 'boots')
     $base = Get-Preset $armorPresets $(if ($Like) { $Like } else { 'iron' }) 'armor material'
     $factor = $base.durability
     if ($Durability) { $factor = if ($Durability -match '^\d+$') { [int]$Durability } else { (Get-Preset $armorPresets $Durability 'armor material').durability } }
     $prot = if ($Protection) { $Protection } else { $base.protection }
     $values = @($prot.Split(',') | ForEach-Object { [int]$_.Trim() })
     if ($values.Count -ne 4) { throw '-Protection takes helmet,chestplate,leggings,boots, e.g. 3,8,6,3 (diamond)' }
-    $ench = if ($PSBoundParameters.ContainsKey('Enchant')) { $Enchant } else { $base.enchant }
-    $tough = if ($PSBoundParameters.ContainsKey('Toughness')) { $Toughness } else { $base.toughness }
+    $ench = if ($bound.ContainsKey('Enchant')) { $Enchant } else { $base.enchant }
+    $tough = if ($bound.ContainsKey('Toughness')) { $Toughness } else { $base.toughness }
     if ($Recipes -and -not $Repair) { throw '-Recipes needs -Repair <material item> (the ingot/gem the armor is made of).' }
     Assert-ItemRef $Repair 'Repair item'
     $mat = "${const}_ARMOR"
     Add-Import $project.items @('net.minecraft.init.SoundEvents', 'net.minecraft.inventory.EntityEquipmentSlot', 'net.minecraft.item.ItemArmor', 'net.minecraftforge.common.util.EnumHelper')
+    $slots = @{ helmet = 'HEAD'; chestplate = 'CHEST'; leggings = 'LEGS'; boots = 'FEET' }
     # ArmorMaterial reductions are indexed boots, leggings, chestplate, helmet.
-    Add-AtMarker $project.items 'items' @(
+    Add-AtMarker $project.items 'items' (@(
         "/** Armor material: durability factor $factor, protection helmet/chest/legs/boots $($values -join ','), toughness $tough, enchantability $ench. Texture: textures/models/armor/${Name}_layer_1/2.png */",
-        "public static final ItemArmor.ArmorMaterial $mat = EnumHelper.addArmorMaterial(`"$Name`", $($project.mainClass).MODID + `":$Name`", $factor, new int[] {$($values[3]), $($values[2]), $($values[1]), $($values[0])}, $ench, SoundEvents.ITEM_ARMOR_EQUIP_$($base.sound), $(F $tough));",
-        "public static final Item ${const}_HELMET = item(`"${Name}_helmet`", new ItemArmor($mat, 0, EntityEquipmentSlot.HEAD));",
-        "public static final Item ${const}_CHESTPLATE = item(`"${Name}_chestplate`", new ItemArmor($mat, 0, EntityEquipmentSlot.CHEST));",
-        "public static final Item ${const}_LEGGINGS = item(`"${Name}_leggings`", new ItemArmor($mat, 0, EntityEquipmentSlot.LEGS));",
-        "public static final Item ${const}_BOOTS = item(`"${Name}_boots`", new ItemArmor($mat, 0, EntityEquipmentSlot.FEET));")
-    foreach ($piece in @('helmet', 'chestplate', 'leggings', 'boots')) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/generated' $Name }
-    New-Texture (Join-Path $project.assets "textures/models/armor/${Name}_layer_1.png") 'armor' $Name
-    New-Texture (Join-Path $project.assets "textures/models/armor/${Name}_layer_2.png") 'armor' $Name
+        "public static final ItemArmor.ArmorMaterial $mat = EnumHelper.addArmorMaterial(`"$Name`", $($project.mainClass).MODID + `":$Name`", $factor, new int[] {$($values[3]), $($values[2]), $($values[1]), $($values[0])}, $ench, SoundEvents.ITEM_ARMOR_EQUIP_$($base.sound), $(F $tough));") +
+        @($pieces | ForEach-Object { "public static final Item ${const}_$(ConvertTo-Constant $_) = item(`"${Name}_$_`", new ItemArmor($mat, 0, EntityEquipmentSlot.$($slots[$_])));" }))
+    foreach ($piece in $pieces) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/generated' $Name }
+    # Layer 1: helmet, chestplate, boots; layer 2: leggings.
+    if (@($pieces | Where-Object { $_ -ne 'leggings' }).Count) { New-Texture (Join-Path $project.assets "textures/models/armor/${Name}_layer_1.png") 'armor' $Name }
+    if ($pieces -contains 'leggings') { New-Texture (Join-Path $project.assets "textures/models/armor/${Name}_layer_2.png") 'armor' $Name }
     if ($Repair) {
         Add-Import $project.mainFile @('net.minecraft.item.Item', 'net.minecraft.item.ItemStack')
         Add-AtMarker $project.mainFile 'init' @("ModItems.$mat.setRepairItem(new ItemStack($(ConvertTo-ItemExpr $Repair)));")
     }
     $ns = $project.modId
     # Durability = factor x vanilla base (helmet 11, chestplate 16, leggings 15, boots 13).
-    $pieces = @(@('helmet', $values[0], 11), @('chestplate', $values[1], 16), @('leggings', $values[2], 15), @('boots', $values[3], 13))
+    $info = @{ helmet = @($values[0], 11); chestplate = @($values[1], 16); leggings = @($values[2], 15); boots = @($values[3], 13) }
     $checks = foreach ($p in $pieces) {
-        "t.require(((net.minecraft.item.ItemArmor) t.item($(Q "${ns}:${Name}_$($p[0])"))).damageReduceAmount == $($p[1]) && t.item($(Q "${ns}:${Name}_$($p[0])")).getMaxDamage() == $($p[2] * $factor), $(Q "${Name}_$($p[0]) protection/durability"));"
+        "t.require(((net.minecraft.item.ItemArmor) t.item($(Q "${ns}:${Name}_$p"))).damageReduceAmount == $($info[$p][0]) && t.item($(Q "${ns}:${Name}_$p")).getMaxDamage() == $($info[$p][1] * $factor), $(Q "${Name}_$p protection/durability"));"
     }
     Add-Check @($checks)
+    $total = 0; foreach ($p in $pieces) { $total += $info[$p][0] }
+    $stats = "stats: " + (@($pieces | ForEach-Object { "$_ $($info[$_][0]) armor/$($info[$_][1] * $factor) uses" }) -join ', ') + "; toughness $tough, enchantability $ench"
+    if ($total -gt 20) { $stats += "; total armor $total, but damage reduction stops counting at 20 (full diamond = 20)" }
+    $notes.Add($stats)
     if ($Recipes) {
         $shapes = [ordered]@{ helmet = @('XXX', 'X X'); chestplate = @('X X', 'XXX', 'XXX'); leggings = @('XXX', 'X X', 'X X'); boots = @('X X', 'X X') }
-        foreach ($piece in $shapes.Keys) { Write-ShapedRecipe "${Name}_$piece" $shapes[$piece] ([ordered]@{ X = $Repair }) "${Name}_$piece" 1 }
+        foreach ($piece in $pieces) { Write-ShapedRecipe "${Name}_$piece" $shapes[$piece] ([ordered]@{ X = $Repair }) "${Name}_$piece" 1 }
     } else { $notes.Add('no crafting recipes generated; add -Recipes (vanilla armor shapes) or use agent.ps1 new recipe') }
 }
 
@@ -930,11 +972,17 @@ public class $pascal implements Scenario {
 try {
     if (-not $Name) { throw "Usage: agent.ps1 new $Kind <name> [options]; see docs/GENERATORS.md" }
     if ($Kind -ne 'test' -and $Name -notmatch '^[a-z][a-z0-9_]*$') { throw "Names are lowercase registry paths like ruby_ore, got '$Name'" }
+    $unused = @($bound.Keys | Where-Object { $commonOptions -notcontains $_ -and $kindOptions[$Kind] -notcontains $_ })
+    if ($unused.Count) {
+        $others = @($kindOptions.Keys | Where-Object { $kindOptions[$_] -contains $unused[0] } | Sort-Object)
+        $where = if ($others.Count) { " (used by new $($others -join '/'))" } else { '' }
+        throw "-$($unused -join ', -') does not apply to new $Kind$where. Options for ${Kind}: $(@($kindOptions[$Kind] | ForEach-Object { '-' + $_ }) -join ' ')"
+    }
     $project = Get-Project
     $title = if ($Display) { $Display } else { ConvertTo-Title $Name }
     if ($Kind -in @('item', 'block', 'ore', 'food', 'tile')) { Assert-NewName $Name }
-    if ($Kind -eq 'tools') { Assert-NewName "${Name}_sword" }
-    if ($Kind -eq 'armor') { Assert-NewName "${Name}_helmet" }
+    if ($Kind -eq 'tools') { foreach ($piece in (Get-Pieces @('sword', 'pickaxe', 'axe', 'shovel', 'hoe'))) { Assert-NewName "${Name}_$piece" } }
+    if ($Kind -eq 'armor') { foreach ($piece in (Get-Pieces @('helmet', 'chestplate', 'leggings', 'boots'))) { Assert-NewName "${Name}_$piece" } }
     switch ($Kind) {
         'item' { Build-Item }
         'block' { Build-Block }
