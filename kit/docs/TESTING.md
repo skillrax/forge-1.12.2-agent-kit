@@ -41,7 +41,7 @@ public class OreDropsTest implements Scenario {
 | `invariant(name, cond, detail)` | must hold every tick from here on |
 | `origin()`, `world()`, `server()`, `ticks()` | fixture area, WorldServer, server, elapsed ticks |
 | `place(pos, "modid:block")`, `place(pos, state)`, `state(pos)`, `tile(pos, Class)`, `inventory(pos)` | blocks and tile entities |
-| `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities |
+| `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities (the test server runs `spawn-animals=false`, so animals vanish on their next tick: use an armor stand or a mob) |
 | `craft("a", "", "b", ...)`, `smelt(id)` | crafting result of a row-major 3x3 grid ("" = empty), furnace result |
 | `drops(blockId, toolId)`, `count(stacks, id)` | place + mine a block with a tool in a free spot, return what dropped; count one item |
 | `player(name)` | survival FakePlayer at origin, facing south |

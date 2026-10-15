@@ -1,16 +1,16 @@
 # Current maintainer task
 
-Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.8).
+Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.9).
 
-Result: "Dense diamond" field test (feedback/feedback-20261016-102655.txt) addressed.
-- Bug: tools/armor ignored -Speed -Damage -Enchant -AxeDamage -AxeSpeed -Toughness ($PSBoundParameters inside functions). Fixed with the script's bound set.
-- Scope: `-Only` limits tools/armor to the pieces asked for; options that do not belong to the kind are rejected; tools/armor print a `stats:` line (tooltip damage, armor total, 20-point cap warning).
-- Guidance: kit/AGENTS.md and GENERATORS.md say generators are for standard content only, custom behavior is hand-written from guides, "Nx vanilla" needs explicit numbers in TASK.md, and generated checks cannot catch wrong numbers.
-- Evidence: qa/unit Test-AgentInterface (+field-test commands, -Only, wrong-kind option) and Test-Packaging PASS; qa/integration Test-KitSamples PASS (generators and guide samples, game tests).
-- Earlier (beta.4-7): cold laptop trial fixes, Gron feedback A1-A5/B1-B4, presets, recipe sets, generated checks, batch.
+Direction (user, 2026-10-16): the kit must let an AI build mods it has never seen. Turn each field test into general facts, checks or hints where an AI gets stuck, never into a feature or guide for that one mod. Generators stay small, for standard content only.
 
-Not done from the feedback: -Scale, `describe` (stats from the built jar), background/poll mode for long check game. Not done earlier: declarative mod.json + apply (C4).
+Result:
+- beta.8: generators honor explicit tool/armor numbers, `-Only`, wrong-kind options rejected, `stats:` line (dense diamond feedback).
+- beta.9: lessons from a hard custom item (region capture, ghost preview) added to topic guides: what ticks where and when (FORGE-1.12.md); setBlockState side effects, moving blocks with tiles (world-actions); detaching/copying/moving entities (entities); onItemUseFirst, large stack data (items); WorldSavedData (players); tile lifecycle; in-world previews (rendering). Tested code is in qa/fixtures/guide-samples (RegionMover, BagStore, BagGhost, CubicBagTest). Claims checked against the 1.12.2 source with `api`.
+- Evidence: Test-AgentInterface, Test-Packaging, Test-KitSamples PASS.
 
-Next action: A guide for complex custom items (region capture with tile entities/entities, removal, placement across dimensions, ghost preview), verified by a guide sample; then the 32k local-model trial.
+Known gap: older guide snippets not in guide-samples (persisted player NBT, re-equip animation, keybind, TESR clock); no automated snippet check.
 
-Blocker: None. Not verified: graphical client, real local-model behavior.
+Next action: A held-out set of unseen mod prompts (mostly hard); run a fresh agent (32k local model) on each, record where it gets stuck, fix the general cause.
+
+Blocker: None. Not verified: graphical client (ghost preview), real local-model behavior.

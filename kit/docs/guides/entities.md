@@ -50,7 +50,23 @@ Notes:
 - Saved fields: `writeEntityToNBT`/`readEntityFromNBT`. Values the client must see (size, variant): `EntityDataManager` with `DataParameter` registered in `entityInit()`.
 - Projectiles: extend `EntityThrowable` (override `onImpact`), render with `RenderSnowball` and an item.
 - Textures for custom renderers: `assets/mymod/textures/entity/<name>.png`.
-- Entities only tick when the 32-block area around them is loaded.
+- Entities only tick when the 32-block area around them is loaded (more under "Ticking" below).
+
+## Ticking, removing, copying
+
+- `onUpdate` runs on both sides; the client copy only predicts. Server-only logic: `if (world.isRemote) return;` after `super.onUpdate()`. Timers in a field are lost on reload unless saved in `writeEntityToNBT`.
+- `setDead()` removes it at the end of the entity loop, but subclasses may react (chest and hopper minecarts drop their contents), and it is not a kill: no death event, no loot. To take an entity out of the world unchanged (to store or move it), detach it instead. `onEntityRemoved` frees its UUID; without that, spawning it again is refused.
+
+```java
+w.getChunk(e.chunkCoordX, e.chunkCoordZ).removeEntity(e);
+w.loadedEntityList.remove(e);
+w.onEntityRemoved(e);
+```
+
+  Only from a click, command or `WorldTickEvent` END, never during the entity loop (docs/FORGE-1.12.md).
+- Copy: `e.writeToNBTOptional(tag)` (false for dead entities and riders; saves the type `id` and the UUID); restore: `EntityList.createEntityFromNBT(tag, world)` (null if the mod is missing), then `world.spawnEntity(e)`. Same UUID: refuse if any `server.worlds` returns non-null from `getEntityFromUuid`, or you have a duplicate.
+- Moving the copy: edit the `Pos` list in the NBT, plus `TileX/TileY/TileZ` (paintings, item frames, leash knots) and `xTile/yTile/zTile` (stuck arrows). Another dimension: set `e.dimension` to the target world's `provider.getDimension()` and spawn into that `WorldServer`. A live teleport of an existing entity is `e.changeDimension(dim)` instead.
+- Players, riders and multipart entities (`getParts() != null`, the dragon) need their own handling: usually refuse them.
 
 ## Villagers and trades
 

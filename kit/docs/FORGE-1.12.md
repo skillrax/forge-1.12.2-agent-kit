@@ -31,12 +31,31 @@ Never create or register registry objects outside these events. An object gets e
 - Classes under `net.minecraft.client.*` (Minecraft, Gui*, Render*, models, KeyBinding, I18n of client.resources) only exist on the client. Use them only in classes annotated `@SideOnly(Side.CLIENT)` or `@Mod.EventBusSubscriber(value = Side.CLIENT)`, or in methods that only run on the client (and mark overriding client methods `@SideOnly(Side.CLIENT)`). `./agent.ps1 api` marks such members `[client-only]`.
 - Server to client data: tile entity sync (guides/tile-entities.md) or packets (guides/networking.md).
 
+## What ticks, where, when
+
+20 ticks per second. Each server tick first handles queued player actions (right-clicks, GUI clicks: so item and block click methods never run inside a world tick), then each world in turn: `WorldTickEvent` START, block ticks, entities, tile entities, `WorldTickEvent` END.
+
+| Code | Runs | Side | Only while |
+|---|---|---|---|
+| `Entity.onUpdate` | every tick | both: the client runs its copy and interpolates; the server decides | 32 blocks around it are loaded (or a forced chunk) |
+| `ITickable.update` on a tile | every tick, only if the tile class implements `ITickable` | both | its chunk is loaded and the tile is valid |
+| `Block.updateTick` | once, `world.scheduleUpdate(pos, block, delay)` ticks later; or random (`setTickRandomly(true)`, ~every 68 s per block) | server | chunk loaded |
+| `Item.onUpdate` | every tick while in a player's inventory, armor or offhand; worn armor also `onArmorTick`; dropped: `onEntityItemUpdate`; mobs' held items: never | both | the player ticks |
+| `TickEvent.*` | twice per tick: `event.phase` START and END | Server/World: server; Player: **both**; Client/Render: client | always (World per loaded world) |
+
+- Filter tick events or they run twice, and on the wrong side: `if (event.phase != TickEvent.Phase.END || event.side != Side.SERVER) return;` (`event.side` exists on World/Player events; `WorldTickEvent` also has `event.world`).
+- Nothing ticks in unloaded chunks: a machine stops when its player leaves. Catch up on load with `world.getTotalWorldTime()` deltas instead of counting ticks, or keep the chunk loaded with a Forge chunk ticket.
+- `getTotalWorldTime()` always counts up; `getWorldTime()` is the time of day (`/time set` changes it).
+- Inside an entity or tile tick, don't edit `world.loadedEntityList` or chunk entity lists. `entity.setDead()` is safe: the world removes dead entities after the entity loop. `world.spawnEntity` and `world.setTileEntity` are safe too (tiles added during the tile loop are queued). For larger edits (moving many blocks or entities), queue the work and run it in `WorldTickEvent` END.
+- A client-side `onUpdate` that changes the world desyncs; the server copy wins on the next update.
+
 ## Common overrides (exact 1.12.2 signatures)
 
 | Item | |
 |---|---|
 | `ActionResult<ItemStack> onItemRightClick(World, EntityPlayer, EnumHand)` | right-click air |
-| `EnumActionResult onItemUse(EntityPlayer, World, BlockPos, EnumHand, EnumFacing, float, float, float)` | right-click a block |
+| `EnumActionResult onItemUse(EntityPlayer, World, BlockPos, EnumHand, EnumFacing, float, float, float)` | right-click a block, only if the block's `onBlockActivated` returned false (a chest opens instead) or the player sneaks |
+| `EnumActionResult onItemUseFirst(EntityPlayer, World, BlockPos, EnumFacing, float, float, float, EnumHand)` | right-click a block before the block reacts (tools that click any block: wrenches, selectors); return SUCCESS on both sides |
 | `boolean hitEntity(ItemStack, EntityLivingBase target, EntityLivingBase attacker)` | after a melee hit |
 | `void onUpdate(ItemStack, World, Entity, int slot, boolean selected)` | every tick in an inventory |
 | `ItemStack onItemUseFinish(ItemStack, World, EntityLivingBase)` + `getMaxItemUseDuration`, `getItemUseAction` | eat/drink style |

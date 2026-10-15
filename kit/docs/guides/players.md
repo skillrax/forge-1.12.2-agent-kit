@@ -18,6 +18,31 @@ static void save(EntityPlayer player, NBTTagCompound state) {             // wri
 
 `getCompoundTag` returns a new detached compound when missing, so always write back as above. Server side only; clamp values read from NBT; keep data namespaced. Ownership follows the player UUID. For data the client needs (HUD), send a packet (guides/networking.md). Larger structured data: a capability attached in `AttachCapabilitiesEvent<Entity>` with `PlayerEvent.Clone` copying.
 
+## Saved data for the whole server
+
+Data that belongs to no block, entity or player (a registry of teleporters, contents stored by an item) goes in a `WorldSavedData`, saved as `data/<name>.dat` in the world folder:
+
+```java
+public final class BagStore extends WorldSavedData {
+    private static final String NAME = MyMod.MODID + "_bags";
+    private NBTTagCompound contents = new NBTTagCompound();
+    public BagStore() { super(NAME); }
+    public BagStore(String name) { super(name); }      // used by MapStorage when loading
+
+    public static BagStore get(WorldServer world) {
+        MapStorage storage = world.getMinecraftServer().getWorld(0).getMapStorage();   // one store for all dimensions
+        BagStore store = (BagStore) storage.getOrLoadData(BagStore.class, NAME);
+        if (store == null) { store = new BagStore(); storage.setData(NAME, store); }
+        return store;
+    }
+    public void put(String id, NBTTagCompound data) { contents.setTag(id, data); markDirty(); }
+    @Override public void readFromNBT(NBTTagCompound nbt) { contents = nbt.getCompoundTag("Contents"); }
+    @Override public NBTTagCompound writeToNBT(NBTTagCompound nbt) { nbt.setTag("Contents", contents); return nbt; }
+}
+```
+
+Both constructors are required (loading uses the `String` one). Call `markDirty()` after every change or it is not saved. `world.getPerWorldStorage()` instead keeps one copy per dimension. Server only: the client has no saved data.
+
 ## Commands
 
 ```java

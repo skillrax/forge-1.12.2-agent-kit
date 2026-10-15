@@ -34,6 +34,8 @@ public class WandItem extends Item {
 }
 ```
 
+Clicking a block: `onItemUse` runs only after the block's `onBlockActivated` declined (a chest or furnace opens instead) or while sneaking. An item that must work on any block (wrench, selector, region tool) overrides `onItemUseFirst`, which runs before the block reacts, and returns `SUCCESS` on both sides.
+
 Other hooks: `onItemUse` (on a block), `hitEntity`, `onUpdate` (each tick in an inventory), `onItemUseFinish` + `getMaxItemUseDuration` + `getItemUseAction` (eat/drink/bow), `getItemBurnTime` (fuel). Signatures: docs/FORGE-1.12.md.
 
 ## Metadata variants (one item, several textures)
@@ -49,6 +51,10 @@ public static final CreativeTabs TAB = new CreativeTabs(MODID) {      // in the 
 ```
 
 Then `.setCreativeTab(MyMod.TAB)` on items/blocks.
+
+## Items that hold a lot of data
+
+Stack NBT is sent to the client in every inventory update, and a packet over 2 MiB disconnects the player. Keep large or growing data (captured blocks, stored entities, big lists) in server-wide saved data (guides/players.md) under a random `UUID` key. The stack holds only that key plus what the client must show (a size, a short preview). Remove the entry when it is used, so a copied stack (creative middle-click) cannot use it twice. Limit the size before accepting new data.
 
 ## Items that tick or store charge
 

@@ -6,16 +6,16 @@ Read only what the current step needs.
 |---|---|
 | [GENERATORS.md](GENERATORS.md) | creating items, blocks, ores, food, tools, armor, recipes, smelting, tile entities, tests |
 | [TESTING.md](TESTING.md) | what checks prove, lint messages, writing game tests |
-| [FORGE-1.12.md](FORGE-1.12.md) | first hand-written Forge code in a session: files, lifecycle, sides, override signatures |
+| [FORGE-1.12.md](FORGE-1.12.md) | first hand-written Forge code in a session: files, lifecycle, sides, what ticks where and when, override signatures |
 | [guides/troubleshooting.md](guides/troubleshooting.md) | a check fails and the hint is not enough |
-| [guides/items.md](guides/items.md) | item behavior: right-click, durability, NBT, tooltips, variants, creative tab, ticking/charge |
+| [guides/items.md](guides/items.md) | item behavior: right-click (also on blocks that open), durability, NBT, large stored data, tooltips, variants, creative tab, ticking/charge |
 | [guides/blocks.md](guides/blocks.md) | block states (facing/age), shapes, transparency, redstone, ticks, drops, crops |
 | [guides/tile-entities.md](guides/tile-entities.md) | blocks that store data or tick; sync; capabilities |
 | [guides/gui.md](guides/gui.md) | inventories with a GUI, progress bars, buttons, screens |
 | [guides/networking.md](guides/networking.md) | custom packets between client and server |
-| [guides/entities.md](guides/entities.md) | mobs, projectiles, loot tables, spawn eggs, villager trades |
+| [guides/entities.md](guides/entities.md) | mobs, projectiles, loot tables, spawn eggs; removing, copying and moving entities; villager trades |
 | [guides/events.md](guides/events.md) | changing vanilla behavior with events; config files |
-| [guides/players.md](guides/players.md) | saved per-player data, commands, keybinds, personal screens |
+| [guides/players.md](guides/players.md) | saved per-player and server-wide data, commands, keybinds, personal screens |
 | [guides/effects-enchantments.md](guides/effects-enchantments.md) | new potion effects, enchantments, brewing |
 | [guides/sounds.md](guides/sounds.md) | custom sounds |
 | [guides/recipes.md](guides/recipes.md) | recipe JSON details, ore dictionary, custom recipe classes |
@@ -25,8 +25,8 @@ Read only what the current step needs.
 | [guides/item-transport.md](guides/item-transport.md) | extractors, filters, item pipes/ducts |
 | [guides/automated-crafting.md](guides/automated-crafting.md) | autocrafters with saved patterns |
 | [guides/fluids.md](guides/fluids.md) | tanks, custom fluids, wrench pickup |
-| [guides/world-actions.md](guides/world-actions.md) | block breakers/placers, fluid collectors |
-| [guides/rendering.md](guides/rendering.md) | animated models, particles, imported 3D models |
+| [guides/world-actions.md](guides/world-actions.md) | changing blocks safely (setBlockState side effects), moving blocks with their tile entities, block breakers/placers, fluid collectors |
+| [guides/rendering.md](guides/rendering.md) | animated models, in-world previews and outlines, particles, imported 3D models |
 | [HOSTS.md](HOSTS.md) | setting up an agent app or local model |
 | [INSTALLED-TESTING.md](INSTALLED-TESTING.md) | rare: testing the exported jar in a separately installed server with other mods |
 
