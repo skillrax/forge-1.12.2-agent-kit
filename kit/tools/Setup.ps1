@@ -31,11 +31,15 @@ try {
         if(-not $InstallMissing){throw 'Required 64-bit JDK missing. Rerun Setup.ps1 -InstallMissing for WinGet Temurin25/8, or provide -GradleJavaHome and -Java8Home. A Java8 JRE is insufficient.'}
         $logDir=Join-Path $root 'reports/setup';New-Item -ItemType Directory -Force -Path $logDir | Out-Null
         $log=Join-Path $logDir ('winget-jdk'+$major+'-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff')+'.log')
-        Invoke-KitWinget -Major $major -Log $log
-        $installed+=@{major=$major;log=$log}
+        $outcome=Invoke-KitWinget -Major $major -Log $log
+        if($outcome -ne 'already-installed'){$installed+=@{major=$major;log=$log}}
         $selection=Get-KitJavaSelection -GradleJavaHome $GradleJavaHome -Java8Home $Java8Home
         if($PromptMachineEnvironment){$selection.gradle=Get-KitJava25}
-        if(($major -eq 8 -and -not $selection.java8) -or ($major -eq 25 -and -not $selection.gradle)){throw ('WinGet finished but required JDK'+$major+' could not be verified. Check installer log; use an explicit JDK home for custom paths.')}
+        if(($major -eq 8 -and -not $selection.java8) -or ($major -eq 25 -and -not $selection.gradle)){
+            $why=Get-KitJavaRejectSummary $major
+            if($outcome -eq 'already-installed'){throw ('WinGet says Temurin JDK'+$major+' is installed, but no working JDK'+$major+' was found'+$(if($why){' ('+$why+')'}else{' under Program Files\Eclipse Adoptium'})+'. Repair it: winget uninstall --id EclipseAdoptium.Temurin.'+$major+'.JDK, then run Setup.cmd again.')}
+            throw ('WinGet finished but required JDK'+$major+' could not be verified'+$(if($why){' ('+$why+')'}else{''})+'. Check '+$log+'; use an explicit JDK home for custom paths.')
+        }
     }
     Set-KitJavaProcess $selection
     $machineEnvironment=$null

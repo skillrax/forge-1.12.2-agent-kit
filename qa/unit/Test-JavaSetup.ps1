@@ -61,11 +61,13 @@ $overrides=@'
 function Get-KitJavaCandidates {
     if(Test-Path (Join-Path $kitJavaWorkspace 'installed17')){Join-Path $kitJavaWorkspace 'jdk17'}
     foreach($major in @(8,25)){if(Test-Path (Join-Path $kitJavaWorkspace ('installed'+$major))){Join-Path $kitJavaWorkspace ('jdk'+$major)}}
+    if(Test-Path (Join-Path $kitJavaWorkspace 'broken25')){Join-Path $kitJavaWorkspace 'jdk-25-broken'}
 }
 function Invoke-KitWinget {
     param([int]$Major,[string]$Log)
     [IO.File]::AppendAllText((Join-Path $kitJavaWorkspace 'events'),('install'+$Major+','))
     if(Test-Path (Join-Path $kitJavaWorkspace 'fail-install')){throw 'synthetic installer failure; inspect installer state before retrying'}
+    if(Test-Path (Join-Path $kitJavaWorkspace 'broken25')){return 'already-installed'}
     [IO.File]::AppendAllText((Join-Path $kitJavaWorkspace 'install-order'),($Major.ToString()+','))
     [IO.File]::WriteAllText($Log,'synthetic installer transition')
     if(Test-Path (Join-Path $kitJavaWorkspace 'unverified-install')){return}
@@ -119,6 +121,13 @@ try{
     $out=Invoke-SetupFixture '-InstallMissing -PromptMachineEnvironment' 'prompt-yes-verification-failure'
     if($out.code -ne 1 -or $out.result.message -notmatch 'could not be verified' -or [IO.File]::ReadAllText((Join-Path $fixture 'events')) -ne 'prompt,install25,'){throw 'Unverified installer success wrote persistent settings'}
     Remove-Item -LiteralPath (Join-Path $fixture 'unverified-install')
+    # WinGet says the JDK is installed (no applicable upgrade) but its folder is damaged: name the folder and the repair.
+    New-Item -ItemType Directory -Force -Path (Join-Path $fixture 'jdk-25-broken/bin') | Out-Null
+    Copy-Item -LiteralPath $stub -Destination (Join-Path $fixture 'jdk-25-broken/bin/java.exe')
+    [IO.File]::WriteAllText((Join-Path $fixture 'broken25'),'')
+    $out=Invoke-SetupFixture '-InstallMissing -PromptMachineEnvironment' 'already-installed-broken'
+    if($out.code -ne 1 -or $out.result.message -notmatch 'WinGet says Temurin JDK25 is installed' -or $out.result.message -notmatch 'jdk-25-broken: bin\\java\.exe or bin\\javac\.exe missing' -or $out.result.message -notmatch 'winget uninstall --id EclipseAdoptium\.Temurin\.25\.JDK'){throw "Already-installed broken JDK not explained: $($out.result.message)"}
+    Remove-Item -LiteralPath (Join-Path $fixture 'broken25')
     [IO.File]::WriteAllText((Join-Path $fixture 'events'),'')
     [IO.File]::WriteAllText((Join-Path $fixture 'eof'),'')
     $out=Invoke-SetupFixture '-InstallMissing -PromptMachineEnvironment' 'prompt-eof'
@@ -128,4 +137,4 @@ try{
     $out=Invoke-SetupFixture '-InstallMissing -PromptMachineEnvironment' 'non-admin'
     if($out.code -ne 1 -or $out.result.message -notmatch 'Run as administrator' -or [IO.File]::ReadAllText((Join-Path $fixture 'events'))){throw 'Launcher elevation remediation absent or prompted before elevation'}
 }finally{$env:JAVA_HOME=$savedJava}
-@{status='PASS';fixture=$fixture;cases=@('JRE rejected','32-bit JDK rejected','64-bit8/25 probes','bad JAVA_HOME discovery','process-local selection','missing remediation','8 then25 simulated install','idempotent setup','caller environment unchanged','interactive requires25 even with17','early N preserves settings','early Y applied after verified install without second prompt','Y installer failure no writes','unverified installer success no writes','EOF before downloads/writes','launcher nonadmin before prompt');limits='Installer/elevation/registry are simulated; no actual MSI/UAC/global-variable installation claim'} | ConvertTo-Json -Compress
+@{status='PASS';fixture=$fixture;cases=@('JRE rejected','32-bit JDK rejected','64-bit8/25 probes','bad JAVA_HOME discovery','process-local selection','missing remediation','8 then25 simulated install','idempotent setup','caller environment unchanged','interactive requires25 even with17','early N preserves settings','early Y applied after verified install without second prompt','Y installer failure no writes','unverified installer success no writes','WinGet already-installed but broken JDK explained','EOF before downloads/writes','launcher nonadmin before prompt');limits='Installer/elevation/registry are simulated; no actual MSI/UAC/global-variable installation claim'} | ConvertTo-Json -Compress

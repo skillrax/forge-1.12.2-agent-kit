@@ -21,28 +21,32 @@ function Get-KitJavaCandidates {
     }
     @($paths | Where-Object {$_} | Select-Object -Unique)
 }
+# Why each candidate was rejected, for setup messages (home -> reason).
+$script:KitJavaRejects=@{}
 function Read-KitJava {
     param([string]$JdkHome)
-    if(-not $JdkHome -or -not [IO.File]::Exists((Join-Path $JdkHome 'bin/java.exe')) -or -not [IO.File]::Exists((Join-Path $JdkHome 'bin/javac.exe'))){return $null}
+    if(-not $JdkHome){return $null}
+    if(-not [IO.File]::Exists((Join-Path $JdkHome 'bin/java.exe')) -or -not [IO.File]::Exists((Join-Path $JdkHome 'bin/javac.exe'))){$script:KitJavaRejects[$JdkHome]='bin\java.exe or bin\javac.exe missing';return $null}
     $start=New-Object Diagnostics.ProcessStartInfo
     $start.FileName=Join-Path $JdkHome 'bin/java.exe';$start.Arguments='-XshowSettings:properties -version'
     $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
     $p=[Diagnostics.Process]::Start($start)
     try{
         $out=$p.StandardOutput.ReadToEndAsync();$err=$p.StandardError.ReadToEndAsync()
-        if(-not $p.WaitForExit(10000)){$p.Kill();return $null}
+        # The first start after an install or reboot can be slow while antivirus scans the JDK.
+        if(-not $p.WaitForExit(60000)){$p.Kill();$script:KitJavaRejects[$JdkHome]='java -version did not finish within 60 s';return $null}
         $detail=$out.GetAwaiter().GetResult()+$err.GetAwaiter().GetResult()
-        if($p.ExitCode -ne 0 -or $detail -notmatch 'java.specification.version\s*=\s*(?:1\.)?(\d+)'){return $null}
+        if($p.ExitCode -ne 0 -or $detail -notmatch 'java.specification.version\s*=\s*(?:1\.)?(\d+)'){$script:KitJavaRejects[$JdkHome]='java -version failed (exit '+$p.ExitCode+'): '+(($detail -split '\r?\n' | Where-Object {$_.Trim()} | Select-Object -First 2) -join ' ');return $null}
         $major=[int]$Matches[1]
-        if($detail -notmatch 'sun.arch.data.model\s*=\s*64'){return $null}
+        if($detail -notmatch 'sun.arch.data.model\s*=\s*64'){$script:KitJavaRejects[$JdkHome]='not a 64-bit JDK';return $null}
     }finally{$p.Dispose()}
     $start.FileName=Join-Path $JdkHome 'bin/javac.exe';$start.Arguments='-version'
     $p=[Diagnostics.Process]::Start($start)
     try{
         $out=$p.StandardOutput.ReadToEndAsync();$err=$p.StandardError.ReadToEndAsync()
-        if(-not $p.WaitForExit(10000)){$p.Kill();return $null}
+        if(-not $p.WaitForExit(60000)){$p.Kill();$script:KitJavaRejects[$JdkHome]='javac -version did not finish within 60 s';return $null}
         $compiler=$out.GetAwaiter().GetResult()+$err.GetAwaiter().GetResult()
-        if($p.ExitCode -ne 0 -or $compiler -notmatch 'javac\s+(?:1\.)?(\d+)' -or [int]$Matches[1] -ne $major){return $null}
+        if($p.ExitCode -ne 0 -or $compiler -notmatch 'javac\s+(?:1\.)?(\d+)' -or [int]$Matches[1] -ne $major){$script:KitJavaRejects[$JdkHome]='javac -version failed or reports another version: '+$compiler.Trim();return $null}
     }finally{$p.Dispose()}
     $versionLine=([regex]::Match($detail,'(?m)^(?:openjdk|java) version .*$')).Value.Trim()
     [pscustomobject]@{home=[IO.Path]::GetFullPath($JdkHome);major=$major;bits=64;java=$versionLine;javac=$compiler.Trim()}
@@ -75,6 +79,11 @@ function Set-KitJavaProcess {
 function Test-KitAdministrator {
     $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
     try{(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)}finally{$identity.Dispose()}
+}
+# Rejected JDKs in the standard install folder that look like the requested major version.
+function Get-KitJavaRejectSummary([int]$Major){
+    $pattern=if($Major -eq 8){'jdk-?8|jdk1\.8'}else{'jdk-?'+$Major}
+    @($script:KitJavaRejects.Keys | Where-Object {(Split-Path -Leaf $_) -match $pattern} | ForEach-Object {$_+': '+$script:KitJavaRejects[$_]}) -join '; '
 }
 function Get-KitJava25 {
     foreach($path in (Get-KitJavaCandidates)){
@@ -189,6 +198,9 @@ function Invoke-KitWinget {
             }
             Start-Sleep -Milliseconds 50
         }
+        # -1978335189 no applicable upgrade, -1978335135 already installed: the package is registered, so re-check it.
+        if($p.ExitCode -in @(-1978335189,-1978335135)){[Console]::Error.WriteLine('WinGet reports '+$label+' is already installed; checking it again.');return 'already-installed'}
         if($p.ExitCode -ne 0){throw ('WinGet '+$label+' installation returned '+$p.ExitCode+'. Inspect '+$Log+'; resolve installer/reboot/UAC requirements before retrying.')}
+        return 'installed'
     }finally{$writer.Dispose();$p.Dispose()}
 }
