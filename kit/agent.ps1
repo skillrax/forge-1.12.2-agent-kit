@@ -3,10 +3,13 @@
 #   agent.ps1 check [build|server|game|unit|environment] [-Test id[,id]] [-Clean]
 #   agent.ps1 errors [-RunId id]
 #   agent.ps1 api <Class> | <Class>.<member> | -Find <text>
-#   agent.ps1 new <kind> <name> [options]        (see docs/GENERATORS.md)
+#   agent.ps1 init <modid> ["Name"]              (working mod skeleton)
+#   agent.ps1 new <kind> <name> [options]        (generators: docs/GENERATORS.md)
+#   agent.ps1 version <x.y.z>                    (build.gradle + @Mod + mcmod.info)
+#   agent.ps1 export                             (releases/<modid>-<version>.jar after a passing check server)
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [Parameter(Position = 0)][ValidateSet('status', 'check', 'errors', 'api', 'new', 'init')][string]$Action = 'status',
+    [Parameter(Position = 0)][ValidateSet('status', 'check', 'errors', 'api', 'new', 'init', 'version', 'export')][string]$Action = 'status',
     [Parameter(Position = 1)][string]$Target,
     [Parameter(Position = 2, ValueFromRemainingArguments = $true)][string[]]$Rest,
     [ValidateSet('environment', 'build', 'unit', 'server', 'game', 'mod', 'all')][string]$Profile,
@@ -193,6 +196,42 @@ function Invoke-Api {
     if ($LASTEXITCODE -eq 0 -and $source) { ''; $source }
 }
 
+# Options after the subcommand are forwarded: -Name value pairs, bare -Switches, positionals.
+function ConvertTo-Splat([string[]]$Tokens) {
+    $named = @{}; $positional = New-Object 'System.Collections.Generic.List[string]'
+    for ($i = 0; $i -lt $Tokens.Count; $i++) {
+        if ($Tokens[$i] -match '^-([A-Za-z]+)$') {
+            $key = $Matches[1]
+            if ($i + 1 -lt $Tokens.Count -and $Tokens[$i + 1] -notmatch '^-[A-Za-z]') { $named[$key] = $Tokens[$i + 1]; $i++ } else { $named[$key] = $true }
+        } else { $positional.Add($Tokens[$i]) }
+    }
+    if ($Json) { $named['Json'] = $true }
+    return @{ named = $named; positional = $positional }
+}
+
+function Set-ModVersion([string]$Version) {
+    if ($Version -notmatch '^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$') { throw 'Usage: agent.ps1 version <major.minor.patch>' }
+    $info = Get-ModInfo
+    if (-not $info) { throw 'No mod found.' }
+    $utf8 = New-Object Text.UTF8Encoding($false)
+    $changes = @()
+    $buildPath = Join-Path $root 'build.gradle'
+    $build = [IO.File]::ReadAllText($buildPath)
+    if ($build -notmatch "(?m)^version = '[^']*'") { throw "build.gradle has no line version = '...'" }
+    [IO.File]::WriteAllText($buildPath, ([regex]::Replace($build, "(?m)^version = '[^']*'", "version = '$Version'")), $utf8); $changes += 'build.gradle'
+    $mainPath = Join-Path $root $info.entry
+    $main = [IO.File]::ReadAllText($mainPath)
+    if ($main -match 'VERSION\s*=\s*"[^"]*"') { $main = [regex]::Replace($main, 'VERSION\s*=\s*"[^"]*"', "VERSION = `"$Version`"", 1) }
+    elseif ($main -match 'version\s*=\s*"[^"]*"') { $main = [regex]::Replace($main, 'version\s*=\s*"[^"]*"', "version = `"$Version`"", 1) }
+    else { throw "No version in $($info.entry)" }
+    [IO.File]::WriteAllText($mainPath, $main, $utf8); $changes += $info.entry
+    $mcmod = Join-Path $root 'src/main/resources/mcmod.info'
+    if ([IO.File]::Exists($mcmod)) {
+        [IO.File]::WriteAllText($mcmod, ([regex]::Replace([IO.File]::ReadAllText($mcmod), '"version"\s*:\s*"[^"]*"', "`"version`": `"$Version`"")), $utf8); $changes += 'src/main/resources/mcmod.info'
+    }
+    "version $($info.version) -> $Version in " + ($changes -join ', ')
+}
+
 # ---- main --------------------------------------------------------------------------------
 
 $exitCode = 0
@@ -281,13 +320,22 @@ try {
         }
         'api' { Invoke-Api }
         'init' {
-            $initArgs = @('-ModId', $Target) + @($Rest)
-            & (Join-Path $root 'tools/Initialize-Mod.ps1') @initArgs
+            $split = ConvertTo-Splat $Rest
+            $named = $split.named; $named['ModId'] = $Target
+            if ($split.positional.Count) { $named['Name'] = $split.positional[0] }
+            & (Join-Path $root 'tools/Initialize-Mod.ps1') @named
             $exitCode = $LASTEXITCODE
         }
         'new' {
-            $newArgs = @('-Kind', $Target) + @($Rest)
-            & (Join-Path $root 'tools/New-Content.ps1') @newArgs
+            $split = ConvertTo-Splat $Rest
+            $named = $split.named; $named['Kind'] = $Target
+            if ($split.positional.Count) { $named['Name'] = $split.positional[0] }
+            & (Join-Path $root 'tools/New-Content.ps1') @named
+            $exitCode = $LASTEXITCODE
+        }
+        'version' { Set-ModVersion $Target }
+        'export' {
+            & (Join-Path $root 'tools/Export-Release.ps1') -Json:$Json
             $exitCode = $LASTEXITCODE
         }
     }

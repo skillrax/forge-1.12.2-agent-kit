@@ -223,7 +223,7 @@ function Get-KitLogProblems {
         if ($line -match 'Unable to read a class file correctly|There was a problem reading the entry|Zip file .* failed to read properly') { $benign = $true; continue }
         if ($line -match '^\[\d\d:\d\d:\d\d\]') { $benign = $false }
         if ($benign) { continue }
-        if ($line -match '(Caused by:|^\S*Exception in server tick loop|Encountered an unexpected exception|^\s*[\w.$]+(Exception|Error)(: |$))' -and $line -notmatch '^\s+at ' -and $line -notmatch 'module-info|ASM ClassReader|KIT_') {
+        if ($line -match '(Caused by:|^\S*Exception in server tick loop|Encountered an unexpected exception|^\s*[\w.$]+(Exception|Error)(: |$))' -and $line -notmatch '^\s+at ' -and $line -notmatch 'module-info|ASM ClassReader|KIT_|Cache miss!') {
             $text = ($line -replace '^\[[^\]]*\] \[[^\]]*\]( \[[^\]]*\])?:? ?', '').Trim()
             if ($text.Length -gt 240) { $text = $text.Substring(0, 240) }
             if (-not $seen.Add($text)) { continue }
