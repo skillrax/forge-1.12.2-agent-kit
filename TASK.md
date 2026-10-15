@@ -1,11 +1,13 @@
 # Current maintainer task
 
-Objective: Independent agent-neutral development fork, preserving the original Codex environment.
+Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.1).
 
-Result/evidence: COMPLETE. docs/FORK.md records provenance, boundaries and rollback. Independent Git baseline snapshots current working source, including uncommitted changes. Core setup/checkout no longer require .codex; shared shell/MCP workflow, explicit skill loading, CLAUDE.md pointers and optional integrations/codex sample are documented in kit/docs/AGENT-HOSTS.md. Kit identity and package naming are neutral. Pins retained.
+Result: Done and verified on this host.
+- agent.ps1: compact text output (-Json for programs), compiler errors with 1.12.2 rename/similar-member hints, `api` lookup over an index of the mapped jar (client-only flags), init skeleton, `new` generators (item/block/ore/food/tools/armor/recipe/smelting/tile/test), version, export.
+- check server: harness lints registered content vs lang/models/textures/blockstates/sounds/tile registration. check game: @GameTest scenarios in src/gametest.
+- Docs: AGENTS.md ~600 tokens startup; INDEX + 20 guides; every guide sample compiled/linted/tested in qa/fixtures/guide-samples.
+- Evidence: qa/unit/Test-AgentInterface.ps1, Test-TestingTools.ps1, Test-Packaging.ps1, `npm --prefix qa test` (5/5), qa/integration/Test-KitSamples.ps1 (generators 14 items/3 blocks; samples 17 items/5 blocks/entity/enchant/potion; all game tests PASS), extracted 0.5.0-beta.1 ZIP built a generated mod with check server PASS.
 
-Verification: evidence/agent-neutral/summary.json. Node/Java setup contracts, real stdio MCP, source checkout without .codex, exact allowlisted ZIP extraction, shell-only setup without Node, extracted foundation build and Unicode JUnit PASS. Optional driver explicitly builds one scenario; an empty driver still rejects. Fixed inherited assemble dependency on optional driver via explicit Gradle opt-in. No production QA classes. Original active-file hashes verified; only its TASK.md handoff changed.
+Next action: Fresh-agent trial: copy kit/ (or the ZIP) to a short path, open it in Claude Code and in a local-model agent (32k context), give a plain request (e.g. "ruby ore, tools, armor and a ruby apple that heals"), record tokens, interventions and the check/gametest results. Then a human look in runClient at textures/GUI.
 
-Next action: Open this maintainer folder in another agent and read AGENTS.md/TASK.md. For a small mod trial open kit/ or create a fresh tools/New-Checkout.ps1 destination; follow START.md and docs/AGENT-HOSTS.md. Record the chosen host/model, intervention and behavior evidence. Historical evidence, exports and archives remain in ../Agentic-Codex-projects.
-
-Blocker: None for this fork. Specific Claude/local/model integration, cold-PC provisioning and graphical gameplay remain unverified. No public publishing.
+Blocker: None. Not verified: cold PC setup, graphical client, real local-model behavior. Historical qa/integration runners still target the old runner (see qa/README.md).
