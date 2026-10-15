@@ -36,7 +36,7 @@ $harnessDone = $false
 $doneAt = $null
 $harnessPath = $null
 $usesServer = $Profile -in @('server', 'game')
-$progressAt=0;$observedStage='starting Gradle wrapper'
+$progressAt=0;$observedStage='starting Gradle wrapper';$lastDetail='';$lastOutputAt=0
 try {
     $sourcePaths=@(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {$_.FullName.Substring($projectRoot.Length)} | Sort-Object)
     $buildInputs=@('build.gradle','settings.gradle','gradle.properties','testing/testing.gradle','testing/Test-DevEnvironment.ps1','gradle/wrapper/gradle-wrapper.properties')
@@ -91,7 +91,11 @@ try {
                 if ($null -eq $line) { $ended[$index] = $true }
                 else {
                     $writer.WriteLine($line)
-                    if($line -match '^> Task |^> Configure |^Downloading |^Fetching distribution|^Processing Minecraft dependency:'){$observedStage=$line.Substring(0,[Math]::Min(150,$line.Length))}
+                    $lastOutputAt=$watch.Elapsed.TotalSeconds
+                    # Latest meaningful line (Mavenizer steps, downloads), shown with progress so long steps are visible.
+                    $trimmed=$line.Trim()
+                    if($trimmed -and $trimmed -notmatch '^(at |\.\.\.|Cache miss|\.+\d+%)' -and $trimmed -ne $observedStage){$lastDetail=$trimmed.Substring(0,[Math]::Min(110,$trimmed.Length))}
+                    if($line -match '^> Task |^> Configure |^Downloading |^Fetching distribution|^Processing Minecraft dependency:'){$observedStage=$line.Substring(0,[Math]::Min(150,$line.Length));$lastDetail=''}
                     if ($usesServer -and $line -match 'Encountered an unexpected exception|Exception in server tick loop|Caught exception from|[A-Z0-9_]+_ASSERTIONS_FAIL:') {
                         $serverFatalError = $true
                     }
@@ -107,7 +111,9 @@ try {
             $process.StandardInput.WriteLine('stop'); $process.StandardInput.Flush(); $stopSent = $true
         }
         if($watch.Elapsed.TotalSeconds -ge ($progressAt+15)){
-            [Console]::Error.WriteLine(('[{0}s] {1}: {2}' -f [int]$watch.Elapsed.TotalSeconds,$Profile,$observedStage))
+            $quiet=[int]($watch.Elapsed.TotalSeconds-$lastOutputAt)
+            $detail=$(if($lastDetail){' | '+$lastDetail}else{''})+$(if($quiet -ge 60){' (working; no new output for '+$quiet+'s)'}else{''})
+            [Console]::Error.WriteLine(('[{0}s] {1}: {2}{3}' -f [int]$watch.Elapsed.TotalSeconds,$Profile,$observedStage,$detail))
             $progressAt=$watch.Elapsed.TotalSeconds
         }
         if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {

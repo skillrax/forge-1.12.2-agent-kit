@@ -1,6 +1,6 @@
 # Setup (once per PC)
 
-Needs Windows 10/11 x64. The kit uses JDK 25 to run Gradle and JDK 8 to compile mods. No global Gradle needed; the first build downloads Minecraft/Forge (a few minutes).
+Needs Windows 10/11 x64. The kit uses JDK 25 to run Gradle and JDK 8 to compile mods. No global Gradle needed; the first build downloads and decompiles Minecraft/Forge once (10-30 minutes; progress lines show the current step).
 
 ## Easiest: Setup.cmd
 

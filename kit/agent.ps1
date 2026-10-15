@@ -301,6 +301,12 @@ try {
             try { $lock = [IO.File]::Open((Join-Path $reportRoot 'agent.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
             catch { throw 'Another check is running in this project. Wait for it to finish.' }
             $bomFixed = @(Remove-KitBom)
+            # The first build on a PC downloads and decompiles Minecraft/Forge (10-30 min on a laptop); allow for it.
+            $gradleHome = if ($env:GRADLE_USER_HOME) { $env:GRADLE_USER_HOME } else { Join-Path $env:USERPROFILE '.gradle' }
+            if (-not [IO.File]::Exists((Join-Path $gradleHome 'caches/minecraftforge/forgegradle/mavenizer/caches/forge/net/minecraftforge/forge/1.12.2-14.23.5.2859/stable/39-1.12/remapped-javadoc.jar'))) {
+                if (-not $PSBoundParameters.ContainsKey('TimeoutSeconds')) { $TimeoutSeconds = 3600 }
+                [Console]::Error.WriteLine('First build on this PC: downloading and decompiling Minecraft and Forge. This takes 10-30 minutes once; later checks take seconds.')
+            }
             # A first build downloads ~1 GB from Gradle, Mojang and Forge servers; one network failure is retried.
             for ($attempt = 1; ; $attempt++) {
             $start = New-Object Diagnostics.ProcessStartInfo
