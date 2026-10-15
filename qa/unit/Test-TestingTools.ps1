@@ -17,6 +17,7 @@ switch ($env:FAKE_MODE) {
     'ok' { exit 0 }
     'fail' { '> Deliberate fixture failure.'; exit 1 }
     'early' { exit 0 }
+    'network' { 'Processing Minecraft dependency: net.minecraftforge:forge:1.12.2-14.23.5.2859'; 'Exception in thread "main" java.net.http.HttpTimeoutException: request timed out'; '* What went wrong:'; "> Process 'command 'java.exe'' finished with non-zero exit value 1"; exit 1 }
     'timeout' { Start-Sleep -Seconds 30; exit 0 }
     default {
         'Done (1.0s)! For help, type "help"'
@@ -51,6 +52,7 @@ function Test-Case([string]$Name, [string]$Mode, [string]$Profile, [int]$Expecte
 try {
     Test-Case 'build passes' ok build 0
     Test-Case 'Gradle failure' fail build 1 'Deliberate fixture failure'
+    Test-Case 'network failure named' network environment 1 'Network download failed \(HttpTimeoutException: request timed out\) during: Processing Minecraft dependency' '"networkError":true'
     Test-Case 'server exit before startup' early server 1 'before finishing startup'
     Test-Case 'server + harness' server server 0 'linted'
     Test-Case 'fatal exception' crash server 1 'fatal'

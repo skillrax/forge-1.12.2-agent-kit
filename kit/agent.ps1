@@ -301,6 +301,8 @@ try {
             try { $lock = [IO.File]::Open((Join-Path $reportRoot 'agent.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
             catch { throw 'Another check is running in this project. Wait for it to finish.' }
             $bomFixed = @(Remove-KitBom)
+            # A first build downloads ~1 GB from Gradle, Mojang and Forge servers; one network failure is retried.
+            for ($attempt = 1; ; $attempt++) {
             $start = New-Object Diagnostics.ProcessStartInfo
             $start.FileName = (Get-Process -Id $PID).Path
             $start.Arguments = '-NoProfile -File "' + (Join-Path $root 'testing/Test-DevEnvironment.ps1') + '" -Profile ' + $selected + ' -Test "' + $Test + '" -TimeoutSeconds ' + $TimeoutSeconds + $(if ($Clean) { ' -Clean' } else { '' })
@@ -334,6 +336,9 @@ try {
             } finally { $runner.Dispose() }
             $result = $output | ConvertFrom-Json
             if ($null -eq $result -or -not $result.report) { throw "Check runner returned no result (exit code $exitCode)." }
+            if (-not $result.networkError -or $attempt -ge 2) { break }
+            [Console]::Error.WriteLine('Network download failed; retrying once. ' + $result.message)
+            }
             $result | Add-Member -NotePropertyName projectRoot -NotePropertyValue $root
             $result | Add-Member -NotePropertyName runId -NotePropertyValue ([IO.Path]::GetFileNameWithoutExtension($result.report))
             $result | Add-Member -NotePropertyName problems -NotePropertyValue @(Get-Problems $result)

@@ -33,6 +33,7 @@ Custom JDK locations: `tools/Setup.ps1 -GradleJavaHome <jdk17+> -Java8Home <jdk8
 | Agent sees a ZIP, not files | Extract it; open the folder containing Setup.cmd and agent.ps1 as the workspace |
 | UAC cancelled | Run Setup.cmd as administrator again |
 | WinGet missing | Install "App Installer" from the Microsoft Store, or install Temurin JDK 25 and JDK 8 (x64) by hand |
+| `Network download failed` (first build) | Gradle, Minecraft and Forge files (~1 GB) come from services.gradle.org, Mojang and maven.minecraftforge.net; the check already retried once. Rerun `./agent.ps1 check environment` (finished downloads are kept). Still failing: open https://maven.minecraftforge.net/ in a browser; try without VPN/proxy or later |
 | Installer failed or timed out | Read reports/setup/setup-latest.json and the log it names; fix that cause, then rerun |
 | Wrong JAVA_HOME | The kit finds JDKs on its own; after choosing Y, restart the terminal/agent app |
 | `Unable to access jarfile`, odd file-not-found errors | The folder path is too long (Windows 260-character limit). Move the kit to a short path such as `C:\mods\mykit` |

@@ -42,6 +42,11 @@ if ($env:FAKE_MODE -eq 'compile-error') {
     '> Task :compileJava FAILED'
     exit 1
 }
+if ($env:FAKE_MODE -eq 'network-once' -and -not (Test-Path (Join-Path $root 'network-failed-once'))) {
+    New-Item -ItemType File (Join-Path $root 'network-failed-once') | Out-Null
+    'Exception in thread "main" java.net.http.HttpTimeoutException: request timed out'
+    exit 1
+}
 "MOD_VERSION: 1.2.3"
 exit 0
 '@
@@ -127,7 +132,12 @@ exit 0
     Assert ($check -match '^PASS build') "check: $check"
     $json = (Invoke-Agent @('check', '-Json')) | ConvertFrom-Json
     Assert ($json.status -eq 'PASS' -and $json.runId -and $json.projectRoot -eq $fixture) 'json check'
-    $passed.Add('compact and JSON check output')
+    # One network failure (slow Forge/Gradle download) is retried automatically.
+    $env:FAKE_MODE = 'network-once'
+    $retried = Invoke-Agent @('check')
+    Assert ($retried -match '^PASS build' -and (Test-Path (Join-Path $fixture 'network-failed-once'))) "network retry: $retried"
+    $env:FAKE_MODE = 'ok'
+    $passed.Add('compact and JSON check output, network retry')
 
     $env:FAKE_MODE = 'compile-error'
     $failure = Invoke-Agent @('check') 1

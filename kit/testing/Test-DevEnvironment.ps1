@@ -26,6 +26,7 @@ $exitCode = 1
 $reason = 'Check failed.'
 $serverReady = $false
 $serverFatalError = $false
+$networkError = $false
 $stopSent = $false
 $process = $null
 $processStarted = $false
@@ -159,6 +160,13 @@ if (Test-Path -LiteralPath $logPath) {
     if ($gradleExit -ne 0 -and $null -ne $gradleExit) {
         $detail = [regex]::Match($logText, '(?m)^> (?!Task |Configure |Run with|Get more)(.+)$')
         if ($detail.Success) { $reason = $detail.Groups[1].Value.Trim() }
+        # First builds download Gradle, Minecraft and Forge; a slow or blocked connection fails inside a tool
+        # process, and Gradle then reports only "java.exe finished with non-zero exit value 1".
+        $network = [regex]::Match($logText, '(?m)(?:Http|Socket|Connect)TimeoutException[^\r\n]*|UnknownHostException[^\r\n]*|java\.net\.ConnectException[^\r\n]*|SSLHandshakeException[^\r\n]*|Connection reset[^\r\n]*|Read timed out')
+        if ($network.Success) {
+            $networkError = $true
+            $reason = 'Network download failed (' + ($network.Value.Trim() -replace '^[\w.]+\.(?=\w+Exception)', '') + ') during: ' + $observedStage + '. Finished downloads are kept; rerun the same check. If it keeps failing, test the connection to maven.minecraftforge.net and services.gradle.org (VPN, proxy, firewall).'
+        }
     }
     $jarInfo = [regex]::Match($logText, 'SRG jar inspected \((\d+) classes, (\d+) mod entry points\)')
     if ($jarInfo.Success) {
@@ -218,6 +226,7 @@ $result = [ordered]@{
     status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
     exitCode = $exitCode
     gradleExitCode = $gradleExit
+    networkError = $networkError
     message = $reason
     elapsedSeconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
     serverReady = $serverReady
