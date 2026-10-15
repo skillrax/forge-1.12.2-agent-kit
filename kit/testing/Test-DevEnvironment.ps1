@@ -1,8 +1,9 @@
 # Windows PowerShell 5.1+ and PowerShell 7+. Invoke from any directory.
 [CmdletBinding()]
 param(
-    [ValidateSet('all', 'environment', 'build', 'mod', 'unit', 'server')]
-    [string] $Profile = 'all',
+    [ValidateSet('environment', 'build', 'unit', 'server', 'game')]
+    [string] $Profile = 'build',
+    [ValidatePattern('^[a-z0-9*,-]*$')][string]$Test = '*',
     [switch]$Clean,
     [ValidateRange(10, 7200)]
     [int] $TimeoutSeconds = 900
@@ -30,6 +31,10 @@ $process = $null
 $processStarted = $false
 $writer = $null
 $gradleExit = $null
+$harnessDone = $false
+$doneAt = $null
+$harnessPath = $null
+$usesServer = $Profile -in @('server', 'game')
 $progressAt=0;$observedStage='starting Gradle wrapper'
 try {
     $sourcePaths=@(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {$_.FullName.Substring($projectRoot.Length)} | Sort-Object)
@@ -38,23 +43,26 @@ try {
     $previousPath=Join-Path $reportRoot ($Profile+'-latest.json')
     $previous=if(Test-Path -LiteralPath $previousPath){Get-Content -LiteralPath $previousPath -Raw -Encoding UTF8 | ConvertFrom-Json}else{$null}
     $cleanReason=if($Clean){'requested'}elseif(-not $previous -or $previous.status -ne 'PASS'){'no successful baseline'}elseif($previous.buildIdentity -ne $buildIdentity){'build configuration changed'}elseif(@($previous.sourcePaths | Where-Object {$_ -notin $sourcePaths}).Count){'source/resource path removed'}else{$null}
+    $hasMod = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/main/java') -Filter '*.java' -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0
+    $requireMod = if ($hasMod) { ' -PrequireMod=true' } else { '' }
     $taskArgs = switch ($Profile) {
-        'all' { 'verifyAll' }
         'environment' { 'verifyEnvironment --rerun-tasks' }
-        'build' { 'build verifyModJar' }
-        'mod' { 'verifyAll -PrequireMod=true' }
+        'build' { 'verifyAll' + $requireMod }
         'unit' { 'cleanTest verifyUnitTests --rerun-tasks' }
-        'server' {
+        default {
+            # server/game: build + jar inspection, then a fresh flat-world dev server with the check harness.
             $serverDir = Join-Path $projectRoot ('run/testing-server/' + $runId)
             New-Item -ItemType Directory -Force -Path $serverDir | Out-Null
             Set-Content -LiteralPath (Join-Path $serverDir 'eula.txt') -Value 'eula=true' -Encoding ASCII
             Set-Content -LiteralPath (Join-Path $serverDir 'server.properties') -Encoding ASCII -Value @(
-                'server-ip=127.0.0.1', 'server-port=0', 'level-type=FLAT', 'generate-structures=false'
+                'server-ip=127.0.0.1', 'server-port=0', 'level-type=FLAT', 'generate-structures=false', 'spawn-monsters=false', 'spawn-animals=false'
             )
-            'runServer "-PtestingToolsServerDir=' + $serverDir + '"'
+            $harnessPath = Join-Path $serverDir 'kit-check.json'
+            $gameTests = if ($Profile -eq 'game') { ' "-PkitGameTests=' + $Test + '"' } else { '' }
+            'verifyModJar' + $requireMod + ' runServer "-PtestingToolsServerDir=' + $serverDir + '" "-PkitCheckOut=' + $harnessPath + '"' + $gameTests
         }
     }
-    if($Profile -in @('all','build','mod') -and $cleanReason){$taskArgs='clean '+$taskArgs}
+    if($Profile -in @('build','server','game') -and $cleanReason){$taskArgs='clean '+$taskArgs}
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $env:ComSpec
     $start.Arguments = '/d /s /c ""' + (Join-Path $projectRoot 'gradlew.bat') + '" ' + $taskArgs + ' --console=plain --no-daemon"'
@@ -83,23 +91,22 @@ try {
                 else {
                     $writer.WriteLine($line)
                     if($line -match '^> Task |^> Configure |^Downloading |^Fetching distribution|^Processing Minecraft dependency:'){$observedStage=$line.Substring(0,[Math]::Min(150,$line.Length))}
-                    if ($Profile -eq 'server' -and $line -match 'Encountered an unexpected exception|Exception in server tick loop|Caught exception from|[A-Z0-9_]+_ASSERTIONS_FAIL:') {
+                    if ($usesServer -and $line -match 'Encountered an unexpected exception|Exception in server tick loop|Caught exception from|[A-Z0-9_]+_ASSERTIONS_FAIL:') {
                         $serverFatalError = $true
                     }
-                    if ($Profile -eq 'server' -and $line -match 'Done \([0-9.,]+s\)!') {
-                        $serverReady = $true
-                        if (-not $stopSent -and -not $process.HasExited) {
-                            $process.StandardInput.WriteLine('stop')
-                            $process.StandardInput.Flush()
-                            $stopSent = $true
-                        }
-                    }
+                    if ($usesServer -and $line -match 'Done \([0-9.,]+s\)!') { $serverReady = $true; $doneAt = $watch.Elapsed.TotalSeconds }
+                    # The harness lints, runs requested game tests, writes its report, then stops the server itself.
+                    if ($usesServer -and $line -match 'KIT_HARNESS_DONE') { $harnessDone = $true; $stopSent = $true }
                     $reads[$index] = $streams[$index].ReadLineAsync()
                 }
             }
         }
-        if($watch.Elapsed.TotalSeconds -ge ($progressAt+5)){
-            [Console]::Error.WriteLine(('[{0}s] {1}: {2}; still running, full output saved to log.' -f [int]$watch.Elapsed.TotalSeconds,$Profile,$observedStage))
+        if ($Profile -eq 'server' -and $doneAt -and -not $stopSent -and $watch.Elapsed.TotalSeconds -ge ($doneAt + 60) -and -not $process.HasExited) {
+            # Harness missing or stuck: stop normally so the run still ends cleanly.
+            $process.StandardInput.WriteLine('stop'); $process.StandardInput.Flush(); $stopSent = $true
+        }
+        if($watch.Elapsed.TotalSeconds -ge ($progressAt+15)){
+            [Console]::Error.WriteLine(('[{0}s] {1}: {2}' -f [int]$watch.Elapsed.TotalSeconds,$Profile,$observedStage))
             $progressAt=$watch.Elapsed.TotalSeconds
         }
         if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
@@ -111,14 +118,21 @@ try {
     $process.WaitForExit()
     $gradleExit = $process.ExitCode
     if ($gradleExit -ne 0) { throw "Gradle exited with code $gradleExit. Read the saved log." }
-    if ($Profile -eq 'server' -and $serverFatalError) {
-        throw 'Server reported a fatal startup/runtime exception. Read the saved log.'
+    if ($usesServer -and $serverFatalError) {
+        throw 'Server reported a fatal startup/runtime exception.'
     }
-    if ($Profile -eq 'server' -and (-not $serverReady -or -not $stopSent)) {
-        throw 'Server exited without reaching readiness and receiving the stop command.'
+    if ($usesServer -and -not $serverReady) {
+        throw 'Server exited before finishing startup.'
+    }
+    if ($usesServer -and -not $harnessDone) {
+        throw 'The check harness did not report; see the log.'
     }
     $exitCode = 0
-    $reason = if ($Profile -eq 'server') { 'Server reached readiness and shut down successfully.' } else { 'Requested Gradle checks passed.' }
+    $reason = switch ($Profile) {
+        'server' { 'Server started, content linted, clean shutdown.' }
+        'game' { 'Game tests ran.' }
+        default { 'Gradle checks passed.' }
+    }
 }
 catch { $reason = $_.Exception.Message }
 finally {
@@ -156,24 +170,34 @@ if (Test-Path -LiteralPath $logPath) {
     $artifactInfo=[regex]::Match($logText,'(?m)^MOD_ARTIFACT: (.+)\r?$')
     if($artifactInfo.Success){$inspectedArtifact=$artifactInfo.Groups[1].Value.Trim()}
 } else { $logPath = $null }
-if ($exitCode -eq 0 -and $Profile -in @('all', 'build', 'mod', 'unit')) {
+if ($exitCode -eq 0 -and $Profile -in @('build', 'unit')) {
     $unitTestCount = 0
     Get-ChildItem -LiteralPath (Join-Path $projectRoot 'build/test-results/test') -Filter 'TEST-*.xml' -ErrorAction SilentlyContinue | ForEach-Object {
         [xml]$testReport = Get-Content -Encoding UTF8 -LiteralPath $_.FullName
         $unitTestCount += [int]$testReport.testsuite.tests - [int]$testReport.testsuite.skipped
     }
-    if ($unitTestCount -eq 0) { $reason += ' No unit tests were present; mod behavior has not been tested.' }
+}
+$harness = $null
+if ($harnessPath -and [IO.File]::Exists($harnessPath)) {
+    $harness = [IO.File]::ReadAllText($harnessPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    if ($exitCode -eq 0) {
+        $failedTests = @($harness.tests | Where-Object { $_.status -ne 'PASS' })
+        $lintErrors = @($harness.lint | Where-Object { $_.level -eq 'ERROR' })
+        if ($harness.testError) { $exitCode = 1; $reason = $harness.testError }
+        elseif ($failedTests.Count) { $exitCode = 1; $reason = ('{0} of {1} game tests failed.' -f $failedTests.Count, @($harness.tests).Count) }
+        elseif ($lintErrors.Count) { $exitCode = 1; $reason = ('{0} content error(s) found by the harness.' -f $lintErrors.Count) }
+        elseif ($Profile -eq 'game') { $reason = ('{0} game tests passed.' -f @($harness.tests).Count) }
+    }
 }
 $result = [ordered]@{
     schemaVersion = 1
     profile = $Profile
     scope = switch ($Profile) {
-        'all' { 'environment, build, existing unit tests, static SRG jar inspection' }
-        'environment' { 'environment and API compilation only' }
-        'build' { 'build, existing unit tests, static SRG jar inspection' }
-        'mod' { 'environment, build, existing unit tests, static SRG jar inspection with required @Mod entry point' }
-        'unit' { 'unit tests, at least one executed test required' }
-        'server' { 'development server readiness and shutdown only' }
+        'environment' { 'toolchain and API compilation' }
+        'build' { 'compile, unit tests if present, jar inspection' }
+        'unit' { 'unit tests (at least one required)' }
+        'server' { 'build + dedicated server startup + registry/asset lint' }
+        'game' { 'build + dedicated server + game tests' }
     }
     status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
     exitCode = $exitCode
@@ -182,6 +206,7 @@ $result = [ordered]@{
     elapsedSeconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
     serverReady = $serverReady
     serverFatalError = $serverFatalError
+    harness = $harness
     unitTestCount = $unitTestCount
     jarClassCount = $classCount
     modEntryPoints = $modEntryPoints
@@ -189,11 +214,11 @@ $result = [ordered]@{
     inspectedArtifact = $inspectedArtifact
     sourcePaths = $sourcePaths
     buildIdentity = $buildIdentity
-    cleanReason = if($Profile -in @('all','build','mod')){$cleanReason}else{$null}
+    cleanReason = if($Profile -in @('build','server','game')){$cleanReason}else{$null}
     log = $logPath
     report = $resultPath
 }
-$json = $result | ConvertTo-Json -Depth 5 -Compress
+$json = $result | ConvertTo-Json -Depth 8 -Compress
 Set-Content -LiteralPath $resultPath -Value $json -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $reportRoot 'latest.json') -Value $json -Encoding UTF8
 Write-Output $json

@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)+$')][string]$Class,
     [ValidatePattern('^[A-Za-z_$][A-Za-z0-9_$]*$')][string]$Member,
     [switch]$Declarations,
+    [switch]$Text,
     [ValidateRange(1,100000)][int]$Line=1,
     [ValidateRange(1,20)][int]$MatchIndex=1,
     [ValidateRange(1,80)][int]$MaxLines=30,
@@ -55,6 +56,11 @@ try {
         $value=$lines[$n-1]
         if ($value.Length -gt 240) { $value=$value.Substring(0,240) }
         @{ number=$n; text=$value }
+    }
+    if ($Text) {
+        foreach ($row in $snippet) { '{0,5}| {1}' -f $row.number, $row.text }
+        if ($end -lt $lines.Length) { '      (more: -Line ' + ($end + 1) + ')' }
+        exit 0
     }
     [ordered]@{schemaVersion=1; status='PASS'; archive=[IO.Path]::GetFullPath($Archive); entry=$entryName; matchingDeclarationCount=$declarationLines.Count; matchingDeclarationLines=@($declarationLines | Select-Object -First 20); fromLine=$Line; toLine=$end; classLineCount=$lines.Length; hasMoreLines=($end -lt $lines.Length); lines=@($snippet); scope='Bounded source excerpt; explicit custom archives are caller-selected and not verified as the pinned version.'} | ConvertTo-Json -Depth 5 -Compress
     exit 0

@@ -4,6 +4,8 @@ import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.Opcodes
+import org.objectweb.asm.FieldVisitor
+import org.objectweb.asm.MethodVisitor
 
 // The remapper attaches its JAR tasks to assemble. Register QA only on explicit opt-in.
 if (providers.gradleProperty('installedTestDriver').orNull == 'true') {
@@ -15,9 +17,18 @@ buildscript {
     dependencies { classpath 'org.ow2.asm:asm:9.7.1' }
 }
 
+// Check-only code. None of these source sets is packaged in the mod jar.
 sourceSets {
     environmentCheck {
         compileClasspath = sourceSets.main.compileClasspath
+    }
+    kitHarness {
+        java.srcDir 'testing/harness/src'
+        compileClasspath = sourceSets.main.compileClasspath
+    }
+    // Project behavior tests: src/gametest/java, run by `agent.ps1 check game`.
+    gametest {
+        compileClasspath = sourceSets.main.output + sourceSets.kitHarness.output + sourceSets.main.compileClasspath
     }
 }
 
@@ -90,6 +101,12 @@ tasks.register('verifyModJar') {
                         }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
                     }
                 }
+                if (entry.name.endsWith('.json')) {
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        try { new JsonSlurper().parse(stream, 'UTF-8') }
+                        catch (Exception error) { throw new GradleException("Invalid JSON in src/main/resources/${entry.name}: ${error.message?.readLines()?.first()}") }
+                    }
+                }
                 if (entry.name == 'mcmod.info' || entry.name == 'pack.mcmeta') {
                     zip.getInputStream(entry).withCloseable { stream ->
                         try {
@@ -140,8 +157,146 @@ tasks.register('verifyUnitTests') {
 tasks.register('verifyAll') {
     group = 'verification'
     description = 'Verify environment, build, tests (if present), and SRG jar. Empty templates are allowed.'
-    dependsOn tasks.named('verifyEnvironment'), tasks.named('build'), tasks.named('verifyModJar')
+    dependsOn tasks.named('verifyEnvironment'), tasks.named('build'), tasks.named('verifyModJar'), tasks.named('gametestClasses')
 }
+
+// @SideOnly(Side.CLIENT) members exist at compile time but are stripped from the dedicated server.
+class KitSideOnly extends AnnotationVisitor {
+    private final Closure mark
+    KitSideOnly(Closure mark) { super(Opcodes.ASM9); this.mark = mark }
+    @Override void visitEnum(String key, String type, String value) { if (value == 'CLIENT') mark() }
+    static AnnotationVisitor visitor(String descriptor, Closure mark) {
+        descriptor == 'Lnet/minecraftforge/fml/relauncher/SideOnly;' ? new KitSideOnly(mark) : null
+    }
+    static class Method extends MethodVisitor {
+        private final Closure mark
+        Method(Closure mark) { super(Opcodes.ASM9); this.mark = mark }
+        @Override AnnotationVisitor visitAnnotation(String descriptor, boolean runtime) { KitSideOnly.visitor(descriptor, mark) }
+    }
+    static class Field extends FieldVisitor {
+        private final Closure mark
+        Field(Closure mark) { super(Opcodes.ASM9); this.mark = mark }
+        @Override AnnotationVisitor visitAnnotation(String descriptor, boolean runtime) { KitSideOnly.visitor(descriptor, mark) }
+    }
+}
+
+// Readable index of the mapped Minecraft/Forge API for `agent.ps1 api` and compiler hints.
+// Lines: C<TAB>class<TAB>super<TAB>interfaces<TAB>kind | M/F<TAB>class<TAB>name<TAB>signature<TAB>modifiers
+tasks.register('kitApiIndex') {
+    group = 'verification'
+    def output = file('.kit/api-index.tsv')
+    inputs.files(sourceSets.main.compileClasspath)
+    inputs.file('testing/testing.gradle')
+    outputs.file(output)
+    doLast {
+        def gameJar = sourceSets.main.compileClasspath.files.find { candidate ->
+            candidate.name.endsWith('.jar') && new ZipFile(candidate).withCloseable { it.getEntry('net/minecraft/item/Item.class') != null }
+        }
+        if (gameJar == null) throw new GradleException('Mapped Minecraft jar not found on the compile classpath.')
+        def display = { String internal -> internal.replace('/', '.').replace('$', '.') }
+        def simple = { String internal -> def name = internal.substring(internal.lastIndexOf('/') + 1); name.replace('$', '.') }
+        // Turns a JVM descriptor/signature fragment into Java-like text with simple class names.
+        def readType
+        readType = { String text, int[] at ->
+            char c = text.charAt(at[0]++)
+            switch (c) {
+                case 'B': return 'byte'; case 'C': return 'char'; case 'D': return 'double'; case 'F': return 'float'
+                case 'I': return 'int'; case 'J': return 'long'; case 'S': return 'short'; case 'Z': return 'boolean'; case 'V': return 'void'
+                case '[': return readType(text, at) + '[]'
+                case 'T': int end = text.indexOf(';', at[0]); def variable = text.substring(at[0], end); at[0] = end + 1; return variable
+                case 'L':
+                    def name = new StringBuilder()
+                    while (true) {
+                        char next = text.charAt(at[0]++)
+                        if (next == ';') break
+                        if (next == '<') {
+                            def arguments = []
+                            while (text.charAt(at[0]) != '>') {
+                                char wildcard = text.charAt(at[0])
+                                if (wildcard == '*') { at[0]++; arguments << '?' }
+                                else if (wildcard == '+') { at[0]++; arguments << '? extends ' + readType(text, at) }
+                                else if (wildcard == '-') { at[0]++; arguments << '? super ' + readType(text, at) }
+                                else arguments << readType(text, at)
+                            }
+                            at[0]++
+                            name.append('<' + arguments.join(', ') + '>')
+                        } else if (next == '.') name.append('.')
+                        else name.append(next)
+                    }
+                    def full = name.toString()
+                    int generic = full.indexOf('<')
+                    def base = generic < 0 ? full : full.substring(0, generic)
+                    return simple(base) + (generic < 0 ? '' : full.substring(generic))
+            }
+            throw new GradleException("Unreadable type signature: ${text}")
+        }
+        def readMethod = { String text, String owner, String name ->
+            int[] at = [0]
+            if (text.charAt(0) == '<') { int depth = 0; while (true) { char c = text.charAt(at[0]++); if (c == '<') depth++; else if (c == '>' && --depth == 0) break } }
+            at[0]++
+            def parameters = []
+            while (text.charAt(at[0]) != ')') parameters << readType(text, at)
+            at[0]++
+            def returned = readType(text, at)
+            name == '<init>' ? "${simple(owner)}(${parameters.join(', ')})" : "${name}(${parameters.join(', ')}): ${returned}"
+        }
+        def lines = new ArrayList<String>()
+        new ZipFile(gameJar).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (!entry.name.endsWith('.class') || !(entry.name.startsWith('net/minecraft') || entry.name.startsWith('com/mojang'))) return
+                zip.getInputStream(entry).withCloseable { stream ->
+                    new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
+                        String owner
+                        boolean visible
+                        boolean clientClass
+                        def rows = []
+                        @Override void visit(int version, int access, String name, String signature, String parent, String[] interfaces) {
+                            owner = name
+                            visible = (access & (Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED)) != 0 && (access & Opcodes.ACC_SYNTHETIC) == 0
+                            def kind = (access & Opcodes.ACC_INTERFACE) ? 'interface' : (access & Opcodes.ACC_ENUM) ? 'enum' : (access & Opcodes.ACC_ABSTRACT) ? 'abstract class' : 'class'
+                            rows << ['C', display(name), parent ? display(parent) : '', (interfaces ?: []).collect { display(it) }.join(','), kind]
+                        }
+                        @Override AnnotationVisitor visitAnnotation(String descriptor, boolean runtime) {
+                            KitSideOnly.visitor(descriptor) { clientClass = true }
+                        }
+                        @Override void visitInnerClass(String name, String outer, String inner, int access) {
+                            // Private/package nested classes are not part of the usable API.
+                            if (name == owner && (access & (Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED)) == 0) visible = false
+                        }
+                        @Override FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
+                            if (!(access & (Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED)) || (access & Opcodes.ACC_SYNTHETIC)) return null
+                            def row = ['F', display(owner), name, readType(signature ?: descriptor, [0] as int[]),
+                                [(access & Opcodes.ACC_PROTECTED) ? 'protected' : '', (access & Opcodes.ACC_STATIC) ? 'static' : '', (access & Opcodes.ACC_FINAL) ? 'final' : '']]
+                            rows << row
+                            new KitSideOnly.Field({ row[4] << 'client-only' })
+                        }
+                        @Override MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                            if (!(access & (Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED)) || (access & (Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) || name == '<clinit>') return null
+                            def text
+                            try { text = readMethod(signature ?: descriptor, owner, name) } catch (Exception ignored) { text = readMethod(descriptor, owner, name) }
+                            def row = ['M', display(owner), name, text,
+                                [(access & Opcodes.ACC_PROTECTED) ? 'protected' : '', (access & Opcodes.ACC_STATIC) ? 'static' : '', (access & Opcodes.ACC_ABSTRACT) ? 'abstract' : '']]
+                            rows << row
+                            new KitSideOnly.Method({ row[4] << 'client-only' })
+                        }
+                        @Override void visitEnd() {
+                            if (!visible) return
+                            rows.each { row ->
+                                if (row[0] == 'C') { if (clientClass) row[4] += ' client-only' }
+                                else row[4] = row[4].findAll().join(' ')
+                                lines << row.join('	')
+                            }
+                        }
+                    }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+                }
+            }
+        }
+        output.parentFile.mkdirs()
+        output.setText(lines.join('\n') + '\n', 'UTF-8')
+        logger.lifecycle("API index: ${lines.size()} entries from ${gameJar.name}")
+    }
+}
+tasks.named('verifyEnvironment') { dependsOn tasks.named('kitApiIndex') }
 
 // Keep automated smoke-test game files separate from manual runs.
 minecraft.runs.named('server') {
@@ -149,13 +304,22 @@ minecraft.runs.named('server') {
         workingDir = file(providers.gradleProperty('testingToolsServerDir').get())
     }
 }
+def kitCheckOut = providers.gradleProperty('kitCheckOut')
 tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer' && kitCheckOut.isPresent()) {
+        dependsOn tasks.named('kitHarnessClasses'), tasks.named('gametestClasses')
+        classpath += sourceSets.kitHarness.output + sourceSets.gametest.output
+        systemProperty 'kit.check.out', kitCheckOut.get()
+        systemProperty 'kit.gametests', providers.gradleProperty('kitGameTests').getOrElse('')
+    }
     if (name == 'runServer') {
         standardInput = System.in
+        // The user has accepted the EULA for this local development environment.
+        // Checks write their own server directory; manual runs use run/.
+        def eulaDir = providers.gradleProperty('testingToolsServerDir').map { file(it) }.getOrElse(file('run'))
         doFirst {
-            // The user has accepted the EULA for this local development environment.
-            workingDir.mkdirs()
-            new File(workingDir, 'eula.txt').text = 'eula=true\n'
+            eulaDir.mkdirs()
+            new File(eulaDir, 'eula.txt').text = 'eula=true\n'
         }
     }
 }

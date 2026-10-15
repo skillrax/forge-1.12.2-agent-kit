@@ -8,7 +8,7 @@ $root = Split-Path -Parent $PSScriptRoot
 function Copy-SourceEntry {
     param([string]$Source, [string]$Target)
     $item = Get-Item -LiteralPath $Source -Force
-    if ($item.Name -in @('build','run','runs','reports','.gradle','node_modules','.git','logs')) { return }
+    if ($item.Name -in @('build','run','runs','reports','.gradle','node_modules','.git','logs','.kit','releases')) { return }
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Source contains a junction/symlink: $Source. Copy an ordinary source checkout." }
     if ($item.PSIsContainer) {
         New-Item -ItemType Directory -Path $Target | Out-Null

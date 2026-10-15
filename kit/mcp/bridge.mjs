@@ -12,14 +12,16 @@ export async function runAgent(input, options = {}) {
   }
   const action = input.action;
   if (!['status', 'check', 'errors'].includes(action)) throw new Error('Unknown agent action.');
-  if (input.profile && !['all', 'environment', 'build', 'mod', 'unit', 'server'].includes(input.profile)) {
+  if (input.profile && !['environment', 'build', 'unit', 'server', 'game'].includes(input.profile)) {
     throw new Error('Unknown validation profile.');
   }
   if (input.runId && !/^[A-Za-z0-9-]+$/.test(input.runId)) throw new Error('Invalid run ID.');
+  if (input.test && !/^[a-z0-9*,-]+$/.test(input.test)) throw new Error('Invalid test filter.');
   const seconds = input.timeoutSeconds ?? 900;
   if (!Number.isInteger(seconds) || seconds < 10 || seconds > 7200) throw new Error('Invalid timeout.');
-  const args = [...(options.prefixArgs ?? []), '-NoProfile', '-File', path.join(root, 'agent.ps1'), '-Action', action];
-  if (action === 'check') args.push('-Profile', input.profile ?? 'all', '-TimeoutSeconds', String(seconds));
+  const args = [...(options.prefixArgs ?? []), '-NoProfile', '-File', path.join(root, 'agent.ps1'), action, '-Json'];
+  if (action === 'check') args.push('-Profile', input.profile ?? 'build', '-TimeoutSeconds', String(seconds));
+  if (input.test) args.push('-Test', input.test);
   if (input.clean) args.push('-Clean');
   if (input.runId) args.push('-RunId', input.runId);
   const signal = options.signal;

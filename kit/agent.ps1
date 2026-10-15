@@ -1,10 +1,20 @@
-# Stable frontend for local agents. MCP will call this same interface.
-[CmdletBinding()]
+# Single entry point for agents. Prints a few plain-text lines by default; -Json prints the full result.
+#   agent.ps1 status
+#   agent.ps1 check [build|server|game|unit|environment] [-Test id[,id]] [-Clean]
+#   agent.ps1 errors [-RunId id]
+#   agent.ps1 api <Class> | <Class>.<member> | -Find <text>
+#   agent.ps1 new <kind> <name> [options]        (see docs/GENERATORS.md)
+[CmdletBinding(PositionalBinding = $false)]
 param(
-    [ValidateSet('status', 'check', 'errors')][string]$Action = 'status',
-    [ValidateSet('all', 'environment', 'build', 'mod', 'unit', 'server')][string]$Profile = 'all',
+    [Parameter(Position = 0)][ValidateSet('status', 'check', 'errors', 'api', 'new', 'init')][string]$Action = 'status',
+    [Parameter(Position = 1)][string]$Target,
+    [Parameter(Position = 2, ValueFromRemainingArguments = $true)][string[]]$Rest,
+    [ValidateSet('environment', 'build', 'unit', 'server', 'game', 'mod', 'all')][string]$Profile,
+    [ValidatePattern('^[a-z0-9*,-]*$')][string]$Test = '*',
+    [string]$Find,
     [ValidateRange(10, 7200)][int]$TimeoutSeconds = 900,
     [ValidatePattern('^[A-Za-z0-9-]+$')][string]$RunId,
+    [switch]$Json,
     [switch]$Full,
     [switch]$Clean
 )
@@ -12,254 +22,280 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 $OutputEncoding = [Console]::OutputEncoding
 # Prefer this shell's modules over paths inherited from a different PowerShell host.
-$env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+$env:PSModulePath
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + ';' + $env:PSModulePath
 # MCP hosts may omit these Windows variables. Restore only this process's defaults.
 if (-not $env:PATHEXT) { $env:PATHEXT = '.COM;.EXE;.BAT;.CMD' }
-if (-not [IO.File]::Exists($env:ComSpec)) {
-    $env:ComSpec = Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe'
-}
+if (-not [IO.File]::Exists($env:ComSpec)) { $env:ComSpec = Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe' }
 $root = [IO.Path]::GetFullPath($PSScriptRoot)
-$requestedJavaHome=$env:JAVA_HOME
-$javaSelection=$null
-if([IO.File]::Exists((Join-Path $root 'tools/JavaEnvironment.ps1'))){
+$reportRoot = Join-Path $root 'reports/testing-tools'
+$javaSelection = $null
+if ([IO.File]::Exists((Join-Path $root 'tools/JavaEnvironment.ps1'))) {
     . (Join-Path $root 'tools/JavaEnvironment.ps1')
-    $javaSelection=Get-KitJavaSelection
+    $javaSelection = Get-KitJavaSelection
     Set-KitJavaProcess $javaSelection
 }
 . (Join-Path $root 'testing/Diagnostics.ps1')
-function Get-ToolchainIdentity {
-    $identity = [ordered]@{ requestedJavaHome=$requestedJavaHome; javaHome=$env:JAVA_HOME; java8Home=if($javaSelection.java8){$javaSelection.java8.home}else{$null}; gradleUserHome=$env:GRADLE_USER_HOME; path=$env:PATH }
-    foreach ($name in @('java.exe','node.exe')) {
-        $command = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
-        $identity[$name] = if ($command) { $command.Source } else { $null }
+
+function Get-Relative([string]$Path) {
+    if ($Path -and $Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return $Path.Substring($root.Length).TrimStart('\', '/').Replace('\', '/') }
+    return $Path
+}
+
+# modid/version/entry class from source, so status needs no build.
+function Get-ModInfo {
+    $javaRoot = Join-Path $root 'src/main/java'
+    if (-not [IO.Directory]::Exists($javaRoot)) { return $null }
+    foreach ($file in [IO.Directory]::GetFiles($javaRoot, '*.java', [IO.SearchOption]::AllDirectories)) {
+        $text = [IO.File]::ReadAllText($file)
+        if ($text -notmatch '@Mod\s*\(') { continue }
+        $modId = if ($text -match 'modid\s*=\s*"([^"]+)"') { $Matches[1] } elseif ($text -match 'MODID\s*=\s*"([^"]+)"') { $Matches[1] } else { '?' }
+        $package = if ($text -match '(?m)^package\s+([\w.]+);') { $Matches[1] } else { '' }
+        $build = [IO.File]::ReadAllText((Join-Path $root 'build.gradle'))
+        $version = if ($build -match "(?m)^version = '([^']+)'") { $Matches[1] } else { '?' }
+        return [ordered]@{ modId = $modId; version = $version; package = $package; entry = (Get-Relative $file) }
     }
-    # Hash installed JDK release identities too, including the separately discovered Java 8 compiler.
-    $jdkRoots = @((Join-Path $env:ProgramFiles 'Eclipse Adoptium'), (Join-Path $env:USERPROFILE '.gradle/jdks'), (Join-Path $env:USERPROFILE '.jdks'))
-    foreach ($jdkRoot in $jdkRoots) {
-        if ([IO.Directory]::Exists($jdkRoot)) {
-            foreach ($jdk in (Get-ChildItem -LiteralPath $jdkRoot -Directory | Sort-Object Name)) {
-                $jdkRelease = Join-Path $jdk.FullName 'release'
-                if ([IO.File]::Exists($jdkRelease)) { $identity[$jdk.FullName] = [IO.File]::ReadAllText($jdkRelease) }
-            }
+    return $null
+}
+
+function Get-NewestSourceTime {
+    $newest = [DateTime]::MinValue
+    foreach ($dir in @('src', 'testing')) {
+        $path = Join-Path $root $dir
+        if (-not [IO.Directory]::Exists($path)) { continue }
+        foreach ($file in [IO.Directory]::GetFiles($path, '*', [IO.SearchOption]::AllDirectories)) {
+            $time = [IO.File]::GetLastWriteTimeUtc($file); if ($time -gt $newest) { $newest = $time }
         }
     }
-    $release = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'release' } else { $null }
-    $identity['javaRelease'] = if ($release -and [IO.File]::Exists($release)) { [IO.File]::ReadAllText($release) } else { $null }
-    $hash = [Security.Cryptography.SHA256]::Create()
-    try { [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes(($identity | ConvertTo-Json -Compress)))).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
+    $build = [IO.File]::GetLastWriteTimeUtc((Join-Path $root 'build.gradle'))
+    if ($build -gt $newest) { $newest = $build }
+    return $newest
 }
-function Test-FreshResult {
-    param($Evidence)
-    if ($Evidence -and $Evidence.artifact) {
-        if (-not [IO.File]::Exists($Evidence.artifact.path) -or (Get-FileHash -LiteralPath $Evidence.artifact.path -Algorithm SHA256).Hash -ne $Evidence.artifact.sha256) { return $false }
-    }
-    foreach ($file in $Evidence.files) {
-        if (-not [IO.File]::Exists($file.path) -or (Get-FileHash -LiteralPath $file.path -Algorithm SHA256).Hash -ne $file.sha256) { return $false }
-    }
-    return ($null -ne $Evidence -and $Evidence.projectRoot -eq $root -and $Evidence.inputFingerprint -eq $fingerprint -and $Evidence.toolchainFingerprint -eq $toolchainFingerprint -and -not $Evidence.inputsChangedDuringRun -and -not $Evidence.toolchainChangedDuringRun)
-}
-function Get-Capabilities {
-    $summary = [ordered]@{}
-    foreach ($profileName in @('environment','all','build','mod','unit','server')) {
-        $path = Join-Path $reportRoot ($profileName + '-latest.json')
-        $evidence = if ([IO.File]::Exists($path)) { [IO.File]::ReadAllText($path) | ConvertFrom-Json } else { $null }
-        $summary[$profileName] = if ($evidence) { [ordered]@{ state=if (Test-FreshResult $evidence) { $evidence.status } else { 'STALE' }; runId=$evidence.runId } } else { @{state='NOT_RUN'} }
-    }
-    foreach ($capability in @('behavior','client','installedArtifact')) {
-        $path = Join-Path $root ('reports/capability-evidence/' + $capability + '.json')
-        $evidence = if ([IO.File]::Exists($path)) { [IO.File]::ReadAllText($path) | ConvertFrom-Json } else { $null }
-        $summary[$capability] = if ($evidence) { @{ state=if (Test-FreshResult $evidence) { 'RECORDED_' + $evidence.status } else { 'STALE' }; method=$evidence.method; observation=$evidence.observation; evidence=$path } } else { @{ state='NOT_RUN' } }
-    }
-    return $summary
-}
-$reportRoot = Join-Path $root 'reports/testing-tools'
-$lock = $null
-$exitCode = 0
-$json = $null
-$runnerLogPath = $null
-function Get-InputFingerprint {
-    $paths = @('build.gradle', 'settings.gradle', 'gradle.properties', 'agent.ps1', 'gradlew', 'gradlew.bat',
-        'mcp/server.mjs', 'mcp/tools.mjs', 'mcp/bridge.mjs', 'mcp/package.json', 'mcp/package-lock.json', 'kit.json')
-    $files = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($relativePath in $paths) {
-        $candidate = Join-Path $root $relativePath
-        if ([IO.File]::Exists($candidate)) { $files.Add($candidate) }
-    }
-    foreach ($directory in @('src', 'testing', 'gradle', 'tools')) {
-        if (-not [IO.Directory]::Exists((Join-Path $root $directory))) { continue }
-        foreach ($candidate in [IO.Directory]::GetFiles((Join-Path $root $directory), '*', [IO.SearchOption]::AllDirectories)) {
-            $files.Add($candidate)
-        }
-    }
-    $files.Sort([StringComparer]::Ordinal)
-    $hash = [Security.Cryptography.SHA256]::Create()
-    try {
-        $entries = foreach ($file in $files) {
-            $relative = $file.Substring($root.Length).Replace('\', '/')
-            $digest = [BitConverter]::ToString($hash.ComputeHash([IO.File]::ReadAllBytes($file))).Replace('-', '')
-            $relative + ':' + $digest
-        }
-        [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes(($entries -join "`n")))).Replace('-', '').ToLowerInvariant()
-    } finally { $hash.Dispose() }
-}
+
 function Read-Result {
     $path = if ($RunId) { Join-Path $reportRoot ($RunId + '.json') } else { Join-Path $reportRoot 'latest.json' }
-    if (Test-Path -LiteralPath $path) { [IO.File]::ReadAllText($path) | ConvertFrom-Json }
-    elseif ($RunId) { throw "Unknown run ID: $RunId" }
-    else { return $null }
+    if (Test-Path -LiteralPath $path) { return ([IO.File]::ReadAllText($path) | ConvertFrom-Json) }
+    if ($RunId) { throw "Unknown run ID: $RunId" }
+    return $null
 }
-function Get-NextAction {
-    param($Previous,$Capabilities)
-    if($javaSelection -and (-not $javaSelection.gradle -or -not $javaSelection.java8)){return 'Run Setup.cmd to install/verify the missing JDK prerequisites.'}
-    if($Previous -and $Previous.status -eq 'FAIL' -and (Test-FreshResult $Previous)){return ('Repair the latest '+$Previous.profile+' failure using its diagnostics/log, then rerun that profile. Run ID: '+$Previous.runId)}
-    if($Capabilities.mod.state -eq 'PASS'){return 'Export the validated mod with tools/Export-Release.ps1; complete the requested gameplay/client acceptance.'}
-    $javaFiles=@(Get-ChildItem -LiteralPath (Join-Path $root 'src/main') -Filter '*.java' -Recurse -File -ErrorAction SilentlyContinue)
-    if($javaFiles.Count){return 'Run check -Profile mod for the current source (includes environment verification), then check the requested behavior. Build/server readiness alone is not gameplay proof.'}
-    if($Capabilities.environment.state -ne 'PASS' -and $Capabilities.all.state -ne 'PASS'){return 'Run check -Profile environment to verify the pinned toolchain; previous evidence may be absent or stale.'}
-    return 'Set the requested behavior/acceptance in TASK.md and implement the first mod; the foundation is ready.'
+
+# Problem lines for a finished run: compiler errors with hints, then crashes/log warnings, then lint, then tests.
+function Get-Problems($Result) {
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $log = if ($Result.log -and [IO.File]::Exists($Result.log)) { [IO.File]::ReadAllLines($Result.log) } else { @() }
+    $compile = @(Get-KitCompileErrors $root $log)
+    foreach ($e in ($compile | Select-Object -First 8)) {
+        $detail = @($e.details | Where-Object { $_ -notmatch '^location:' }) -join '; '
+        $lines.Add(('{0}:{1}: {2}{3}' -f $e.file, $e.line, $e.message, $(if ($detail) { ' (' + $detail + ')' } else { '' })))
+        if ($e.code) { $lines.Add('    ' + $(if ($e.code.Length -gt 160) { $e.code.Substring(0, 160) } else { $e.code })) }
+        if ($e.hint) { $lines.Add('  hint: ' + $e.hint) }
+    }
+    if ($compile.Count -gt 8) { $lines.Add(('... {0} more compiler errors; fix these first' -f ($compile.Count - 8))) }
+    if (-not $compile.Count) { foreach ($l in (Get-KitLogProblems $log)) { $lines.Add($l) } }
+    if ($Result.harness) {
+        foreach ($issue in @($Result.harness.lint)) { $lines.Add(('{0} {1}: {2}' -f $issue.level, $issue.subject, $issue.message)) }
+        foreach ($t in @($Result.harness.tests)) {
+            if ($t.status -eq 'PASS') { $lines.Add(('PASS test {0} ({1} assertions, {2} ticks)' -f $t.id, $t.assertions, $t.ticks)) }
+            else {
+                $lines.Add(('FAIL test {0} at {1}: {2}' -f $t.id, $t.phase, $t.message))
+                foreach ($frame in @($t.stack)) { $lines.Add('    at ' + $frame) }
+            }
+        }
+        if ($Result.harness.lintError) { $lines.Add('harness lint crashed: ' + $Result.harness.lintError) }
+    }
+    if ($Result.status -ne 'PASS' -and -not $lines.Count) { foreach ($l in (Get-BoundedDiagnostics $Result.log)) { $lines.Add($l) } }
+    return $lines
 }
+
+function Format-Check($Result) {
+    $info = Get-ModInfo
+    $head = '{0} {1} ({2}s)' -f $Result.status, $Result.profile, [int]$Result.elapsedSeconds
+    $summary = $Result.message
+    if ($Result.status -eq 'PASS') {
+        $parts = @()
+        if ($info) { $parts += ($info.modId + ' ' + $info.version) }
+        if ($Result.harness -and $Result.harness.registered) {
+            $r = $Result.harness.registered
+            $counts = foreach ($name in @('items', 'blocks', 'entities', 'recipes', 'sounds', 'enchantments', 'potions', 'biomes')) { if ($r.$name) { '{0} {1}' -f $r.$name, $name } }
+            if ($counts) { $parts += ('registered ' + ($counts -join ', ')) }
+        }
+        if ($null -ne $Result.unitTestCount -and $Result.unitTestCount -gt 0) { $parts += ('{0} unit tests' -f $Result.unitTestCount) }
+        if ($Result.inspectedArtifact -and $Result.profile -eq 'build') { $parts += (Get-Relative $Result.inspectedArtifact) }
+        if ($parts) { $summary = $parts -join '; ' }
+    }
+    $out = @($head + ': ' + $summary)
+    $out += @(Get-Problems $Result)
+    if ($Result.status -ne 'PASS') { $out += ('log: ' + (Get-Relative $Result.log) + '  (run ' + $Result.runId + ')') }
+    return ($out -join "`n")
+}
+
+# ---- api ---------------------------------------------------------------------------------
+
+function Invoke-Api {
+    $api = Get-KitApiIndex $root
+    if (-not $api) {
+        & (Join-Path $root 'gradlew.bat') kitApiIndex --console=plain -q *> $null
+        $api = Get-KitApiIndex $root
+        if (-not $api) { throw 'API index missing; run: agent.ps1 check environment' }
+    }
+    $mark = { param($m) if ($m[4] -match 'client-only') { '  [client-only]' } else { '' } }
+    if ($Find) {
+        $needle = $Find.ToLowerInvariant()
+        $hits = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($c in $api.classes.Keys) { if ($c.Substring($c.LastIndexOf('.') + 1).ToLowerInvariant().Contains($needle)) { $hits.Add('class ' + $c) } }
+        foreach ($owner in $api.members.Keys) {
+            foreach ($m in $api.members[$owner]) {
+                if ($m[2] -ne '<init>' -and $m[2].ToLowerInvariant().Contains($needle)) { $hits.Add((Get-KitShortName $owner) + '.' + $m[3] + (& $mark $m) + '   (' + $owner + ')') }
+            }
+        }
+        $sorted = @($hits | Sort-Object { $_.Length })
+        $sorted | Select-Object -First 40
+        if ($sorted.Count -gt 40) { '... {0} more; narrow the search' -f ($sorted.Count - 40) }
+        if (-not $sorted.Count) { "nothing in 1.12.2 Minecraft/Forge contains '$Find'" }
+        return
+    }
+    if (-not $Target) { throw 'Usage: agent.ps1 api <Class> | <Class>.<member> | -Find <text>' }
+    $className = $Target; $member = $null
+    if ($Target -cmatch '^(.+)\.([a-z_$][\w$]*)$') { $className = $Matches[1]; $member = $Matches[2] }
+    $candidates = @(Resolve-KitClass $api $className)
+    if (-not $candidates.Count) {
+        $near = @($api.bySimple.Keys | Where-Object { $_ -like ('*' + $className + '*') } | Select-Object -First 8)
+        throw ("No class '$className' in 1.12.2." + $(if ($near.Count) { ' Similar: ' + ($near -join ', ') } else { ' Try: agent.ps1 api -Find <word>' }))
+    }
+    if ($candidates.Count -gt 1 -and -not $member) { '(also: ' + (($candidates | Select-Object -Skip 1 -First 4) -join ', ') + ')' }
+    $chain = @(Get-KitClassChain $api $candidates[0])
+    $c = $api.classes[$chain[0]]
+    $header = '{0} {1}' -f $c[4], $c[1]
+    if ($chain.Count -gt 1) { $header += ' extends ' + (($chain | Select-Object -Skip 1 | ForEach-Object { Get-KitShortName $_ }) -join ' > ') }
+    if ($c[3]) { $header += ' implements ' + (($c[3].Split(',') | ForEach-Object { Get-KitShortName $_ }) -join ', ') }
+    if (-not $member) {
+        $header
+        $rows = @(if ($api.members.ContainsKey($chain[0])) { $api.members[$chain[0]] })
+        $lines = foreach ($m in $rows) {
+            $mods = ($m[4] -replace 'client-only', '').Trim()
+            '  ' + $(if ($m[0] -eq 'F') { 'field ' + $m[2] + ': ' + $m[3] } else { $m[3] }) + $(if ($mods) { '  {' + $mods + '}' } else { '' }) + (& $mark $m)
+        }
+        $lines | Select-Object -First 80
+        if (@($lines).Count -gt 80) { '  ... {0} more; use agent.ps1 api -Find <text> or api {1}.<member>' -f (@($lines).Count - 80), $className }
+        if ($chain.Count -gt 1) { '  (inherited members: agent.ps1 api ' + (Get-KitShortName $chain[1]) + ')' }
+        return
+    }
+    $found = @(foreach ($owner in $chain) { if ($api.members.ContainsKey($owner)) { foreach ($m in $api.members[$owner]) { if ($m[2] -eq $member) { ,@($owner, $m) } } } })
+    if (-not $found.Count) {
+        $similar = Find-KitSimilarMembers $api $chain[0] $member $null
+        throw ("No member '$member' on $className or its superclasses." + $(if ($similar.Count) { ' Did you mean: ' + ($similar -join ' | ') } else { '' }))
+    }
+    foreach ($pair in $found) { '{0}.{1}{2}{3}' -f (Get-KitShortName $pair[0]), $(if ($pair[1][0] -eq 'F') { $member + ': ' + $pair[1][3] } else { $pair[1][3] }), $(if (($pair[1][4] -replace 'client-only', '').Trim()) { '  {' + ($pair[1][4] -replace 'client-only', '').Trim() + '}' } else { '' }), (& $mark $pair[1]) }
+    # Source of the first declaring class, bounded.
+    # Nested classes live in their outermost class's source file.
+    $segments = $found[0][0].Split('.')
+    $outer = @(); foreach ($s in $segments) { $outer += $s; if ($s -cmatch '^[A-Z]') { break } }
+    $source = & (Join-Path $root 'tools/Read-MappedSource.ps1') -Class ($outer -join '.') -Member $member -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
+    if ($LASTEXITCODE -eq 0 -and $source) { ''; $source }
+}
+
+# ---- main --------------------------------------------------------------------------------
+
+$exitCode = 0
+$lock = $null
 try {
-    $fingerprint = Get-InputFingerprint
-    $toolchainFingerprint = Get-ToolchainIdentity
     switch ($Action) {
         'check' {
+            $selected = if ($Profile) { $Profile } elseif ($Target) { $Target } else { 'build' }
+            if ($selected -in @('mod', 'all')) { $selected = 'build' }
+            if ($selected -notin @('environment', 'build', 'unit', 'server', 'game')) { throw "Unknown profile '$selected'. Use build, server, game, unit or environment." }
             New-Item -ItemType Directory -Force -Path $reportRoot | Out-Null
             try { $lock = [IO.File]::Open((Join-Path $reportRoot 'agent.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
-            catch { throw 'Another agent check is running in this checkout. Wait for it to finish.' }
-            $shell = (Get-Process -Id $PID).Path
-            $runnerLogPath = Join-Path $reportRoot ('runner-' + [Guid]::NewGuid().ToString('N') + '.log')
-            $runnerStart = New-Object Diagnostics.ProcessStartInfo
-            $runnerStart.FileName = $shell
-            $runnerStart.Arguments = '-NoProfile -File "' + (Join-Path $root 'testing/Test-DevEnvironment.ps1') + '" -Profile ' + $Profile + ' -TimeoutSeconds ' + $TimeoutSeconds
-            if($Clean){$runnerStart.Arguments+=' -Clean'}
-            $runnerStart.WorkingDirectory = $root
-            $runnerStart.UseShellExecute = $false
-            $runnerStart.CreateNoWindow = $true
-            $runnerStart.RedirectStandardOutput = $true
-            $runnerStart.RedirectStandardError = $true
-            $runnerProcess = New-Object Diagnostics.Process
-            $runnerProcess.StartInfo = $runnerStart
+            catch { throw 'Another check is running in this project. Wait for it to finish.' }
+            $start = New-Object Diagnostics.ProcessStartInfo
+            $start.FileName = (Get-Process -Id $PID).Path
+            $start.Arguments = '-NoProfile -File "' + (Join-Path $root 'testing/Test-DevEnvironment.ps1') + '" -Profile ' + $selected + ' -Test "' + $Test + '" -TimeoutSeconds ' + $TimeoutSeconds + $(if ($Clean) { ' -Clean' } else { '' })
+            $start.WorkingDirectory = $root
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $start.RedirectStandardOutput = $true
+            $start.RedirectStandardError = $true
+            $runner = New-Object Diagnostics.Process
+            $runner.StartInfo = $start
             try {
-                if (-not $runnerProcess.Start()) { throw 'Could not start the testing runner.' }
-                $stdoutRead = $runnerProcess.StandardOutput.ReadToEndAsync()
-                $stderrLines=New-Object Text.StringBuilder
-                $stderrRead=$runnerProcess.StandardError.ReadLineAsync();$stderrEnded=$false
-                $runnerWatch=[Diagnostics.Stopwatch]::StartNew()
-                while(-not ($runnerProcess.HasExited -and $stderrEnded)){
-                    for($drain=0;$drain -lt 32 -and -not $stderrEnded -and $stderrRead.IsCompleted;$drain++){
-                        $line=$stderrRead.GetAwaiter().GetResult()
-                        if($null -eq $line){$stderrEnded=$true;continue}
-                        $stderrLines.AppendLine($line) | Out-Null
-                        [Console]::Error.WriteLine($line)
-                        $stderrRead=$runnerProcess.StandardError.ReadLineAsync()
+                if (-not $runner.Start()) { throw 'Could not start the check runner.' }
+                $stdoutRead = $runner.StandardOutput.ReadToEndAsync()
+                # Progress lines go to stderr so the final stdout stays a single result.
+                $stderrRead = $runner.StandardError.ReadLineAsync(); $stderrEnded = $false
+                $watch = [Diagnostics.Stopwatch]::StartNew()
+                while (-not ($runner.HasExited -and $stderrEnded)) {
+                    while (-not $stderrEnded -and $stderrRead.IsCompleted) {
+                        $line = $stderrRead.GetAwaiter().GetResult()
+                        if ($null -eq $line) { $stderrEnded = $true } else { [Console]::Error.WriteLine($line); $stderrRead = $runner.StandardError.ReadLineAsync() }
                     }
-                    if($runnerWatch.Elapsed.TotalSeconds -gt ($TimeoutSeconds+30)){break}
+                    if ($watch.Elapsed.TotalSeconds -gt ($TimeoutSeconds + 30)) { break }
                     Start-Sleep -Milliseconds 50
                 }
-                if (-not $runnerProcess.HasExited -or -not $stderrEnded) {
-                    $killerStart = New-Object Diagnostics.ProcessStartInfo
-                    $killerStart.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'taskkill.exe'
-                    $killerStart.Arguments = '/PID ' + $runnerProcess.Id + ' /T /F'
-                    $killerStart.UseShellExecute = $false
-                    $killerStart.CreateNoWindow = $true
-                    $killerStart.RedirectStandardOutput = $true
-                    $killerStart.RedirectStandardError = $true
-                    $killer = [Diagnostics.Process]::Start($killerStart)
-                    $killer.WaitForExit(5000) | Out-Null
-                    $killer.Dispose()
-                    throw 'Testing runner exceeded its timeout and was terminated.'
+                if (-not $runner.HasExited) {
+                    & (Join-Path ([Environment]::GetFolderPath('System')) 'taskkill.exe') /PID $runner.Id /T /F *> $null
+                    throw 'Check exceeded its timeout and was stopped.'
                 }
                 $output = $stdoutRead.GetAwaiter().GetResult()
-                $runnerErrors = $stderrLines.ToString()
-                $exitCode = $runnerProcess.ExitCode
-                [IO.File]::WriteAllText($runnerLogPath, "STDOUT:`n$output`nSTDERR:`n$runnerErrors", (New-Object Text.UTF8Encoding($false)))
-            } finally { $runnerProcess.Dispose() }
+                $exitCode = $runner.ExitCode
+            } finally { $runner.Dispose() }
             $result = $output | ConvertFrom-Json
-            if ($null -eq $result -or -not $result.report) {
-                throw "Testing runner returned no valid JSON report (exit code $exitCode)."
-            }
-            if ($result.exitCode -ne $exitCode -or ($exitCode -eq 0 -and $result.status -ne 'PASS')) { throw 'Runner exit code and validation result disagree.' }
+            if ($null -eq $result -or -not $result.report) { throw "Check runner returned no result (exit code $exitCode)." }
             $result | Add-Member -NotePropertyName projectRoot -NotePropertyValue $root
-            $result | Add-Member -NotePropertyName toolchainFingerprint -NotePropertyValue $toolchainFingerprint
-            $result | Add-Member -NotePropertyName toolchainChangedDuringRun -NotePropertyValue ((Get-ToolchainIdentity) -ne $toolchainFingerprint)
-            $artifact = $null
-            if ($null -ne $result.jarClassCount) {
-                $jarPath=$result.inspectedArtifact
-                if(-not $jarPath -or -not [IO.File]::Exists($jarPath)){throw 'Validation did not identify an existing inspected SRG JAR.'}
-                $artifact = @{ path=$jarPath; sha256=(Get-FileHash -LiteralPath $jarPath -Algorithm SHA256).Hash }
-            }
-            $result | Add-Member -NotePropertyName artifact -NotePropertyValue $artifact
             $result | Add-Member -NotePropertyName runId -NotePropertyValue ([IO.Path]::GetFileNameWithoutExtension($result.report))
-            $result | Add-Member -NotePropertyName inputFingerprint -NotePropertyValue $fingerprint
-            $changed = (Get-InputFingerprint) -ne $fingerprint
-            $result | Add-Member -NotePropertyName inputsChangedDuringRun -NotePropertyValue $changed
-            if ($changed -or $result.toolchainChangedDuringRun) {
-                $exitCode = 1
-                $result.exitCode = 1
-                $result.status = 'FAIL'
-                $result.message = 'Project inputs or toolchain changed during validation. Run the check again.'
-            }
-            $result | Add-Member -NotePropertyName diagnostics -NotePropertyValue $(if($exitCode -ne 0){@(Get-BoundedDiagnostics -LogPath $result.log)}else{@()})
-            $json = $result | ConvertTo-Json -Depth 8 -Compress
-            Set-Content -LiteralPath $result.report -Value $json -Encoding UTF8
-            Set-Content -LiteralPath (Join-Path $reportRoot 'latest.json') -Value $json -Encoding UTF8
-            Set-Content -LiteralPath (Join-Path $reportRoot ($Profile + '-latest.json')) -Value $json -Encoding UTF8
-            if(-not $Full){$json=$result | Select-Object * -ExcludeProperty sourcePaths,buildIdentity | ConvertTo-Json -Depth 8 -Compress}
+            $result | Add-Member -NotePropertyName problems -NotePropertyValue @(Get-Problems $result)
+            $resultJson = $result | ConvertTo-Json -Depth 8 -Compress
+            Set-Content -LiteralPath $result.report -Value $resultJson -Encoding UTF8
+            Set-Content -LiteralPath (Join-Path $reportRoot 'latest.json') -Value $resultJson -Encoding UTF8
+            Set-Content -LiteralPath (Join-Path $reportRoot ($selected + '-latest.json')) -Value $resultJson -Encoding UTF8
+            if ($Json) { $resultJson } else { Format-Check $result }
         }
         'status' {
-            $previous = Read-Result
-            $taskText = [IO.File]::ReadAllText((Join-Path $root 'TASK.md'))
-            if ($taskText.Length -gt 2000) { $taskText = $taskText.Substring(0, 2000) }
-            $capabilities=Get-Capabilities
-            $result = [ordered]@{
-                schemaVersion = 1; action = 'status'; project = [IO.Path]::GetFileName($root); projectRoot = $root
-                inputFingerprint = $fingerprint; toolchainFingerprint = $toolchainFingerprint
-                javaSelection = $javaSelection
-                capabilities = $capabilities
-                lastRun = if ($Full -or $null -eq $previous) { $previous } else { $previous | Select-Object runId, profile, status, scope, message, unitTestCount, log, artifact }
-                lastRunMatchesCurrentInputs = (Test-FreshResult $previous)
-                task = $taskText
-                nextAction = Get-NextAction $previous $capabilities
+            $info = Get-ModInfo
+            $last = Read-Result
+            $java = if (-not $javaSelection) { 'unknown' } elseif ($javaSelection.gradle -and $javaSelection.java8) { 'ok (JDK ' + $javaSelection.gradle.major + ' for Gradle, JDK 8 for mods)' } else { 'MISSING - run Setup.cmd (see SETUP.md)' }
+            $stale = $false
+            if ($last) { $stale = (Get-NewestSourceTime) -gt [IO.File]::GetLastWriteTimeUtc($last.report) }
+            $task = if ([IO.File]::Exists((Join-Path $root 'TASK.md'))) { [IO.File]::ReadAllText((Join-Path $root 'TASK.md')) } else { '' }
+            $next = if (-not ($javaSelection.gradle -and $javaSelection.java8)) { 'Run Setup.cmd (SETUP.md).' }
+                elseif (-not $info) { 'No mod yet: agent.ps1 init <modid> "<Name>" (creates a working skeleton).' }
+                elseif (-not $last -or $stale) { 'Run agent.ps1 check (then check server before finishing).' }
+                elseif ($last.status -ne 'PASS') { 'Fix the last failure (agent.ps1 errors), then rerun agent.ps1 check ' + $last.profile + '.' }
+                else { 'Continue TASK.md.' }
+            if ($Json) {
+                [ordered]@{ schemaVersion = 1; action = 'status'; projectRoot = $root; mod = $info; java = $javaSelection; lastRun = $(if ($last) { $last | Select-Object runId, profile, status, message, log }); lastRunStale = $stale; task = $task; nextAction = $next } | ConvertTo-Json -Depth 6 -Compress
+            } else {
+                'project: ' + $root
+                'mod: ' + $(if ($info) { '{0} {1} ({2})' -f $info.modId, $info.version, $info.entry } else { 'none' })
+                'java: ' + $java
+                'last check: ' + $(if ($last) { '{0} {1} {2}{3}' -f $last.status, $last.profile, ([IO.File]::GetLastWriteTime($last.report).ToString('yyyy-MM-dd HH:mm')), $(if ($stale) { ' (source changed since)' } else { '' }) } else { 'none' })
+                'next: ' + $next
             }
         }
         'errors' {
-            $previous = Read-Result
-            if ($null -eq $previous) { throw 'No validation report exists. Run check first.' }
-            $diagnostics = @(Get-BoundedDiagnostics -LogPath $previous.log)
-            $result = [ordered]@{
-                schemaVersion = 1; action = 'errors'; projectRoot = $root; runId = $previous.runId
-                validationStatus = $previous.status; message = $previous.message
-                scope = $previous.scope; profile = $previous.profile
-                inputFingerprint = $previous.inputFingerprint; toolchainFingerprint = $previous.toolchainFingerprint
-                report = $previous.report
-                matchesCurrentInputs = (Test-FreshResult $previous)
-                diagnostics = $diagnostics; fullLog = $previous.log
+            $last = Read-Result
+            if (-not $last) { throw 'No check has run yet.' }
+            if ($Json) { $last | ConvertTo-Json -Depth 8 -Compress }
+            else {
+                Format-Check $last
+                if ($Full -and $last.log) { ''; '--- last 60 log lines ---'; Get-Content -LiteralPath $last.log -Tail 60 }
             }
         }
+        'api' { Invoke-Api }
+        'init' {
+            $initArgs = @('-ModId', $Target) + @($Rest)
+            & (Join-Path $root 'tools/Initialize-Mod.ps1') @initArgs
+            $exitCode = $LASTEXITCODE
+        }
+        'new' {
+            $newArgs = @('-Kind', $Target) + @($Rest)
+            & (Join-Path $root 'tools/New-Content.ps1') @newArgs
+            $exitCode = $LASTEXITCODE
+        }
     }
-    if (-not $json) { $json = $result | ConvertTo-Json -Depth 8 -Compress }
 } catch {
     $exitCode = 1
-    $failureMessage = $_.Exception.Message
-    if ($Action -eq 'check' -and $null -ne $lock) {
-        $failedId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
-        $failedPath = Join-Path $reportRoot ($failedId + '.json')
-        $json = [ordered]@{
-            schemaVersion = 1; projectRoot = $root; toolchainFingerprint = $toolchainFingerprint; action = 'check'; profile = $Profile; scope = 'validation runner'
-            status = 'FAIL'; exitCode = 1; message = $failureMessage
-            runId = $failedId; inputFingerprint = $fingerprint; inputsChangedDuringRun = $false
-            report = $failedPath; log = $runnerLogPath; unitTestCount = $null
-            diagnostics = @(Get-BoundedDiagnostics -LogPath $runnerLogPath)
-        } | ConvertTo-Json -Compress
-        $utf8 = New-Object Text.UTF8Encoding($false)
-        [IO.File]::WriteAllText($failedPath, $json, $utf8)
-        [IO.File]::WriteAllText((Join-Path $reportRoot 'latest.json'), $json, $utf8)
-        [IO.File]::WriteAllText((Join-Path $reportRoot ($Profile + '-latest.json')), $json, $utf8)
-    } else {
-        $json = [ordered]@{ schemaVersion = 1; projectRoot = $root; action = $Action; status = 'FAIL'; exitCode = 1; message = $failureMessage } | ConvertTo-Json -Compress
-    }
+    if ($Json) { [ordered]@{ schemaVersion = 1; projectRoot = $root; action = $Action; status = 'FAIL'; exitCode = 1; message = $_.Exception.Message } | ConvertTo-Json -Compress }
+    else { 'FAIL: ' + $_.Exception.Message; if ($env:KIT_DEBUG) { $_.ScriptStackTrace } }
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
 }
-Write-Output $json
 exit $exitCode
