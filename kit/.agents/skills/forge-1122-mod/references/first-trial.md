@@ -1,6 +1,6 @@
 # First feature trial
 
-Use a fresh Codex chat with this kit workspace as the project. Request the forge-1122-mod skill explicitly if discovery is uncertain.
+Use a fresh chat in your chosen agent host with this kit workspace as its working directory. Ask it to read AGENTS.md, START.md and .agents/skills/forge-1122-mod/SKILL.md explicitly if discovery is uncertain.
 
 Suggested request:
 

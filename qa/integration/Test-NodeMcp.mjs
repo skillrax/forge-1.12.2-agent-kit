@@ -42,7 +42,7 @@ try {
   const status = await request('tools/call', { name: 'project_status', arguments: {} });
   const data = status.structuredContent || JSON.parse(status.content[0].text);
   if (status.isError || data.projectRoot?.toLowerCase() !== root.toLowerCase()) throw new Error('Status failed: '+JSON.stringify(data));
-  console.log(JSON.stringify({ status: 'PASS', projectRoot: root, cases: ['real stdio initialization', 'three tools listed', 'matching status root', 'Node discovered without Node on PATH'], limits: 'Warm host; not Codex app connectivity or cold-PC installation' }));
+  console.log(JSON.stringify({ status: 'PASS', projectRoot: root, cases: ['real stdio initialization', 'three tools listed', 'matching status root', 'Node discovered without Node on PATH'], limits: 'Warm host; not agent application connectivity or cold-PC installation' }));
 } finally {
   clearTimeout(timer);
   lines.close();

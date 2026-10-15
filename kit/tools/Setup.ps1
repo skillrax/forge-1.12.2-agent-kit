@@ -69,9 +69,7 @@ try {
         $nodeVersion=$nodeSelection.version
         $env:PATH=(Split-Path -Parent $nodeSelection.node)+';'+$env:PATH
     }
-    # Reject old absolute-path configs instead of preserving a silent wrong-project launch.
-    $config = [IO.File]::ReadAllText((Join-Path $root '.codex/config.toml'))
-    if ($config -notmatch "'./tools/Start-Mcp.ps1'" -or $config -match 'fullAgentic-GPT-v1') { throw 'Nonportable MCP config. Restore the checkout-relative .codex/config.toml before enabling MCP.' }
+    # Client configuration is optional and owned by the selected agent host.
     $dependencyLog=$null
     $dependenciesReused=$false
     if($WithMcp){
@@ -97,7 +95,7 @@ try {
         if(-not $dependenciesReused){Invoke-KitNodeProcess -Node $nodeSelection.node -Arguments $moduleArguments -Log $moduleLog -Stage 'MCP module load' -TimeoutSeconds 30}
         if(-not $SkipDependencies){@{identity=$dependencyIdentity} | ConvertTo-Json -Compress | Set-Content -LiteralPath $markerPath -Encoding UTF8}
         $mcpState='MODULE_LOAD_PASS'
-        [Console]::Error.WriteLine('Node/npm and MCP module load passed. Restart Codex after a Node installation; app connection remains to be checked.')
+        [Console]::Error.WriteLine('Node/npm and MCP module load passed. Restart your agent client after a Node installation; app connection remains to be checked.')
     }
     $setupDir=Join-Path $root 'reports/setup';New-Item -ItemType Directory -Force -Path $setupDir | Out-Null
     @{gradle=$selection.gradle.home;java8=$selection.java8.home} | ConvertTo-Json -Compress | Set-Content -Encoding UTF8 (Join-Path $setupDir 'java-homes.json')

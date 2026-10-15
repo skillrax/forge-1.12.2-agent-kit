@@ -79,7 +79,7 @@ $json = $null
 $runnerLogPath = $null
 function Get-InputFingerprint {
     $paths = @('build.gradle', 'settings.gradle', 'gradle.properties', 'agent.ps1', 'gradlew', 'gradlew.bat',
-        '.codex/config.toml', 'mcp/server.mjs', 'mcp/tools.mjs', 'mcp/bridge.mjs', 'mcp/package.json', 'mcp/package-lock.json', 'kit.json')
+        'mcp/server.mjs', 'mcp/tools.mjs', 'mcp/bridge.mjs', 'mcp/package.json', 'mcp/package-lock.json', 'kit.json')
     $files = New-Object 'System.Collections.Generic.List[string]'
     foreach ($relativePath in $paths) {
         $candidate = Join-Path $root $relativePath

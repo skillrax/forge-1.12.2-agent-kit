@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "projectId": "agentic-codex-minecraft-kit",
-  "displayName": "Agentic Codex Minecraft Kit",
+  "projectId": "agentic-minecraft-kit",
+  "displayName": "Agentic Minecraft Kit",
   "developmentPolicy": "local-private-no-remote",
   "activeSource": "kit",
   "targetQADirectory": "qa",

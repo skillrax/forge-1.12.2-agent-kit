@@ -5,7 +5,10 @@ import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.Opcodes
 
-apply from: 'testing/installed-driver.gradle'
+// The remapper attaches its JAR tasks to assemble. Register QA only on explicit opt-in.
+if (providers.gradleProperty('installedTestDriver').orNull == 'true') {
+    apply from: 'testing/installed-driver.gradle'
+}
 
 buildscript {
     repositories { mavenCentral() }

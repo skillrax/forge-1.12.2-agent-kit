@@ -19,7 +19,7 @@ function Get-KitNodeSelection {
     return $null
 }
 function Request-KitNodeChoice {
-    [Console]::Error.WriteLine('Recommended: Node.js enables the kit MCP tools so Codex can read status, validate mods and retrieve diagnostics directly.')
+    [Console]::Error.WriteLine('Recommended: Node.js enables the kit MCP tools so your agent client can read status, validate mods and retrieve diagnostics directly.')
     [Console]::Error.WriteLine('Y reuses compatible Node/npm or installs Node.js LTS, then installs the locked MCP dependencies. N keeps the shell-only workflow.')
     while($true){
         [Console]::Error.Write('Set up Node.js and MCP support? [Y/N]: ')

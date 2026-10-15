@@ -54,9 +54,8 @@ try{
     if($env:JAVA_HOME -ne $selection.gradle.home -or [Environment]::GetEnvironmentVariable('ORG_GRADLE_PROJECT_org.gradle.java.installations.paths') -ne $selection.java8.home){throw 'Process selection not applied'}
 }finally{$env:JAVA_HOME=$savedJava}
 # Exercise full setup script with a fake installer and changing discovery, outside the host.
-$tools=Join-Path $fixture 'tools';New-Item -ItemType Directory -Force -Path $tools,(Join-Path $fixture '.codex') | Out-Null
+$tools=Join-Path $fixture 'tools';New-Item -ItemType Directory -Force -Path $tools | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'kit/tools/Setup.ps1') -Destination $tools
-Copy-Item -LiteralPath (Join-Path $root 'kit/.codex/config.toml') -Destination (Join-Path $fixture '.codex')
 $helper=[IO.File]::ReadAllText((Join-Path $root 'kit/tools/JavaEnvironment.ps1'))
 $overrides=@'
 function Get-KitJavaCandidates {

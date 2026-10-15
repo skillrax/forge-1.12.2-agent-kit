@@ -1,0 +1,1 @@
+Read AGENTS.md, START.md and TASK.md in this directory. They are the shared instructions. For mod changes read .agents/skills/forge-1122-mod/SKILL.md and only the relevant reference. Use agent.ps1 from this root; MCP is optional. Host connection guidance: docs/AGENT-HOSTS.md.

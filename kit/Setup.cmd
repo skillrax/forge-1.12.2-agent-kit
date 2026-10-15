@@ -7,8 +7,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\Setup.ps1" -
 if errorlevel 1 goto failed
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0agent.ps1" -Action check -Profile environment
 if errorlevel 1 goto failed
-echo Setup and pinned environment check passed. Use this folder as your Codex project.
-echo Restart Codex and terminals after changing Java settings or installing Node.js.
+echo Setup and pinned environment check passed. Use this folder as your AI agent workspace.
+echo Restart your agent client and terminals after changing Java settings or installing Node.js.
 echo Setup result: reports\setup\setup-latest.json. Check logs: reports\testing-tools.
 if /I not "%~1"=="--no-pause" pause
 exit /b 0

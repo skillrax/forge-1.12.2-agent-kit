@@ -11,3 +11,5 @@ After meaningful changes and before handoff, REPLACE state in TASK.md: objective
 Use focused builds and short behavior checks. No default fault injections or whole-suite regressions; extra checks need affected behavior or a concrete risk. This is the user's revised policy throughout the workspace, including older recipient guidance. Build/server readiness is not gameplay proof. Keep QA out of production JARs. Preserve exports and pinned build dependencies.
 
 archive/ is history, excluded from ordinary search and maintenance. Read a named historical file only for a concrete question. Do not repair archived scripts/links or resume archived tasks. Generated .work/, evidence/ and releases/ are not startup reading. No subagents, paid benchmark campaigns or public publishing are part of this task.
+
+This is the independent agent-neutral fork. Read docs/FORK.md for provenance and the original workspace location. Historical evidence/archive/exports stay in that original folder; do not interpret absent copied reports as new validation. Shared host guidance: kit/docs/AGENT-HOSTS.md.

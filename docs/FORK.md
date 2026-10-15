@@ -1,0 +1,11 @@
+# Independent agent-neutral development fork
+
+Created 2026-10-16 from the current working files in ../Agentic-Codex-projects, including uncommitted source. Original Git HEAD: 06d058350906fc5ac9dc6445b350cb63dcc945a4. This fork has its own repository, no remote, a baseline snapshot commit and a separate refactor commit. The baseline records the copied working state, not merely that original HEAD.
+
+Active kit, packaging, docs, QA sources, examples, wrappers, licenses and dependency lockfiles were copied. Generated caches, build/run/report directories, releases, evidence, downloaded external test inputs, historical archive and old prototypes remain in the original workspace. No runtime paths or copied PASS reports establish fresh validation. Historical evidence links in capability/reference documents still describe original results; resolve those in the original folder when needed. Their absence here does not revoke those results or prove new ones.
+
+The original development checkout, exports, pinned dependencies, archives and working edits are preserved. To return, open ../Agentic-Codex-projects. No merge or restore command is needed. The original TASK.md records this handoff; its prior state is in the fork's baseline commit.
+
+Core identity and onboarding are agent-neutral. Shell commands are the baseline; MCP and host adapters are optional. Shared Forge resources remain under .agents and can be read explicitly by any host. CLAUDE.md points to shared instructions. The Codex sample moved to kit/integrations/codex; it is not read by setup or required by checkout. Java/game/Forge/mappings and dependency versions remain pinned.
+
+Open this folder in your chosen agent for kit maintenance. Open kit/ (or a fresh tools/New-Checkout.ps1 destination) for authoring a mod. Start with the corresponding AGENTS.md and TASK.md. No AI inference backend is bundled or auto-configured. Specific host/model integration and gameplay acceptance remain future work.

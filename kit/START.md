@@ -1,14 +1,14 @@
 # Start here
 
-Extract the ZIP. Create a Codex project using the extracted folder containing Setup.cmd, agent.ps1 and kit.json as its primary folder. A ZIP attached to a chat is not a working project.
+Extract the ZIP. Create an AI agent workspace using the extracted folder containing Setup.cmd, agent.ps1 and kit.json as its primary folder. A ZIP attached to a chat is not a working project.
 
 Ask: "Read AGENTS.md and START.md, run Setup.cmd as administrator and verify setup. On failure give me the next action."
 
-Choose Y/N in the setup window before downloads. Y sets Windows JAVA_HOME to verified JDK25 and system PATH to JDK25/bin then JDK8/bin first; it aligns an existing current-user JAVA_HOME override and backs up prior values under reports/setup. Changes wait until both JDKs are verified. N leaves persistent settings unchanged; the kit works locally. Installer/UAC prompts may still need responses. After Y restart Codex/terminals and reopen this project.
+Choose Y/N in the setup window before downloads. Y sets Windows JAVA_HOME to verified JDK25 and system PATH to JDK25/bin then JDK8/bin first; it aligns an existing current-user JAVA_HOME override and backs up prior values under reports/setup. Changes wait until both JDKs are verified. N leaves persistent settings unchanged; the kit works locally. Installer/UAC prompts may still need responses. After Y restart your agent client/terminals and reopen this project.
 
-The second Y/N choice offers recommended Node.js/MCP support. Y reuses compatible Node.js22+/npm or installs Node.js LTS through WinGet after Java verification, installs locked MCP dependencies and checks module loading. MCP gives Codex direct status, validation and diagnostics tools. N skips Node/MCP setup; shell commands still work. Both choices happen before downloads. Restart Codex/terminals after a Node installation; module loading does not prove the app connected.
+The second Y/N choice offers recommended Node.js/MCP support. Y reuses compatible Node.js22+/npm or installs Node.js LTS through WinGet after Java verification, installs locked MCP dependencies and checks module loading. MCP gives your agent client direct status, validation and diagnostics tools. N skips Node/MCP setup; shell commands still work. Both choices happen before downloads. Restart your agent client/terminals after a Node installation; module loading does not prove the app connected.
 
-Alternative: right-click Setup.cmd, Run as administrator, then open this folder in Codex. Windows64-bit/Minecraft1.12.2/Forge14.23.5.2859; setup installs missing JDK25/8, requested Node/MCP support and runs the pinned environment check. First downloads can take minutes; progress/log paths are shown. No global Gradle is required; a Java8 JRE is insufficient.
+Alternative: right-click Setup.cmd, Run as administrator, then open this folder in your agent client. Windows64-bit/Minecraft1.12.2/Forge14.23.5.2859; setup installs missing JDK25/8, requested Node/MCP support and runs the pinned environment check. First downloads can take minutes; progress/log paths are shown. No global Gradle is required; a Java8 JRE is insufficient.
 
 Agent setup route (visible window needed for prompts):
 ```powershell
@@ -26,3 +26,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ./agent.ps1 -Action status
 powershell -NoProfile -ExecutionPolicy Bypass -File ./agent.ps1 -Action check -Profile environment
 ```
 Bypass applies to that process only. Node/MCP are optional; for noninteractive setup use tools/Setup.ps1 -WithMcp -InstallMissing (Node.js22+/npm, or installs LTS). Give the agent mod behavior and acceptance examples. Validation/export: docs/WORKFLOW.md. Other frontends: docs/INTERFACES.md. Build/server PASS alone is not gameplay proof.
+
+Agent hosts, explicit instruction loading and optional MCP adapters: [docs/AGENT-HOSTS.md](docs/AGENT-HOSTS.md).

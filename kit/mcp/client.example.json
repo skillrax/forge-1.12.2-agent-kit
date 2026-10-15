@@ -1,0 +1,4 @@
+{
+  "command": "powershell.exe",
+  "args": ["-NoProfile", "-File", "./tools/Start-Mcp.ps1"]
+}

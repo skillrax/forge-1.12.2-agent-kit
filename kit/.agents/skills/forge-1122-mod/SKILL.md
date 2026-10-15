@@ -9,14 +9,14 @@ Use this checkout's existing build configuration. Minecraft 1.12.2, Forge 14.23.
 
 Keep the user's behavioral prompt. Ask when a missing choice materially changes gameplay, such as adding versus replacing a buff duration. Infer ordinary implementation safeguards and the configured environment; users need not specify overflow, duplication or side handling. Record defaults briefly in TASK.md.
 
-Choose the cheapest reliable source for the complete task: existing code, bounded mapped sources or focused version-matched official web documentation. Research and justified libraries are allowed; do not guess to reduce lookup count. Record any new dependency and its compatibility. Codex is the primary target; speculative offline/frontend work is outside a normal mod task.
+Choose the cheapest reliable source for the complete task: existing code, bounded mapped sources or focused version-matched official web documentation. Research and justified libraries are allowed; do not guess to reduce lookup count. Record any new dependency and its compatibility. Use the shell interface with any agent host that can read/write this workspace and execute local commands. MCP is optional; model selection belongs to the user.
 
 ## Development loop
 
 1. Run `agent.ps1 -Action status` or call the connected `project_status` tool. Inspect existing mod code before creating another entry point.
 2. Record requested behavior, identifiers, acceptance checks and the next step in TASK.md (under 2000 characters). Proceed within the user request without requiring a separate Plan/Act approval.
 3. Read only the relevant reference below. Implement one small step and reuse existing project patterns.
-4. Call `validate` with `profile: "mod"`. Failed checks include bounded diagnostics; use `diagnostics` with that run ID when more context is needed, fix the concrete error and rerun. Do not replace this outcome with an older PASS. Normal checks reuse unchanged Gradle work; use `clean: true` (shell `-Clean`) for an explicit recovery build.
+4. Run `agent.ps1 -Action check -Profile mod`, or call connected MCP `validate` with `profile: "mod"`. Failed checks include bounded diagnostics; use `diagnostics` with that run ID when more context is needed, fix the concrete error and rerun. Do not replace this outcome with an older PASS. Normal checks reuse unchanged Gradle work; use `clean: true` (shell `-Clean`) for an explicit recovery build.
 5. Use `profile: "unit"` for real JUnit 4 logic tests and `profile: "server"` for dedicated-server startup. Server acceptance is automatic. Run checks sequentially.
 6. Record the new results and remaining unchecked behavior in TASK.md. Distinguish compiled, packaged, server-loaded, behavior-asserted and manually rendered evidence.
 

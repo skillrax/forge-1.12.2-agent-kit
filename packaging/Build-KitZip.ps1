@@ -13,7 +13,7 @@ try {
     if (-not $OutputDirectory) { $OutputDirectory = Join-Path $root ('releases/' + $version) }
     $destination = [IO.Path]::GetFullPath($OutputDirectory)
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    $name = 'agentic-codex-mc1.12.2-kit-' + $version + '-windows'
+    $name = 'agentic-mc1.12.2-kit-' + $version + '-windows'
     $zipPath = Join-Path $destination ($name + '.zip')
     if (Test-Path -LiteralPath $zipPath) { throw 'Archive already exists; never overwrite a release candidate.' }
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -42,7 +42,7 @@ try {
     [long]$sourceBytes = 0
     foreach ($file in $entries) { $sourceBytes += [long]$file['bytes'] }
     $releaseState=if($version -match '-(alpha|beta)\.\d+$'){'private-'+$Matches[1]+'-candidate'}else{'private-candidate'}
-    $manifest = [ordered]@{ schemaVersion=1; version=$version; releaseState=$releaseState; archive=$zipPath; archiveRoot=$name; archiveSha256=$sha; compressedBytes=(Get-Item $zipPath).Length; sourceBytes=$sourceBytes; fileCount=@($entries).Count; files=@($entries); limits='Exact candidate content/checksums; separate-PC setup, Codex app connection and installed gameplay remain unverified. Private distribution only.' }
+    $manifest = [ordered]@{ schemaVersion=1; version=$version; releaseState=$releaseState; archive=$zipPath; archiveRoot=$name; archiveSha256=$sha; compressedBytes=(Get-Item $zipPath).Length; sourceBytes=$sourceBytes; fileCount=@($entries).Count; files=@($entries); limits='Exact candidate content/checksums; separate-PC setup, agent client connection and installed gameplay remain unverified. Private distribution only.' }
     $json = $manifest | ConvertTo-Json -Depth 8 -Compress
     [IO.File]::WriteAllText((Join-Path $destination 'manifest.json'), $json)
     [IO.File]::WriteAllText(($zipPath + '.sha256'), ($sha + '  ' + [IO.Path]::GetFileName($zipPath) + "`n"))

@@ -40,3 +40,5 @@ Change kit version only when preparing changed recipient content; source of trut
 AGENTS.md holds stable instructions; TASK.md is the single current-state handoff. Keep both short and replace stale state instead of appending history. README.md maps the workspace. These three docs are on-demand references, not startup prerequisites. History belongs in Git, immutable exports or archive/.
 
 Before interruption, leave the next executable action and evidence path in TASK.md. A new chat should resume without reconstructing the timeline. Do not add a new plan/report for every small step.
+
+Optional installed driver registration must remain behind the installedTestDriver Gradle property. The remapper attaches registered JAR tasks to assemble; unconditional registration makes an empty recipient build require test scenarios. Build-InstalledTestDriver.ps1 opts in explicitly. Keep ordinary foundation builds and the separate driver build as distinct checks when changing this boundary.

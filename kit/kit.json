@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "agentic-codex-minecraft-kit",
-  "version": "0.4.0-beta.4",
+  "id": "agentic-minecraft-kit",
+  "version": "0.4.0-beta.5",
   "status": "private-beta",
   "platform": "windows",
   "minecraft": "1.12.2",

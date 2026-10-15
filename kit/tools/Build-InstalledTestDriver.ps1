@@ -12,7 +12,7 @@ try {
     if(-not $selection.gradle -or -not $selection.java8){throw 'Modern Gradle JDK and Java 8 JDK required.'}
     Set-KitJavaProcess $selection
     $log=Join-Path $directory 'build.log'
-    $process=Invoke-InstalledProcess -Java (Join-Path $selection.gradle.home 'bin/java.exe') -Arguments @('-classpath',(Join-Path $root 'gradle/wrapper/gradle-wrapper.jar'),'org.gradle.wrapper.GradleWrapperMain','renameInstalledTestDriverJar','--console=plain','--no-daemon') -Directory $root -Log $log -TimeoutSeconds $TimeoutSeconds
+    $process=Invoke-InstalledProcess -Java (Join-Path $selection.gradle.home 'bin/java.exe') -Arguments @('-classpath',(Join-Path $root 'gradle/wrapper/gradle-wrapper.jar'),'org.gradle.wrapper.GradleWrapperMain','renameInstalledTestDriverJar','-PinstalledTestDriver=true','--console=plain','--no-daemon') -Directory $root -Log $log -TimeoutSeconds $TimeoutSeconds
     if($process.exitCode -ne 0){throw "Driver build failed; inspect $log"}
     $built=Join-Path $root 'build/libs/installed-test-driver-1.0.0-srg.jar'
     if(-not [IO.File]::Exists($built)){throw 'Expected separate remapped driver JAR missing.'}

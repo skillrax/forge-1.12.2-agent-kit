@@ -15,6 +15,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $root 'mcp/node_modules/@modelcontex
 $env:MINECRAFT_KIT_ROOT = $root
 . (Join-Path $PSScriptRoot 'NodeEnvironment.ps1')
 $nodeSelection=Get-KitNodeSelection
-if(-not $nodeSelection){throw 'MCP needs Node.js22+ and npm. Run tools/Setup.ps1 -WithMcp -InstallMissing, then restart Codex.'}
+if(-not $nodeSelection){throw 'MCP needs Node.js22+ and npm. Run tools/Setup.ps1 -WithMcp -InstallMissing, then restart your agent client.'}
 & $nodeSelection.node (Join-Path $root 'mcp/server.mjs')
 exit $LASTEXITCODE

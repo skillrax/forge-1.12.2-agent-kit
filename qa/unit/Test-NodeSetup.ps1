@@ -6,9 +6,8 @@ $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $fixture=Join-Path $root ('.work/node setup space/'+[Guid]::NewGuid().ToString('N'))
 $tools=Join-Path $fixture 'tools'
 $nodeHome=Join-Path $fixture 'node home'
-New-Item -ItemType Directory -Force -Path $tools,$nodeHome,(Join-Path $nodeHome 'node_modules/npm/bin'),(Join-Path $fixture '.codex') | Out-Null
+New-Item -ItemType Directory -Force -Path $tools,$nodeHome,(Join-Path $nodeHome 'node_modules/npm/bin') | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'kit/tools/Setup.ps1') -Destination $tools
-Copy-Item -LiteralPath (Join-Path $root 'kit/.codex/config.toml') -Destination (Join-Path $fixture '.codex')
 $code=@'
 using System; using System.IO;
 public class NodeSetupProbe {

@@ -1,0 +1,1 @@
+Read AGENTS.md and TASK.md first. These govern maintenance of this kit. README.md maps the workspace. Recipient instructions are under kit/; do not run recipient setup as a maintainer startup step. Fork boundaries and rollback: docs/FORK.md.

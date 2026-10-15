@@ -1,7 +1,7 @@
 # Shared helpers for optional installed-artifact checks. No game is started on import.
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
 $OutputEncoding=[Console]::OutputEncoding
-# Prefer this host's modules when invoked from Codex/another PowerShell edition.
+# Prefer this host's modules when invoked from an agent or another PowerShell edition.
 $env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+$env:PSModulePath
 function Write-InstalledJson([string]$Path,$Value) {
     [IO.File]::WriteAllText($Path,($Value | ConvertTo-Json -Depth 16),(New-Object Text.UTF8Encoding($false)))

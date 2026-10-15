@@ -15,3 +15,5 @@ stdout is one UTF-8 JSON result with schemaVersion1. Check requires process exit
 Read START.md plus current TASK/status first, then only the relevant skill reference. Do not auto-load all docs or example fixtures. User instructions and model settings remain under user control. Local-model capability is a separate experiment: supporting the interface does not prove that a particular model can implement/debug the mod.
 
 Optional installed-server behavior tests use separate shell tools: New-InstalledScenario.ps1, Prepare-InstalledServer.ps1, Build-InstalledTestDriver.ps1 and Test-InstalledMod.ps1. See [installed testing](INSTALLED-TESTING.md). Project scenarios are indexed automatically; compact results identify scenario/phase/ticks and bounded failures. They load exact production JARs in an isolated installed Forge server and do not alter agent status/MCP capabilities. Client/graphical testing is separate.
+
+Host setup and shared instruction entry points: [AGENT-HOSTS.md](AGENT-HOSTS.md). No provider-specific configuration is required by setup or checkout.

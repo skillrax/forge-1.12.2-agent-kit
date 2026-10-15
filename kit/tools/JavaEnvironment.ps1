@@ -154,7 +154,7 @@ function Set-KitMachineEnvironment {
         }catch{throw ('Could not finish or restore Windows Java settings. Backup: '+$backup+'. '+$failure+'; restore error: '+$_.Exception.Message)}
         throw ('Windows Java settings failed and were restored. Backup: '+$backup+'. '+$failure)
     }
-    [Console]::Error.WriteLine('Windows Java settings saved. Restart terminals and Codex to pick them up. Previous values: '+$backup)
+    [Console]::Error.WriteLine('Windows Java settings saved. Restart terminals and your agent client to pick them up. Previous values: '+$backup)
     [pscustomobject]@{changed=$true;scope='Machine';decision=$Decision;javaHome=$Selection.gradle.home;pathEntries=$bins;existingUserHomeUpdated=[bool]$userHome;backup=$backup}
 }
 function Invoke-KitWinget {
