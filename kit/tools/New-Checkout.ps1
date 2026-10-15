@@ -25,17 +25,15 @@ try {
         if(Test-Path -LiteralPath $ancestor){$entry=Get-Item -LiteralPath $ancestor -Force;if($entry.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Destination ancestors must not be junctions/symlinks.'}}
         $parent=Split-Path -Parent $ancestor;if($parent -eq $ancestor){break};$ancestor=$parent
     }
-    $required=@('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','SETUP.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs','examples','mcp')
+    $required=@('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','SETUP.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs','examples')
     foreach($name in $required){if(-not (Test-Path -LiteralPath (Join-Path $root $name))){throw ('Required source entry missing: '+$name)}}
     New-Item -ItemType Directory -Path $target | Out-Null
     foreach ($name in @('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','SETUP.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs','examples')) {
         Copy-SourceEntry (Join-Path $root $name) (Join-Path $target $name)
     }
-    foreach ($optional in @('CLAUDE.md','integrations')) {
+    foreach ($optional in @('CLAUDE.md')) {
         if(Test-Path -LiteralPath (Join-Path $root $optional)){Copy-SourceEntry (Join-Path $root $optional) (Join-Path $target $optional)}
     }
-    New-Item -ItemType Directory -Path (Join-Path $target 'mcp') | Out-Null
-    Get-ChildItem -LiteralPath (Join-Path $root 'mcp') -File | Copy-Item -Destination (Join-Path $target 'mcp')
     $name = [IO.Path]::GetFileName($target).Replace('\','\\').Replace("'", "\'")
     [IO.File]::WriteAllText((Join-Path $target 'settings.gradle'), "rootProject.name = '$name'`n")
     "created $target (source only; run ./agent.ps1 status there)"

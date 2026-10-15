@@ -4,12 +4,9 @@ Needs Windows 10/11 x64. The kit uses JDK 25 to run Gradle and JDK 8 to compile 
 
 ## Easiest: Setup.cmd
 
-Right-click `Setup.cmd` > Run as administrator. It asks two Y/N questions before downloading anything:
+Right-click `Setup.cmd` > Run as administrator. It asks one Y/N question before downloading anything. **Java settings**: Y sets Windows JAVA_HOME to JDK 25 and puts JDK 25 then JDK 8 first on PATH (old values are backed up under reports/setup). N changes nothing permanent; the kit still finds the JDKs itself.
 
-1. **Java settings**: Y sets Windows JAVA_HOME to JDK 25 and puts JDK 25 then JDK 8 first on PATH (old values are backed up under reports/setup). N changes nothing permanent; the kit still finds the JDKs itself.
-2. **Node.js + MCP** (optional): Y installs Node LTS if missing and the MCP server, which gives agent apps direct check tools. N is fine; the shell commands do everything.
-
-It installs missing JDKs with WinGet and runs the environment check. After answering Y to either question, restart your agent app and terminals.
+It installs missing JDKs with WinGet and runs the environment check. After answering Y, restart your agent app and terminals.
 
 An agent can start it in a visible window (the user still answers the prompts):
 
@@ -27,7 +24,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/Setup.ps1 -InstallMi
 powershell -NoProfile -ExecutionPolicy Bypass -File ./agent.ps1 check environment
 ```
 
-Add `-WithMcp` to also set up Node/MCP. Custom JDK locations: `tools/Setup.ps1 -GradleJavaHome <jdk17+> -Java8Home <jdk8>`.
+Custom JDK locations: `tools/Setup.ps1 -GradleJavaHome <jdk17+> -Java8Home <jdk8>`.
 
 ## Problems
 
@@ -41,4 +38,4 @@ Add `-WithMcp` to also set up Node/MCP. Custom JDK locations: `tools/Setup.ps1 -
 | `Unable to access jarfile`, odd file-not-found errors | The folder path is too long (Windows 260-character limit). Move the kit to a short path such as `C:\mods\mykit` |
 | Scripts blocked | Use `powershell -NoProfile -ExecutionPolicy Bypass -File ...` (affects that process only) |
 
-More detail (JDK discovery rules, MCP dependency reuse, logs): docs/DEPENDENCIES.md. MCP client setup: docs/HOSTS.md.
+More detail (JDK discovery rules, logs): docs/DEPENDENCIES.md. Agent apps: docs/HOSTS.md.

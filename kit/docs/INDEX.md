@@ -27,7 +27,7 @@ Read only what the current step needs.
 | [guides/fluids.md](guides/fluids.md) | tanks, custom fluids, wrench pickup |
 | [guides/world-actions.md](guides/world-actions.md) | block breakers/placers, fluid collectors |
 | [guides/rendering.md](guides/rendering.md) | animated models, particles, imported 3D models |
-| [HOSTS.md](HOSTS.md) | connecting an agent app or MCP client |
+| [HOSTS.md](HOSTS.md) | setting up an agent app or local model |
 | [INSTALLED-TESTING.md](INSTALLED-TESTING.md) | rare: testing the exported jar in a separately installed server with other mods |
 
 Working example mods: `examples/machine`, `examples/configurable-machine`, `examples/rf-network`, `examples/static-model` (each is self-contained; copy classes, not the whole mod).

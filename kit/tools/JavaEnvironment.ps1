@@ -158,13 +158,13 @@ function Set-KitMachineEnvironment {
     [pscustomobject]@{changed=$true;scope='Machine';decision=$Decision;javaHome=$Selection.gradle.home;pathEntries=$bins;existingUserHomeUpdated=[bool]$userHome;backup=$backup}
 }
 function Invoke-KitWinget {
-    param([ValidateSet(8,25)][int]$Major,[string]$Log,[ValidateSet('OpenJS.NodeJS.LTS')][string]$PackageId)
-    $label=if($PackageId){'Node.js LTS'}else{'Temurin JDK'+$Major}
+    param([ValidateSet(8,25)][int]$Major,[string]$Log)
+    $label='Temurin JDK'+$Major
     $winget=Get-Command winget.exe -ErrorAction SilentlyContinue | Select-Object -First 1
     if(-not $winget){throw ('WinGet is unavailable. Install/repair Microsoft App Installer, or install '+$label+' manually, then rerun setup.')}
     $start=New-Object Diagnostics.ProcessStartInfo
     $start.FileName=$winget.Source
-    $start.Arguments=if($PackageId){'install --id '+$PackageId+' --exact --source winget --architecture x64'}else{'install --id EclipseAdoptium.Temurin.'+$Major+'.JDK --exact --source winget --architecture x64 --custom ADDLOCAL=FeatureMain'}
+    $start.Arguments='install --id EclipseAdoptium.Temurin.'+$Major+'.JDK --exact --source winget --architecture x64 --custom ADDLOCAL=FeatureMain'
     $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
     [Console]::Error.WriteLine('Installing missing '+$label+'; installer/UAC prompts may require your response. Log: '+$Log)
     $p=[Diagnostics.Process]::Start($start)

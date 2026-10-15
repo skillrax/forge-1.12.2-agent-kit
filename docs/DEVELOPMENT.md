@@ -21,7 +21,7 @@ The kit's job: let an AI agent, including small local models, turn a user's desc
 
 ## Tool contracts
 
-- `agent.ps1` prints plain text; `-Json` prints the full result (schemaVersion 1). MCP uses `-Json`.
+- `agent.ps1` prints plain text; `-Json` prints the full result (schemaVersion 1) for programs. There is no MCP server (removed in 0.5.0: it duplicated a subset of shell commands and needed Node).
 - Profiles: environment, build (`mod`/`all` are aliases), unit, server, game. server/game add the check harness (`kitHarness` source set) and src/gametest to the dev server classpath; neither enters the jar.
 - The harness writes `run/testing-server/<run>/kit-check.json` and stops the server; the runner fails on lint ERROR, failed tests or no harness report.
 - Generators insert above `// kit:<marker>` lines in the init skeleton and refuse to overwrite files.

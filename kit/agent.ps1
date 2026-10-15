@@ -26,7 +26,7 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding
 # Prefer this shell's modules over paths inherited from a different PowerShell host.
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + ';' + $env:PSModulePath
-# MCP hosts may omit these Windows variables. Restore only this process's defaults.
+# Some agent hosts omit these Windows variables. Restore only this process's defaults.
 if (-not $env:PATHEXT) { $env:PATHEXT = '.COM;.EXE;.BAT;.CMD' }
 if (-not [IO.File]::Exists($env:ComSpec)) { $env:ComSpec = Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe' }
 $root = [IO.Path]::GetFullPath($PSScriptRoot)

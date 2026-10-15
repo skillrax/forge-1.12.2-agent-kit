@@ -18,19 +18,18 @@ try {
         $path = Join-Path $workspace $file.path
         if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $file.sha256) { throw "Extracted hash mismatch: $($file.path)" }
     }
-    if (Test-Path (Join-Path $workspace 'mcp/test')) { throw 'Producer tests leaked into archive.' }
-    # A shell-only user must not need Node or any authoring paths.
+    # Setup must work with only System32 on PATH (no Node, Git or authoring tools).
     $savedPath = $env:PATH
     try {
         $env:PATH = Join-Path $env:SystemRoot 'System32'
         $output = & $shell -NoProfile -File (Join-Path $workspace 'tools/Setup.ps1')
         if ($LASTEXITCODE -ne 0) { throw "Shell-only setup failed: $output" }
         $setup = ($output -join "`n") | ConvertFrom-Json
-        if ($setup.status -ne 'PASS' -or $setup.mcpRequested) { throw 'Shell-only setup invoked MCP.' }
+        if ($setup.status -ne 'PASS') { throw 'Setup did not pass.' }
     } finally { $env:PATH = $savedPath }
-    $status = (& $shell -NoProfile -File (Join-Path $workspace 'agent.ps1') -Action status) | ConvertFrom-Json
+    $status = (& $shell -NoProfile -File (Join-Path $workspace 'agent.ps1') status -Json) | ConvertFrom-Json
     if ($status.lastRun -or $status.projectRoot -ne $workspace) { throw 'Extracted workspace claimed old evidence or wrong root.' }
-    $output = & $shell -NoProfile -File (Join-Path $workspace 'agent.ps1') -Action check -Profile all -TimeoutSeconds 120
+    $output = & $shell -NoProfile -File (Join-Path $workspace 'agent.ps1') check build -Json -TimeoutSeconds 120
     if ($LASTEXITCODE -ne 0) { throw "Extracted build failed: $output" }
     $check = ($output -join "`n") | ConvertFrom-Json
     if ($check.status -ne 'PASS' -or $check.projectRoot -ne $workspace) { throw 'Extracted check did not validate the recipient root.' }
@@ -42,11 +41,11 @@ try {
     [IO.File]::WriteAllText((Join-Path $main 'UnicodeProbe.java'), $utf8Source, (New-Object Text.UTF8Encoding($false)))
     $oracle = 'import org.junit.Test; import static org.junit.Assert.*; public class UnicodeProbeTest { @Test public void characterIsPreserved() { assertEquals(4, UnicodeProbe.VALUE.length()); assertEquals(233, (int)UnicodeProbe.VALUE.charAt(3)); } }'
     [IO.File]::WriteAllText((Join-Path $tests 'UnicodeProbeTest.java'), $oracle, (New-Object Text.UTF8Encoding($false)))
-    $output = & $shell -NoProfile -File (Join-Path $workspace 'agent.ps1') -Action check -Profile unit -TimeoutSeconds 120
+    $output = & $shell -NoProfile -File (Join-Path $workspace 'agent.ps1') check unit -Json -TimeoutSeconds 120
     if ($LASTEXITCODE -ne 0) { throw "Unicode compilation test failed: $output" }
     $unicode = ($output -join "`n") | ConvertFrom-Json
     if ($unicode.status -ne 'PASS' -or $unicode.unitTestCount -lt 1) { throw 'Unicode Java check did not execute.' }
-    [ordered]@{ status='PASS'; archiveSha256=$release.archiveSha256; workspace=$workspace; runId=$check.runId; unicodeRun=$unicode.runId; cases=@('archive/file hashes','exact inclusion','shell-only setup without Node','fresh root/no inherited evidence','real extracted foundation build','UTF-8 Java8 compilation/JUnit','Unicode extraction path'); limits='Warm shared host caches; no cold-machine, app connectivity or graphical gameplay claim.' } | ConvertTo-Json -Depth 5 -Compress
+    [ordered]@{ status='PASS'; archiveSha256=$release.archiveSha256; workspace=$workspace; runId=$check.runId; unicodeRun=$unicode.runId; cases=@('archive/file hashes','exact inclusion','setup with minimal PATH','fresh root/no inherited evidence','real extracted foundation build','UTF-8 Java8 compilation/JUnit','Unicode extraction path'); limits='Warm shared host caches; no cold-machine, app connectivity or graphical gameplay claim.' } | ConvertTo-Json -Depth 5 -Compress
     exit 0
 } catch {
     [ordered]@{ status='FAIL'; message=$_.Exception.Message; fixture=$fixture } | ConvertTo-Json -Compress

@@ -141,16 +141,9 @@
     "gradle/wrapper/gradle-wrapper.properties",
     "gradlew",
     "gradlew.bat",
-    "integrations/codex/config.toml",
     "kit.json",
     "licenses/gradle-LICENSE.txt",
     "licenses/gradle-NOTICE.txt",
-    "mcp/bridge.mjs",
-    "mcp/client.example.json",
-    "mcp/package-lock.json",
-    "mcp/package.json",
-    "mcp/server.mjs",
-    "mcp/tools.mjs",
     "settings.gradle",
     "src/environmentCheck/java/EnvironmentProbe.java",
     "testing/Diagnostics.ps1",
@@ -175,11 +168,9 @@
     "tools/New-Checkout.ps1",
     "tools/New-Content.ps1",
     "tools/New-InstalledScenario.ps1",
-    "tools/NodeEnvironment.ps1",
     "tools/Prepare-InstalledServer.ps1",
     "tools/Read-MappedSource.ps1",
     "tools/Setup.ps1",
-    "tools/Start-Mcp.ps1",
     "tools/Test-InstalledMod.ps1"
   ]
 }

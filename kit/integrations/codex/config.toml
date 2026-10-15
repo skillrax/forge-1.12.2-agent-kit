@@ -1,8 +1,0 @@
-# Portable: launch from the active checkout; fail if its working directory differs.
-# Run tools/Setup.ps1 -WithMcp after copying, before enabling MCP. No model settings here.
-[mcp_servers.minecraft_kit]
-command = 'powershell.exe'
-args = ['-NoProfile', '-File', './tools/Start-Mcp.ps1']
-startup_timeout_sec = 20
-tool_timeout_sec = 1800
-enabled_tools = ['project_status', 'validate', 'diagnostics']

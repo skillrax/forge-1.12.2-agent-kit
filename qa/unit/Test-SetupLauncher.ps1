@@ -13,8 +13,8 @@ public class SetupLauncherProbe {
   string dir=Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
   string joined=string.Join(" ",args); bool setup=joined.Contains("Setup.ps1");
   File.AppendAllText(Path.Combine(dir,"calls.txt"),(setup?"setup":"check")+Environment.NewLine);
-  if(setup && (!joined.Contains("-InstallMissing") || !joined.Contains("-PromptMachineEnvironment") || !joined.Contains("-PromptNode"))) return 9;
-  if(!setup && !joined.Contains("-Profile environment")) return 9;
+  if(setup && (!joined.Contains("-InstallMissing") || !joined.Contains("-PromptMachineEnvironment"))) return 9;
+  if(!setup && !joined.Contains("check environment")) return 9;
   Console.WriteLine("synthetic "+(setup?"setup":"check"));
   return int.Parse(File.ReadAllText(Path.Combine(dir,setup?"setup-exit.txt":"check-exit.txt")));
  }

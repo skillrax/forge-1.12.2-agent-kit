@@ -11,7 +11,6 @@ Run what the change affects (docs/DEVELOPMENT.md). From the repository root:
 | Mapped source | `qa/unit/Test-MappedSource.ps1` | source reader |
 | Packaging | `qa/unit/Test-Packaging.ps1`; candidate: `qa/integration/Test-KitZip.ps1 -Manifest <path>` | allowlist and ZIP |
 | Installed-artifact harness | `qa/integration/Test-InstalledHarness.ps1`, `Test-InstalledDiscovery.ps1`, `Test-InstalledWorkflow.ps1` | optional installed-server path |
-| MCP | `npm --prefix qa ci`, then `npm --prefix qa test` | MCP server |
 
 Fixtures:
 - `fixtures/guide-samples`: complete mod containing every code sample in kit/docs (keep in sync with the guides).

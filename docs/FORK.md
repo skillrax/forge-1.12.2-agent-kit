@@ -6,6 +6,6 @@ Active kit, packaging, docs, QA sources, examples, wrappers, licenses and depend
 
 The original development checkout, exports, pinned dependencies, archives and working edits are preserved. To return, open ../Agentic-Codex-projects. No merge or restore command is needed. The original TASK.md records this handoff; its prior state is in the fork's baseline commit.
 
-Core identity and onboarding are agent-neutral. Shell commands are the baseline; MCP and host adapters are optional. Shared Forge resources remain under .agents and can be read explicitly by any host. CLAUDE.md points to shared instructions. The Codex sample moved to kit/integrations/codex; it is not read by setup or required by checkout. Java/game/Forge/mappings and dependency versions remain pinned.
+Core identity and onboarding are agent-neutral. Shell commands are the interface (the optional MCP server was removed in 0.5.0). Shared Forge resources remain under .agents and can be read explicitly by any host. CLAUDE.md points to shared instructions. The Codex sample moved to kit/integrations/codex; it is not read by setup or required by checkout. Java/game/Forge/mappings and dependency versions remain pinned.
 
 Open this folder in your chosen agent for kit maintenance. Open kit/ (or a fresh tools/New-Checkout.ps1 destination) for authoring a mod. Start with the corresponding AGENTS.md and TASK.md. No AI inference backend is bundled or auto-configured. Specific host/model integration and gameplay acceptance remain future work.
