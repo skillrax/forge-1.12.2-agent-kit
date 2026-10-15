@@ -1,0 +1,160 @@
+import groovy.json.JsonSlurper
+import java.util.zip.ZipFile
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.Opcodes
+
+apply from: 'testing/installed-driver.gradle'
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath 'org.ow2.asm:asm:9.7.1' }
+}
+
+sourceSets {
+    environmentCheck {
+        compileClasspath = sourceSets.main.compileClasspath
+    }
+}
+
+repositories { mavenCentral() }
+dependencies { testImplementation 'junit:junit:4.13.2' }
+
+// Consistent source decoding across JDKs and Windows user locales.
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+tasks.named('test', Test) {
+    useJUnit()
+    testLogging { events 'failed', 'skipped'; exceptionFormat 'full' }
+}
+
+tasks.register('verifyEnvironment') {
+    group = 'verification'
+    description = 'Check pinned Gradle, Java toolchain, wrapper checksum and Minecraft/Forge API compilation.'
+    dependsOn tasks.named('compileEnvironmentCheckJava')
+    doLast {
+        if (gradle.gradleVersion != '9.6.0') throw new GradleException('Expected Gradle 9.6.0. Use the project wrapper.')
+        if (java.toolchain.languageVersion.get().asInt() != 8) throw new GradleException('Expected a Java 8 toolchain.')
+        def wrapper = new Properties()
+        file('gradle/wrapper/gradle-wrapper.properties').withInputStream { wrapper.load(it) }
+        if (wrapper.getProperty('distributionUrl') != 'https://services.gradle.org/distributions/gradle-9.6.0-bin.zip' ||
+            wrapper.getProperty('distributionSha256Sum') != 'bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01') {
+            throw new GradleException('Wrapper version or SHA-256 differs from the verified baseline.')
+        }
+        logger.lifecycle('PASS: environment and Minecraft/Forge API compilation')
+    }
+}
+
+tasks.register('verifyModJar') {
+    group = 'verification'
+    description = 'Build and inspect the SRG jar; -PrequireMod=true rejects an empty template.'
+    dependsOn tasks.named('renameJar')
+    doLast {
+        def archive = tasks.named('renameJar').get().output.get().asFile
+        if (!archive.isFile()) throw new GradleException('SRG jar is missing.')
+        int classCount = 0
+        int modCount = 0
+        def declaredVersions = []
+        new ZipFile(archive).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (entry.name.startsWith('net/minecraft/') || entry.name.startsWith('net/minecraftforge/')) {
+                    throw new GradleException("Bundled game/Forge classes or resources: ${entry.name}")
+                }
+                if (entry.name.endsWith('.class')) {
+                    classCount++
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        def data = new DataInputStream(stream)
+                        if (data.readInt() != (int) 0xCAFEBABE) throw new GradleException("Invalid class: ${entry.name}")
+                        data.readUnsignedShort()
+                        int major = data.readUnsignedShort()
+                        if (major > 52) throw new GradleException("Java 8 incompatible bytecode (${major}): ${entry.name}")
+                    }
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
+                            @Override
+                            AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                                if (descriptor == 'Lnet/minecraftforge/fml/common/Mod;') {
+                                    modCount++
+                                    return new AnnotationVisitor(Opcodes.ASM9) {
+                                        @Override void visit(String name, Object value) {
+                                            if (name == 'version' && value) declaredVersions.add(value.toString())
+                                        }
+                                    }
+                                }
+                                return null
+                            }
+                        }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+                    }
+                }
+                if (entry.name == 'mcmod.info' || entry.name == 'pack.mcmeta') {
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        try {
+                            def parsed = new JsonSlurper().parse(stream, 'UTF-8')
+                            if (entry.name == 'mcmod.info') {
+                                def records = parsed instanceof List ? parsed : parsed.modList
+                                records?.each { record -> if (record.version) declaredVersions.add(record.version.toString()) }
+                            }
+                        }
+                        catch (Exception error) { throw new GradleException("Invalid JSON in ${entry.name}", error) }
+                    }
+                }
+                if (entry.name == 'EnvironmentProbe.class' || entry.name.endsWith('.java') || entry.name.endsWith('.gitkeep')) {
+                    throw new GradleException("Unexpected development file packaged: ${entry.name}")
+                }
+            }
+        }
+        if (providers.gradleProperty('requireMod').getOrElse('false') == 'true' && modCount == 0) {
+            throw new GradleException('No Forge @Mod entry point found. Add a mod entry point before running the mod profile.')
+        }
+        declaredVersions.each { declared ->
+            if (declared != project.version.toString()) throw new GradleException("Mod version ${declared} differs from Gradle version ${project.version}; synchronize @Mod/mcmod.info and rebuild.")
+        }
+        logger.lifecycle("MOD_VERSION: ${project.version}")
+        logger.lifecycle("MOD_ARTIFACT: ${archive.absolutePath}")
+        logger.lifecycle("PASS: SRG jar inspected (${classCount} classes, ${modCount} mod entry points): ${archive.name}")
+    }
+}
+
+tasks.register('verifyUnitTests') {
+    group = 'verification'
+    description = 'Run JUnit tests and fail if no test cases ran.'
+    dependsOn tasks.named('test')
+    doLast {
+        def reports = fileTree(layout.buildDirectory.dir('test-results/test')) { include 'TEST-*.xml' }
+        int count = 0
+        reports.each { report ->
+            def factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+            factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)
+            def suite = factory.newDocumentBuilder().parse(report).documentElement
+            count += suite.getAttribute('tests').toInteger() - suite.getAttribute('skipped').toInteger()
+        }
+        if (count == 0) throw new GradleException('No executed unit tests. Add JUnit 4 tests in src/test/java.')
+        logger.lifecycle("PASS: ${count} unit tests executed")
+    }
+}
+
+tasks.register('verifyAll') {
+    group = 'verification'
+    description = 'Verify environment, build, tests (if present), and SRG jar. Empty templates are allowed.'
+    dependsOn tasks.named('verifyEnvironment'), tasks.named('build'), tasks.named('verifyModJar')
+}
+
+// Keep automated smoke-test game files separate from manual runs.
+minecraft.runs.named('server') {
+    if (providers.gradleProperty('testingToolsServerDir').isPresent()) {
+        workingDir = file(providers.gradleProperty('testingToolsServerDir').get())
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer') {
+        standardInput = System.in
+        doFirst {
+            // The user has accepted the EULA for this local development environment.
+            workingDir.mkdirs()
+            new File(workingDir, 'eula.txt').text = 'eula=true\n'
+        }
+    }
+}
+
+

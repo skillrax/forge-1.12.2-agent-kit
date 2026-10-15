@@ -1,0 +1,1 @@
+{"parent":"block/block","textures":{"particle":"minecraft:blocks/gold_block","all":"minecraft:blocks/gold_block"},"elements":[{"from":[0,6,6],"to":[16,10,10],"faces":{"down":{"texture":"#all"},"up":{"texture":"#all"},"north":{"texture":"#all"},"south":{"texture":"#all"},"west":{"texture":"#all"},"east":{"texture":"#all"}}}]}

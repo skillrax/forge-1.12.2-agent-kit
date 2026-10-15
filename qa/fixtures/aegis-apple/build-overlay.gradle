@@ -1,0 +1,14 @@
+// Acceptance-only assertions; excluded from jar/renameJar.
+sourceSets {
+    evaluation {
+        compileClasspath = sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer') {
+        dependsOn tasks.named('evaluationClasses')
+        classpath += sourceSets.evaluation.output
+        jvmArgs '-Daegis.checks=true'
+    }
+}

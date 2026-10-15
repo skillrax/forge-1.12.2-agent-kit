@@ -1,0 +1,14 @@
+{
+  "name": "agentic-codex-kit-qa",
+  "version": "0.3.0-alpha.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 unit/mcp/*.test.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/server": "2.3.1",
+    "zod": "4.6.5"
+  }
+}

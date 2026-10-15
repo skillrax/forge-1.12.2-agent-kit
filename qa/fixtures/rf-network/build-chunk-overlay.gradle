@@ -1,0 +1,4 @@
+// Select only the reported unload-queue scenario; do not replay the full accounting proof.
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer') systemProperty 'rfnetwork.chunkOnly', 'true'
+}

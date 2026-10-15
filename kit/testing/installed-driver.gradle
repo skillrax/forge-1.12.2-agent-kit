@@ -1,0 +1,60 @@
+import groovy.json.JsonOutput
+import org.objectweb.asm.*
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath 'org.ow2.asm:asm:9.7.1' }
+}
+
+// Opt-in separate QA artifact. Project tests never join main or a development run.
+sourceSets {
+    installedTestDriver {
+        java.srcDir 'testing/installed-driver/src'
+        java.srcDir 'src/installedTest/java'
+        resources.srcDir 'src/installedTest/resources'
+        compileClasspath += sourceSets.main.compileClasspath
+    }
+}
+def scenarioIndex = layout.buildDirectory.file('generated/installed-test-driver/installed-scenarios.json')
+def indexScenarios = tasks.register('indexInstalledScenarios') {
+    dependsOn tasks.named('compileInstalledTestDriverJava')
+    inputs.files(sourceSets.installedTestDriver.output.classesDirs)
+    outputs.file(scenarioIndex)
+    doLast {
+        def found = new TreeMap<String, String>()
+        sourceSets.installedTestDriver.output.classesDirs.asFileTree.matching { include '**/*.class' }.each { compiled ->
+            def className
+            def id
+            new ClassReader(compiled.bytes).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override void visit(int v, int access, String name, String signature, String parent, String[] interfaces) { className = name.replace('/', '.') }
+                @Override AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                    if (descriptor != 'Ldev/agentic/installedtest/InstalledTest;') return null
+                    return new AnnotationVisitor(Opcodes.ASM9) {
+                        @Override void visit(String name, Object value) { if (name == 'value') id = value.toString() }
+                    }
+                }
+            }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+            if (id != null) {
+                if (!(id ==~ /[a-z][a-z0-9-]{0,63}/)) throw new GradleException("Invalid installed scenario ID: ${id}")
+                if (found.put(id, className) != null) throw new GradleException("Duplicate installed scenario ID: ${id}")
+            }
+        }
+        if (found.isEmpty()) throw new GradleException('No installed scenarios. Use tools/New-InstalledScenario.ps1 or add @InstalledTest classes under src/installedTest/java.')
+        if (found.size() > 256) throw new GradleException('At most 256 installed scenarios per driver.')
+        def output = scenarioIndex.get().asFile
+        output.parentFile.mkdirs()
+        output.setText(JsonOutput.toJson([schemaVersion: 1, apiVersion: 1, scenarios: found.collect { id, type -> [id: id, className: type] }]), 'UTF-8')
+    }
+}
+tasks.register('installedTestDriverJar', Jar) {
+    dependsOn indexScenarios
+    from sourceSets.installedTestDriver.output
+    from(scenarioIndex) { into 'META-INF' }
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    archiveBaseName = 'installed-test-driver'
+    archiveVersion = '1.0.0'
+}
+renamer.classes(tasks.named('installedTestDriverJar', Jar)) {
+    map.from minecraft.dependency.toSrgFile
+    archiveClassifier = 'srg'
+}

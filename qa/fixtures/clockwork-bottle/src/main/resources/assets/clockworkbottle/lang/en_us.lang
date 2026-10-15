@@ -1,0 +1,5 @@
+item.clockworkbottle.clockwork_bottle.name=Clockwork Bottle
+clockworkbottle.charge=Stored charge: %s / 60:00:00
+clockworkbottle.use=Right-click: Night Vision, starting at 15 seconds; repeat to double.
+clockworkbottle.insufficient=Not enough charge. This use needs %s seconds.
+clockworkbottle.blocked=Night Vision could not be applied. No charge spent.

@@ -1,0 +1,22 @@
+{
+    "key":  {
+                "R":  {
+                          "item":  "minecraft:comparator"
+                      },
+                "I":  {
+                          "item":  "minecraft:iron_ingot"
+                      },
+                "H":  {
+                          "item":  "minecraft:hopper"
+                      }
+            },
+    "pattern":  [
+                    "III",
+                    "HRH",
+                    "III"
+                ],
+    "result":  {
+                   "item":  "routingproof:splitter"
+               },
+    "type":  "minecraft:crafting_shaped"
+}

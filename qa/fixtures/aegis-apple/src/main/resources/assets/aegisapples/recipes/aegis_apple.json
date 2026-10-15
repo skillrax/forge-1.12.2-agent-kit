@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "DGD",
+    "GAG",
+    "DGD"
+  ],
+  "key": {
+    "D": {
+      "item": "minecraft:diamond_block"
+    },
+    "G": {
+      "item": "minecraft:gold_block"
+    },
+    "A": {
+      "item": "minecraft:golden_apple",
+      "data": 1
+    }
+  },
+  "result": {
+    "item": "aegisapples:aegis_apple",
+    "count": 1
+  }
+}

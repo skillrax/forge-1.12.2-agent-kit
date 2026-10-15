@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "originModVersion": "1.0.1",
+  "originModJarSha256": "63AC09ECD5816309566398F37209353AFC4379FC21F3DB1AFD14792308DB6AF6",
+  "originKitVersion": "0.3.0-alpha.3",
+  "originRun": "20261008T133314304Z-29c3d495",
+  "origin": "Vanilla player data from accepted1.0.1 seeded reproduction; controlled FakePlayer RestartBottle",
+  "fixtureSha256": "875714A72F2EAB6EA2CE0A5BC0A4DB0EE76AB78024F11AC6623975AA6DE3E8FC",
+  "bytes": 962,
+  "expectedChargeTicks": 19,
+  "expectedNextNightVisionSeconds": 30,
+  "scope": "Saved-format backwards compatibility input; not real player/login evidence"
+}

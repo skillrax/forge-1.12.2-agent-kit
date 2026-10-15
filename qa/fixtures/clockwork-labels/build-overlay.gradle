@@ -1,0 +1,27 @@
+// Maintainer acceptance only; never part of the production JAR/source distribution.
+// Smoke checks intentionally create new worlds. This acceptance campaign needs one
+// isolated persistent world across save/restore JVMs; it never touches manual run/.
+minecraft.runs.named('server') {
+    workingDir = layout.projectDirectory.dir('run/furnace-persistence').asFile
+}
+sourceSets {
+    evaluation {
+        compileClasspath = sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer') {
+        dependsOn tasks.named('evaluationClasses')
+        classpath += sourceSets.evaluation.output
+        def phase = project.findProperty('furnacePhase') ?: 'live'
+        jvmArgs '-Dclockwork.checks=true', '-Dclockwork.phase=' + (phase == 'restore' ? 'restore' : 'save'),
+            '-Dfurnace.phase=' + phase, '-Dfurnace.baselinePlayer=' + project.file('baseline-1.0.1-player.dat').absolutePath
+        doFirst {
+            def persistenceDir = project.file('run/furnace-persistence')
+            persistenceDir.mkdirs()
+            new File(persistenceDir, 'eula.txt').text = 'eula=true\n'
+            new File(persistenceDir, 'server.properties').text = 'server-ip=127.0.0.1\nserver-port=0\nlevel-type=FLAT\ngenerate-structures=false\n'
+        }
+    }
+}

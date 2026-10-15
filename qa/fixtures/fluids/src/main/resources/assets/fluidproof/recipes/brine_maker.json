@@ -1,0 +1,18 @@
+{
+  "result": {
+    "count": 1,
+    "item": "fluidproof:brine_maker"
+  },
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot"
+    },
+    {
+      "item": "minecraft:redstone"
+    },
+    {
+      "item": "minecraft:bucket"
+    }
+  ]
+}

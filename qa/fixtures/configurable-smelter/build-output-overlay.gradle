@@ -1,0 +1,5 @@
+// Use instead of the broad server suite for the reported output issue.
+sourceSets.evaluation.java {
+    srcDir 'src/outputEvaluation/java'
+    exclude '**/SmelterChecks.java'
+}

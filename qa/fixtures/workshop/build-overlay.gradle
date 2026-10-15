@@ -1,0 +1,20 @@
+// Maintainer acceptance only; excluded from recipient sources and mod JAR.
+minecraft.runs.named('server') { workingDir = layout.projectDirectory.dir('run/workshop-persistence').asFile }
+sourceSets {
+    evaluation {
+        compileClasspath = sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if(name == 'runServer') {
+        dependsOn tasks.named('evaluationClasses')
+        classpath += sourceSets.evaluation.output
+        jvmArgs '-Dworkshop.phase=' + (project.findProperty('workshopPhase') ?: 'live')
+        doFirst {
+            def dir=project.file('run/workshop-persistence');dir.mkdirs()
+            new File(dir,'eula.txt').text='eula=true\n'
+            new File(dir,'server.properties').text='server-ip=127.0.0.1\nserver-port=0\nlevel-type=FLAT\ngenerate-structures=false\n'
+        }
+    }
+}

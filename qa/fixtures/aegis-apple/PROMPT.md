@@ -1,0 +1,7 @@
+# Behavioral prompt trial
+
+User prompt: "I want a mod that adds a new kind of golden apple. The recipe should use 4 gold blocks laterally and 4 diamond blocks diagonally surrounding an enchanted golden apple. When eaten, It should give the player the maximum vanilla obtainable level of all vanilla defensive buffs, alongside also giving enough hunger and saturation to fill the bars even from empty. Texture can be anything, I will make my own textures later."
+
+User approved clarification: ResistanceII, RegenerationII, AbsorptionIV, Fire ResistanceI, Water BreathingI; five minutes except Regeneration30 seconds. AI chose Aegis Apples / Aegis Golden Apple and temporary vanilla golden apple texture. No competitor implementation/source was used. The receiving workspace started from frozen0.3.0-alpha.1 ZIP on the existing warm host; this is not an independent-model or cold-PC experiment.
+
+Acceptance: DGD/GAG/DGD exact recipe and metadata; reject ordinary apple/missing/wrong positions; full20 hunger/20 saturation from empty/partial/full hunger; always edible; completed consumption vs cancel; stack depletion; all effect amplifiers/durations; repeated consumption and existing stronger effect; vanilla player state NBT roundtrip; dedicated-server behavior; production JAR excludes oracle. Visual rendering and actual relog/network multiplayer need separate evidence. This trial has no custom per-item persistent state; it precedes that gate.

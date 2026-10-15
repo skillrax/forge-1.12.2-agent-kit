@@ -1,0 +1,22 @@
+{
+    "key":  {
+                "R":  {
+                          "item":  "minecraft:redstone"
+                      },
+                "I":  {
+                          "item":  "minecraft:iron_ingot"
+                      },
+                "H":  {
+                          "item":  "minecraft:hopper"
+                      }
+            },
+    "pattern":  [
+                    "III",
+                    "HRH",
+                    "III"
+                ],
+    "result":  {
+                   "item":  "routingproof:extractor"
+               },
+    "type":  "minecraft:crafting_shaped"
+}

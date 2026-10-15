@@ -1,0 +1,14 @@
+tile.kitworkshop.storage_box.name=Test Storage Box
+tile.kitworkshop.processor.name=Test Processor
+item.kitworkshop.pouch.name=Test Pouch
+entity.kitworkshop.test_trader.name=Test Trader
+entity.test_trader.name=Test Trader
+
+item.kitworkshop.test_launcher.name=Test Launcher
+
+item.kitworkshop.test_seeds.name=Test Seeds
+item.kitworkshop.test_harvest.name=Test Harvest
+tile.kitworkshop.test_crop.name=Test Crop
+tile.kitworkshop.test_ore.name=Test Ore
+
+tile.kitworkshop.test_portal.name=Test Portal

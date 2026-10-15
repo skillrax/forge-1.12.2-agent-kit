@@ -1,0 +1,4 @@
+# User follow-up (preserved)
+"I like it. Though instead of a message appearing on screen, I think something should appear on the block youre speeding up so you know its accelerated. a simple white text in the center of the block on all 6 sides that shows the current speed (2x, 4x, 8x, etc) and the time remaining on its duration. Ive drawn a little image to show what I mean. I dont mind if its implemented simply or only displays client side or whatever."
+
+Reference: user drawing of furnace with white 2x above 14s, centered on front, side and top. No gameplay clarification needed. Applies to accepted1.1.0; feature version1.2.0, toolkitalpha3 unchanged. Preserve insufficiency/safety failure feedback; remove only successful furnace activation HUD text. Main-hand Night Vision behavior unchanged.

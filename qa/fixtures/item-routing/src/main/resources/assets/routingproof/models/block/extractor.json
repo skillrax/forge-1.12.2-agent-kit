@@ -1,0 +1,12 @@
+{
+    "textures":  {
+                     "north":  "blocks/iron_block",
+                     "south":  "blocks/iron_block",
+                     "up":  "blocks/iron_block",
+                     "west":  "blocks/hopper_outside",
+                     "particle":  "blocks/iron_block",
+                     "east":  "blocks/emerald_block",
+                     "down":  "blocks/iron_block"
+                 },
+    "parent":  "block/cube"
+}

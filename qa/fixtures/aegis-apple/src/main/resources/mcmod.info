@@ -1,0 +1,9 @@
+[
+  {
+    "modid": "aegisapples",
+    "name": "Aegis Apples",
+    "description": "A defensive golden apple.",
+    "version": "1.0.0",
+    "mcversion": "1.12.2"
+  }
+]

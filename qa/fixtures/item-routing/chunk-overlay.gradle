@@ -1,0 +1,18 @@
+// Select only the chunk-boundary QA mod. Never include this output in the JAR.
+sourceSets {
+    chunkEvaluation {
+        compileClasspath = sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer') {
+        dependsOn tasks.named('chunkEvaluationClasses')
+        classpath += sourceSets.chunkEvaluation.output
+        doFirst {
+            def dir=project.file('run'); dir.mkdirs()
+            new File(dir,'eula.txt').text='eula=true\n'
+            new File(dir,'server.properties').text='server-ip=127.0.0.1\nserver-port=0\nlevel-type=FLAT\ngenerate-structures=false\nlevel-name=chunk-proof-'+System.currentTimeMillis()+'\n'
+        }
+    }
+}

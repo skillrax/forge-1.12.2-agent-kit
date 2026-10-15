@@ -1,0 +1,30 @@
+# Personal Menu concept proof
+
+Minecraft 1.12.2 / Forge 14.23.5.2859, stable39 mappings. Install the exported `personal-menu-proof-1.0.1-srg.jar` on the server and every client. Press **N** in gameplay; no block, item or command is required. Change **Open Personal Menu** under Controls / Personal Menu Proof if another mod uses N. This screen does not pause the world, including single-player. Esc or Close returns to play.
+
+## Short manual checklist
+
+1. Join your test server with the mod installed on both sides. Press N with empty hands. The menu shows your name, Counter 0 and Saved toggle OFF for a new player. Increment changes the counter by exactly one, Toggle flips ON/OFF, and Reset both returns to 0/OFF. Each click shows a server status. Hover over the bottom explanation to see its tooltip. Press N while typing in chat: it must stay in chat. Check the key can be rebound in Controls.
+2. Have another player join. Player A leaves 3/ON and player B leaves 1/OFF. Each opens their own menu and sees only their own values. Reset A; B must remain 1/OFF. The world and other players continue moving while a menu is open.
+3. Leave each player with different nonzero values, disconnect, and rejoin using the same accounts. Press N and check both values and toggles survived.
+4. Stop the server normally, restart the same world, and rejoin using the same accounts. Both saved states must survive. In single-player, use Save and Quit, close Minecraft, relaunch, and open the same world. Reset remains available for repeating the test.
+
+Report the failing step with player name, expected/actual counter and toggle, displayed status, and whether the server/world was actually restarted. User reported all four steps have expected results, including independent players, logout and normal restart. Acceptance: evidence/player-menu/1.0.1/user-acceptance.json. Automated UUID isolation remains distinct from user-reported multiplayer acceptance.
+
+## Ownership, persistence and network policy
+
+The authenticated server player owns the state. Request packets contain one unsigned action byte (0 read, 1 increment, 2 toggle, 3 reset), no player name or UUID. Work runs on the server world thread. A queued request for an obsolete/disconnected player instance is discarded. Invalid actions leave state unchanged and return a rejection. Counters are clamped to 0–1,000,000; increments at the cap return a limit status without overflow. Reset affects only this feature's counter/toggle and leaves unrelated player NBT intact.
+
+Storage is `EntityPlayer.getEntityData()` / `EntityPlayer.PERSISTED_NBT_TAG` / `PersonalMenuProof`, with Counter (int) and Enabled (boolean). Vanilla player saving writes it in the UUID's player data (the integrated owner also has vanilla level player data). Normal autosave/logout/shutdown writes it; the proof does not flush disk on every button click or claim recovery after a forced process kill. Identity follows the server UUID, so changing account/offline-mode identity changes ownership. Pinned `EntityPlayerMP.copyFrom` copies the persisted section for replacement/respawn; no custom clone event is needed. A focused synthetic clone assertion verifies this path, without claiming a gameplay death campaign.
+
+Only the server changes persisted state. Each accepted request returns a snapshot to that sender. The client displays values after receiving a reply and disables change buttons while awaiting it. Reopening asks the server for a fresh snapshot. This is a standalone GuiScreen, without an inventory/container. A sided proxy isolates Minecraft GUI, LWJGL and keybinding classes from dedicated servers. The IN_GAME key conflict context and current-screen guard prevent opening while typing; the binding remains subject to ordinary Controls conflicts.
+
+## Evidence and reproduction
+
+Evidence: `evidence/player-menu/1.0.1/summary.json`. Artifact/manual checklist: `releases/player-menu/1.0.1/`. Production is `src/main`; QA is `src/evaluation` and is excluded from the JAR. Dedicated checks use two synthetic EntityPlayerMP identities, test action accounting, invalid action, reset isolation, cap and pinned cloning, write actual vanilla player files and read them in a separate JVM. These identities are not logged-in network clients.
+
+The graphical QA launches a real integrated client/network session, sends an OS N keypress through LWJGL, invokes actual GUI mouse callbacks and normal production packets, checks replies and continuing world time, captures the default/tooltip/relogin screens, disconnects/rejoins, and then reloads the same saved world in a separate JVM with a fixed username and matching UUID assertion. Screenshots are visually inspected. Developer-classpath evidence remains distinct from the user-reported four-step multiplayer checklist acceptance.
+
+In a new checkout from `kit/tools/New-Checkout.ps1`, copy fixture src/main and src/evaluation into src/, copy build-overlay.gradle as menu-overlay.gradle, append `apply from: 'menu-overlay.gradle'` to build.gradle, and set the fixture's mod version to 1.0.1 in build.gradle. Run tools/Setup.ps1, then agent.ps1 check/mod. Run `qa/integration/Invoke-MenuServer.ps1 -Workspace <checkout>` twice and `qa/integration/Invoke-MenuClient.ps1 -Workspace <checkout>` twice. Graphical QA requires a visible Windows desktop and briefly focuses the Minecraft window; do not type during that short check. Export using tools/Export-Release.ps1 after a fresh mod PASS. Preserve exports and use a new checkout/world for altered initial assertions. Overlay and QA do not ship in the JAR. Do not run another build against the same checkout while a client is running; compilation can replace classes that the running JVM has not yet loaded.
+
+Implementation note: fixed development username and explicit UUID matching are necessary for meaningful restart checks because the default dev launcher generates varying player names. NBT serialization alone does not prove actual restart persistence. User accepted all four manual steps. Concise reusable guidance is now packaged in kit/.agents/skills/forge-1122-mod/references/personal-menus.md.

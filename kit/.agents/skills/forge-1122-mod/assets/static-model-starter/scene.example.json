@@ -1,0 +1,11 @@
+{
+  "heightBlocks": 3,
+  "objects": [
+    {
+      "name": "Pyramid",
+      "materials": {
+        "0": {"texture": "staticmodel:textures/statue/checker.png", "cutout": false}
+      }
+    }
+  ]
+}

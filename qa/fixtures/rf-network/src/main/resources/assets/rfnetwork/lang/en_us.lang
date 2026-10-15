@@ -1,0 +1,6 @@
+tile.rfnetwork.generator.name=Fuel Generator
+tile.rfnetwork.storage.name=RF Storage
+tile.rfnetwork.sink.name=Adjustable RF Sink
+tile.rfnetwork.cable.name=Bufferless RF Cable
+item.rfnetwork.output_upgrade.name=Generator Output Upgrade
+container.rfnetwork=RF Network

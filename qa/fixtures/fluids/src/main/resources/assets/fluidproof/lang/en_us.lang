@@ -1,0 +1,6 @@
+tile.fluidproof.brine_maker.name=Brine Maker
+tile.fluidproof.straight_pipe.name=Straight Fluid Pipe (West to East)
+tile.fluidproof.clay_maker.name=Clay Maker
+tile.fluidproof.biting_brine.name=Biting Brine
+fluid.biting_brine=Biting Brine
+item.fluidproof.wrench.name=Machine Wrench

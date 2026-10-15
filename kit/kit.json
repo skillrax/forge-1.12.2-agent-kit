@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "agentic-codex-minecraft-kit",
+  "version": "0.4.0-beta.4",
+  "status": "private-beta",
+  "platform": "windows",
+  "minecraft": "1.12.2",
+  "forge": "14.23.5.2859",
+  "mappings": "stable_39-1.12",
+  "modJavaMajor": 8
+}

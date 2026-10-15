@@ -1,0 +1,9 @@
+item.clockworkbottle.clockwork_bottle.name=Clockwork Bottle
+clockworkbottle.charge=Stored charge: %s / 60:00:00
+clockworkbottle.use=Right-click: Night Vision, starting at 15 seconds; repeat to double.
+clockworkbottle.insufficient=Not enough charge. This use needs %s seconds.
+clockworkbottle.blocked=Night Vision could not be applied. No charge spent.
+clockworkbottle.furnace.use=Shift-right-click a furnace: 2x for 15 seconds, costing 30 seconds; repeat doubles speed and cost.
+clockworkbottle.furnace.started=Furnace boosted to %sx for 15 seconds. Spent %s seconds of charge.
+clockworkbottle.furnace.unsupported=Only vanilla furnaces can be accelerated. No charge spent.
+clockworkbottle.furnace.busy=The server's furnace acceleration limit is in use. No charge spent.

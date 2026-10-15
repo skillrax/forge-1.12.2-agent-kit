@@ -1,0 +1,12 @@
+[
+  {
+    "modid": "networkstarter",
+    "name": "RF Network Starter",
+    "version": "1.0.0",
+    "mcversion": "1.12.2",
+    "description": "Fuel generation, bufferless cables, configurable storage and sink.",
+    "authorList": [
+      "Agentic"
+    ]
+  }
+]

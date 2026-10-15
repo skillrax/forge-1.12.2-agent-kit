@@ -1,0 +1,6 @@
+{
+  "textures": {
+    "all": "blocks/stonebrick_mossy"
+  },
+  "parent": "block/cube_all"
+}

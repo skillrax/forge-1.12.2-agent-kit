@@ -1,0 +1,15 @@
+{
+  "result": {
+    "count": 1,
+    "item": "fluidproof:straight_pipe"
+  },
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot"
+    },
+    {
+      "item": "minecraft:glass"
+    }
+  ]
+}

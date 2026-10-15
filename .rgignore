@@ -1,0 +1,2 @@
+# History is opt-in: rg --no-ignore archive/<snapshot>/<specific-path>
+/archive/

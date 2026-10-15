@@ -1,0 +1,1 @@
+{"display":{"icon":{"item":"kitworkshop:test_harvest"},"title":"Test Harvest","description":"Obtain one Test Harvest.","background":"minecraft:textures/gui/advancements/backgrounds/stone.png","show_toast":true,"announce_to_chat":false,"hidden":false},"criteria":{"harvested":{"trigger":"minecraft:inventory_changed","conditions":{"items":[{"item":"kitworkshop:test_harvest"}]}}}}

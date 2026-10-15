@@ -1,0 +1,6 @@
+tile.networkstarter.generator.name=Fuel Generator
+tile.networkstarter.storage.name=RF Storage
+tile.networkstarter.sink.name=Adjustable RF Sink
+tile.networkstarter.cable.name=Bufferless RF Cable
+item.networkstarter.output_upgrade.name=Generator Output Upgrade
+container.networkstarter=RF Network

@@ -1,0 +1,4 @@
+tile.smelterproof.smelter.name=Configurable Smelter
+tile.smelterproof.generator.name=Demo RF Generator
+tile.smelterproof.pipe.name=RF Pipe
+item.smelterproof.secondary_output_upgrade.name=Secondary Output Upgrade

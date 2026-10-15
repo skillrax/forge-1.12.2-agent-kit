@@ -1,0 +1,4 @@
+// QA-only player movement/residency replay. No forced chunks or manual queueUnload calls.
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runClient') systemProperty 'rfnetwork.flight', 'true'
+}

@@ -1,0 +1,24 @@
+# Generated authoring artifacts
+/releases/
+/evidence/
+/.work/
+# Downloaded local model inputs; preserve on disk, outside kit/source releases.
+/external-testing-assets/
+# Generated runtime/prototype artifacts
+**/.gradle/
+**/build/
+**/run/
+**/runs/
+**/reports/
+**/node_modules/
+**/logs/
+**/__pycache__/
+*.log
+# Local editor state
+.vscode/
+.idea/
+*.iml
+
+# Preserved local prototypes; active source is kit/
+/fullAgentic-GPT-v1/
+/fullAgentic-GPT-v2/
