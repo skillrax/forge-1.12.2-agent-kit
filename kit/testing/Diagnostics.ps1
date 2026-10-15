@@ -129,6 +129,7 @@ function Get-KitCompileHint {
     $location = ($Details | Where-Object { $_ -match '^location:' } | Select-Object -First 1) -replace '^location:\s*', ''
     $owner = if ($location -match '(?:class|interface|enum) ([\w.$]+)') { $Matches[1] } elseif ($location -match 'of type ([\w.$]+)') { $Matches[1] } else { '' }
     $owner = $owner -replace '<.*$', ''
+    if ($Message -match "illegal character: '\\ufeff'") { return 'the file starts with a UTF-8 byte-order mark (PowerShell Set-Content/Out-File add one); agent.ps1 check strips it, so rerun; write files with your edit tool or [IO.File]::WriteAllText' }
     $api = Get-KitApiIndex $Root
     if ($Message -match 'cannot find symbol' -and $symbol -match '^(method|variable|class) ([\w$]+)') {
         $kind = $Matches[1]; $name = $Matches[2]
@@ -235,7 +236,8 @@ function Get-KitLogProblems {
     for ($i = 0; $i -lt $Lines.Length -and $out.Count -lt 8; $i++) {
         $line = $Lines[$i]
         # Legacy FML scanning Java 9+ classes inside dev-only jars logs harmless ASM errors.
-        if ($line -match 'Unable to read a class file correctly|There was a problem reading the entry|Zip file .* failed to read properly') { $benign = $true; continue }
+        # Benign discovery noise, and recipe/loot load errors that the runner already reports as lint ERRORs.
+        if ($line -match 'Unable to read a class file correctly|There was a problem reading the entry|Zip file .* failed to read properly|Parsing error loading recipe|Couldn''t load loot table') { $benign = $true; continue }
         if ($line -match '^\[\d\d:\d\d:\d\d\]') { $benign = $false }
         if ($benign) { continue }
         if ($line -match '(Caused by:|^\S*Exception in server tick loop|Encountered an unexpected exception|^\s*[\w.$]+(Exception|Error)(: |$))' -and $line -notmatch '^\s+at ' -and $line -notmatch 'module-info|ASM ClassReader|KIT_|Cache miss!') {
@@ -250,7 +252,7 @@ function Get-KitLogProblems {
             $out.Add($text)
             foreach ($frame in $frames) { $out.Add('    ' + $frame) }
             foreach ($hint in $script:KitLogHints) { if ($text -match $hint.p) { $out.Add('  hint: ' + $hint.h); break } }
-        } elseif ($line -match 'Potentially Dangerous alternative prefix|Parsing error loading recipe') {
+        } elseif ($line -match 'Potentially Dangerous alternative prefix') {
             $text = ($line -replace '^\[[^\]]*\] \[[^\]]*\]( \[[^\]]*\])?:? ?', '').Trim()
             if ($seen.Add($text)) { $out.Add('WARN ' + $text) }
         }

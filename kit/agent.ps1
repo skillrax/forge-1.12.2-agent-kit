@@ -7,11 +7,12 @@
 #   agent.ps1 new <kind> <name> [options]        (generators: docs/GENERATORS.md)
 #   agent.ps1 version <x.y.z>                    (build.gradle + @Mod + mcmod.info)
 #   agent.ps1 export                             (releases/<modid>-<version>.jar after a passing check server)
+#   agent.ps1 batch <file>                       (one command per line; stops at the first failure)
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [Parameter(Position = 0)][ValidateSet('status', 'check', 'errors', 'api', 'new', 'init', 'version', 'export')][string]$Action = 'status',
+    [Parameter(Position = 0)][ValidateSet('status', 'check', 'errors', 'api', 'new', 'init', 'version', 'export', 'batch')][string]$Action = 'status',
     [Parameter(Position = 1)][string]$Target,
-    [Parameter(Position = 2, ValueFromRemainingArguments = $true)][string[]]$Rest,
+    [Parameter(Position = 2, ValueFromRemainingArguments = $true)][object[]]$Rest,
     [ValidateSet('environment', 'build', 'unit', 'server', 'game', 'mod', 'all')][string]$Profile,
     [ValidatePattern('^[a-z0-9*,-]*$')][string]$Test = '*',
     [string]$Find,
@@ -140,6 +141,7 @@ function Invoke-Api {
         $api = Get-KitApiIndex $root
         if (-not $api) { throw 'API index missing; run: agent.ps1 check environment' }
     }
+    $reader = Join-Path $root 'tools/Read-MappedSource.ps1'
     $mark = { param($m) if ($m[4] -match 'client-only') { '  [client-only]' } else { '' } }
     if ($Find) {
         $needle = $Find.ToLowerInvariant()
@@ -147,18 +149,25 @@ function Invoke-Api {
         foreach ($c in $api.classes.Keys) { if ($c.Substring($c.LastIndexOf('.') + 1).ToLowerInvariant().Contains($needle)) { $hits.Add('class ' + $c) } }
         foreach ($owner in $api.members.Keys) {
             foreach ($m in $api.members[$owner]) {
-                if ($m[2] -ne '<init>' -and $m[2].ToLowerInvariant().Contains($needle)) { $hits.Add((Get-KitShortName $owner) + '.' + $m[3] + (& $mark $m) + '   (' + $owner + ')') }
+                if ($m[2] -ne '<init>' -and $m[2].ToLowerInvariant().Contains($needle)) { $hits.Add((Get-KitShortName $owner) + '.' + $(if ($m[0] -eq 'F') { $m[2] + ': ' + $m[3] } else { $m[3] }) + (& $mark $m) + '   (' + $owner + ')') }
             }
         }
         $sorted = @($hits | Sort-Object { $_.Length })
         $sorted | Select-Object -First 40
         if ($sorted.Count -gt 40) { '... {0} more; narrow the search' -f ($sorted.Count - 40) }
-        if (-not $sorted.Count) { "nothing in 1.12.2 Minecraft/Forge contains '$Find'" }
+        if ($sorted.Count -lt 3) {
+            # Private fields, constants and literals are only in the source.
+            if ($sorted.Count) { '' }
+            'source lines containing "' + $Find + '":'
+            & $reader -Grep $Find -MaxLines 25 -Text 2>$null
+        }
         return
     }
-    if (-not $Target) { throw 'Usage: agent.ps1 api <Class> | <Class>.<member> | -Find <text>' }
+    if (-not $Target) { throw 'Usage: agent.ps1 api <Class> | <Class>.<member> | <Class>.new (constructors) | -Find <text>' }
     $className = $Target; $member = $null
-    if ($Target -cmatch '^(.+)\.([a-z_$][\w$]*)$') { $className = $Matches[1]; $member = $Matches[2] }
+    if ($Target -cmatch '^(.+)\.([a-z_$][\w$]*|<init>)$') { $className = $Matches[1]; $member = $Matches[2] }
+    elseif ($Target -cmatch '^(.+)\.([A-Z][\w$]*)$' -and ($Matches[1] -replace '^.*\.', '') -ceq $Matches[2]) { $className = $Matches[1]; $member = '<init>' }   # ItemAxe.ItemAxe
+    if ($member -eq 'new') { $member = '<init>' }
     $candidates = @(Resolve-KitClass $api $className)
     if (-not $candidates.Count) {
         $near = @($api.bySimple.Keys | Where-Object { $_ -like ('*' + $className + '*') } | Select-Object -First 8)
@@ -167,6 +176,11 @@ function Invoke-Api {
     if ($candidates.Count -gt 1 -and -not $member) { '(also: ' + (($candidates | Select-Object -Skip 1 -First 4) -join ', ') + ')' }
     $chain = @(Get-KitClassChain $api $candidates[0])
     $c = $api.classes[$chain[0]]
+    # Source file of a (possibly nested) class: the outermost class's .java file.
+    $segments = $chain[0].Split('.')
+    $outer = @(); foreach ($s in $segments) { $outer += $s; if ($s -cmatch '^[A-Z]') { break } }
+    $outerClass = $outer -join '.'
+    $simple = $segments[-1]
     $header = '{0} {1}' -f $c[4], $c[1]
     if ($chain.Count -gt 1) { $header += ' extends ' + (($chain | Select-Object -Skip 1 | ForEach-Object { Get-KitShortName $_ }) -join ' > ') }
     if ($c[3]) { $header += ' implements ' + (($c[3].Split(',') | ForEach-Object { Get-KitShortName $_ }) -join ', ') }
@@ -177,34 +191,50 @@ function Invoke-Api {
             $mods = ($m[4] -replace 'client-only', '').Trim()
             '  ' + $(if ($m[0] -eq 'F') { 'field ' + $m[2] + ': ' + $m[3] } else { $m[3] }) + $(if ($mods) { '  {' + $mods + '}' } else { '' }) + (& $mark $m)
         }
-        $lines | Select-Object -First 80
-        if (@($lines).Count -gt 80) { '  ... {0} more; use agent.ps1 api -Find <text> or api {1}.<member>' -f (@($lines).Count - 80), $className }
+        $limit = if ($Full) { 400 } else { 60 }
+        $lines | Select-Object -First $limit
+        if (@($lines).Count -gt $limit) { '  ... {0} more (-Full lists all; or api {1}.<member>, api -Find <text>)' -f (@($lines).Count - $limit), $className }
         if ($chain.Count -gt 1) { '  (inherited members: agent.ps1 api ' + (Get-KitShortName $chain[1]) + ')' }
+        # Declaration and first fields, including private constants the signature list cannot show.
+        ''
+        & $reader -Class $outerClass -Head -TypeName $simple -MaxLines $(if ($Full) { 80 } else { 20 }) -Text 2>$null
+        return
+    }
+    if ($member -eq '<init>') {
+        $ctors = @(if ($api.members.ContainsKey($chain[0])) { $api.members[$chain[0]] | Where-Object { $_[2] -eq '<init>' } })
+        if (-not $ctors.Count) { throw "$className has no public/protected constructor." }
+        foreach ($m in $ctors) { 'new ' + $m[3] + $(if (($m[4] -replace 'client-only', '').Trim()) { '  {' + ($m[4] -replace 'client-only', '').Trim() + '}' } else { '' }) }
+        ''
+        & $reader -Class $outerClass -Member $simple -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
         return
     }
     $found = @(foreach ($owner in $chain) { if ($api.members.ContainsKey($owner)) { foreach ($m in $api.members[$owner]) { if ($m[2] -eq $member) { ,@($owner, $m) } } } })
     if (-not $found.Count) {
         if ($script:KitRenames.ContainsKey($member)) { throw "No member '$member' in 1.12.2 (stable_39); use $($script:KitRenames[$member])" }
+        # Private members are not in the index but are in the source.
+        $private = & $reader -Class $outerClass -Member $member -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
+        if ($LASTEXITCODE -eq 0 -and $private) { "(not public/protected; source below)"; $private; return }
         $similar = Find-KitSimilarMembers $api $chain[0] $member $null
         throw ("No member '$member' on $className or its superclasses." + $(if ($similar.Count) { ' Did you mean: ' + ($similar -join ' | ') } else { '' }))
     }
     foreach ($pair in $found) { '{0}.{1}{2}{3}' -f (Get-KitShortName $pair[0]), $(if ($pair[1][0] -eq 'F') { $member + ': ' + $pair[1][3] } else { $pair[1][3] }), $(if (($pair[1][4] -replace 'client-only', '').Trim()) { '  {' + ($pair[1][4] -replace 'client-only', '').Trim() + '}' } else { '' }), (& $mark $pair[1]) }
     # Source of the first declaring class, bounded.
-    # Nested classes live in their outermost class's source file.
-    $segments = $found[0][0].Split('.')
-    $outer = @(); foreach ($s in $segments) { $outer += $s; if ($s -cmatch '^[A-Z]') { break } }
-    $source = & (Join-Path $root 'tools/Read-MappedSource.ps1') -Class ($outer -join '.') -Member $member -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
+    $owner = $found[0][0].Split('.')
+    $ownerOuter = @(); foreach ($s in $owner) { $ownerOuter += $s; if ($s -cmatch '^[A-Z]') { break } }
+    $source = & $reader -Class ($ownerOuter -join '.') -Member $member -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
     if ($LASTEXITCODE -eq 0 -and $source) { ''; $source }
 }
 
 # Options after the subcommand are forwarded: -Name value pairs, bare -Switches, positionals.
-function ConvertTo-Splat([string[]]$Tokens) {
+# PowerShell turns unquoted a,b,c into an array; join it back so "3,8,6,3" and 3,8,6,3 behave the same.
+function ConvertTo-Splat([object[]]$Tokens) {
     $named = @{}; $positional = New-Object 'System.Collections.Generic.List[string]'
-    for ($i = 0; $i -lt $Tokens.Count; $i++) {
-        if ($Tokens[$i] -match '^-([A-Za-z]+)$') {
+    $flat = @(foreach ($token in $Tokens) { if ($token -is [array]) { ($token | ForEach-Object { "$_" }) -join ',' } else { "$token" } })
+    for ($i = 0; $i -lt $flat.Count; $i++) {
+        if ($flat[$i] -match '^-([A-Za-z]+)$') {
             $key = $Matches[1]
-            if ($i + 1 -lt $Tokens.Count -and $Tokens[$i + 1] -notmatch '^-[A-Za-z]') { $named[$key] = $Tokens[$i + 1]; $i++ } else { $named[$key] = $true }
-        } else { $positional.Add($Tokens[$i]) }
+            if ($i + 1 -lt $flat.Count -and $flat[$i + 1] -notmatch '^-[A-Za-z]') { $named[$key] = $flat[$i + 1]; $i++ } else { $named[$key] = $true }
+        } else { $positional.Add($flat[$i]) }
     }
     if ($Json) { $named['Json'] = $true }
     return @{ named = $named; positional = $positional }
@@ -233,6 +263,30 @@ function Set-ModVersion([string]$Version) {
     "version $($info.version) -> $Version in " + ($changes -join ', ')
 }
 
+# PowerShell 5.1 Set-Content/Out-File write a UTF-8 BOM, which javac rejects and which breaks the
+# first key of a lang file. Strip it from source/resource text files before building.
+function Remove-KitBom {
+    $fixed = @()
+    $src = Join-Path $root 'src'
+    if (-not [IO.Directory]::Exists($src)) { return $fixed }
+    foreach ($file in [IO.Directory]::GetFiles($src, '*', [IO.SearchOption]::AllDirectories)) {
+        if ($file -notmatch '\.(java|json|lang|info|mcmeta|txt|cfg)$') { continue }
+        $bytes = [IO.File]::ReadAllBytes($file)
+        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+            $rest = New-Object byte[] ($bytes.Length - 3)
+            [Array]::Copy($bytes, 3, $rest, 0, $rest.Length)
+            [IO.File]::WriteAllBytes($file, $rest)
+            $fixed += (Get-Relative $file)
+        }
+    }
+    return $fixed
+}
+
+# One agent.ps1 command line -> arguments ("quoted values" and 'quoted values' keep spaces).
+function Split-KitCommandLine([string]$Line) {
+    @([regex]::Matches($Line, '"[^"]*"|''[^'']*''|\S+') | ForEach-Object { $v = $_.Value; if ($v.Length -ge 2 -and ($v[0] -eq '"' -or $v[0] -eq "'") -and $v[-1] -eq $v[0]) { $v.Substring(1, $v.Length - 2) } else { $v } })
+}
+
 # ---- main --------------------------------------------------------------------------------
 
 $exitCode = 0
@@ -246,6 +300,7 @@ try {
             New-Item -ItemType Directory -Force -Path $reportRoot | Out-Null
             try { $lock = [IO.File]::Open((Join-Path $reportRoot 'agent.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
             catch { throw 'Another check is running in this project. Wait for it to finish.' }
+            $bomFixed = @(Remove-KitBom)
             $start = New-Object Diagnostics.ProcessStartInfo
             $start.FileName = (Get-Process -Id $PID).Path
             $start.Arguments = '-NoProfile -File "' + (Join-Path $root 'testing/Test-DevEnvironment.ps1') + '" -Profile ' + $selected + ' -Test "' + $Test + '" -TimeoutSeconds ' + $TimeoutSeconds + $(if ($Clean) { ' -Clean' } else { '' })
@@ -286,7 +341,10 @@ try {
             Set-Content -LiteralPath $result.report -Value $resultJson -Encoding UTF8
             Set-Content -LiteralPath (Join-Path $reportRoot 'latest.json') -Value $resultJson -Encoding UTF8
             Set-Content -LiteralPath (Join-Path $reportRoot ($selected + '-latest.json')) -Value $resultJson -Encoding UTF8
-            if ($Json) { $resultJson } else { Format-Check $result }
+            if ($Json) { $resultJson } else {
+                Format-Check $result
+                if ($bomFixed.Count) { 'note: removed a UTF-8 byte-order mark from ' + ($bomFixed -join ', ') + '. Write files with your edit tool or [IO.File]::WriteAllText, not Set-Content/Out-File.' }
+            }
         }
         'status' {
             $info = Get-ModInfo
@@ -295,10 +353,17 @@ try {
             $stale = $false
             if ($last) { $stale = (Get-NewestSourceTime) -gt [IO.File]::GetLastWriteTimeUtc($last.report) }
             $task = if ([IO.File]::Exists((Join-Path $root 'TASK.md'))) { [IO.File]::ReadAllText((Join-Path $root 'TASK.md')) } else { '' }
+            # Test scaffolds from `new test` still contain a placeholder check until someone writes the real one.
+            $scaffolds = @()
+            $gametest = Join-Path $root 'src/gametest'
+            if ([IO.Directory]::Exists($gametest)) {
+                foreach ($file in [IO.Directory]::GetFiles($gametest, '*.java', [IO.SearchOption]::AllDirectories)) { if ([IO.File]::ReadAllText($file).Contains('KIT-SCAFFOLD')) { $scaffolds += [IO.Path]::GetFileName($file) } }
+            }
             $next = if ($javaSelection -and -not ($javaSelection.gradle -and $javaSelection.java8)) { 'Run Setup.cmd (SETUP.md).' }
                 elseif (-not $info) { 'No mod yet: agent.ps1 init <modid> "<Name>" (creates a working skeleton).' }
                 elseif (-not $last -or $stale) { 'Run agent.ps1 check (then check server before finishing).' }
                 elseif ($last.status -ne 'PASS') { 'Fix the last failure (agent.ps1 errors), then rerun agent.ps1 check ' + $last.profile + '.' }
+                elseif ($scaffolds.Count) { 'Fill in the placeholder check in ' + ($scaffolds -join ', ') + ', then agent.ps1 check game.' }
                 else { 'Continue TASK.md.' }
             if ($Json) {
                 [ordered]@{ schemaVersion = 1; action = 'status'; projectRoot = $root; mod = $info; java = $javaSelection; lastRun = if ($last) { $last | Select-Object runId, profile, status, message, log } else { $null }; lastRunStale = $stale; task = $task; nextAction = $next } | ConvertTo-Json -Depth 6 -Compress
@@ -307,6 +372,7 @@ try {
                 'mod: ' + $(if ($info) { '{0} {1} ({2})' -f $info.modId, $info.version, $info.entry } else { 'none' })
                 'java: ' + $java
                 'last check: ' + $(if ($last) { '{0} {1} {2}{3}' -f $last.status, $last.profile, ([IO.File]::GetLastWriteTime($last.report).ToString('yyyy-MM-dd HH:mm')), $(if ($stale) { ' (source changed since)' } else { '' }) } else { 'none' })
+                if ($scaffolds.Count) { 'tests: placeholder check not filled in: ' + ($scaffolds -join ', ') }
                 'next: ' + $next
                 # Gradle/Java fail with "Unable to access jarfile" once nested paths pass Windows' 260-character limit.
                 if ($root.Length -gt 150) { "warning: project path is $($root.Length) characters; builds can fail past Windows' 260-character limit. Move the folder somewhere short (e.g. C:\mods\mykit)." }
@@ -337,6 +403,29 @@ try {
             $exitCode = $LASTEXITCODE
         }
         'version' { Set-ModVersion $Target }
+        'batch' {
+            # .NET resolves relative paths against the process directory, not the PowerShell location.
+            $batchFile = if ($Target -and -not [IO.Path]::IsPathRooted($Target)) { Join-Path (Get-Location).Path $Target } else { $Target }
+            if (-not $batchFile -or -not [IO.File]::Exists($batchFile)) { throw 'Usage: agent.ps1 batch <file>  (one agent.ps1 command per line, e.g. new item ruby; # starts a comment)' }
+            $lineNumber = 0; $ran = 0
+            foreach ($raw in [IO.File]::ReadAllLines($batchFile)) {
+                $lineNumber++
+                $line = $raw.Trim()
+                if (-not $line -or $line.StartsWith('#')) { continue }
+                $line = $line -replace '^(\./)?agent\.ps1\s+', ''
+                $tokens = @(Split-KitCommandLine $line)
+                if ($tokens[0] -eq 'batch') { throw "line ${lineNumber}: batch files cannot run batch" }
+                '> ' + $line
+                $ErrorActionPreference = 'Continue'
+                $output = & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @tokens 2>$null
+                $code = $LASTEXITCODE
+                $ErrorActionPreference = 'Stop'
+                $output
+                $ran++
+                if ($code -ne 0) { "stopped at line $lineNumber of $Target after $($ran - 1) successful command(s); fix that line, then run the rest"; $exitCode = 1; break }
+            }
+            if ($exitCode -eq 0) { "batch done: $ran command(s)" }
+        }
         'export' {
             & (Join-Path $root 'tools/Export-Release.ps1') -Json:$Json
             $exitCode = $LASTEXITCODE

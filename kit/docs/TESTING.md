@@ -14,7 +14,7 @@ Nothing here can see the screen. GUI layout, model appearance and animations nee
 
 ## Game tests
 
-`./agent.ps1 new test <id>` writes a scaffold in src/gametest/java. A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor at y=3.
+Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food stats); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (status reminds you until its placeholder check is replaced). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor at y=3.
 
 ```java
 @GameTest("ore-drops-ruby")
@@ -41,7 +41,9 @@ public class OreDropsTest implements Scenario {
 | `invariant(name, cond, detail)` | must hold every tick from here on |
 | `origin()`, `world()`, `server()`, `ticks()` | fixture area, WorldServer, server, elapsed ticks |
 | `place(pos, "modid:block")`, `place(pos, state)`, `state(pos)`, `tile(pos, Class)`, `inventory(pos)` | blocks and tile entities |
-| `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups, entities |
+| `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities |
+| `craft("a", "", "b", ...)`, `smelt(id)` | crafting result of a row-major 3x3 grid ("" = empty), furnace result |
+| `drops(blockId, toolId)`, `count(stacks, id)` | place + mine a block with a tool in a free spot, return what dropped; count one item |
 | `player(name)` | survival FakePlayer at origin, facing south |
 | `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths |
 

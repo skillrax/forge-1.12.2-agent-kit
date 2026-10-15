@@ -21,6 +21,7 @@ switch ($env:FAKE_MODE) {
     default {
         'Done (1.0s)! For help, type "help"'
         if ($env:FAKE_MODE -eq 'crash') { 'Encountered an unexpected exception' }
+        if ($env:FAKE_MODE -eq 'recipe-error') { '[12:00:00] [Server thread/ERROR] [FML]: Parsing error loading recipe demo:bad'; 'com.google.gson.JsonSyntaxException: Unknown item ''demo:missing'''; '	at net.minecraftforge.common.crafting.CraftingHelper.getItemStack(CraftingHelper.java:1)' }
         $report = @{ registered = @{ items = 1 }; lint = @(); tests = @() }
         if ($env:FAKE_MODE -eq 'lint-error') { $report.lint = @(@{ level = 'ERROR'; subject = 'block x:y'; message = 'tile entity not registered' }) }
         if ($env:FAKE_MODE -eq 'test-fail') { $report.tests = @(@{ id = 'a'; status = 'PASS' }, @{ id = 'b'; status = 'FAIL'; phase = 'p'; message = 'm' }) }
@@ -33,7 +34,7 @@ switch ($env:FAKE_MODE) {
 '@
 $cases = New-Object 'System.Collections.Generic.List[string]'
 $shell = (Get-Process -Id $PID).Path
-function Test-Case([string]$Name, [string]$Mode, [string]$Profile, [int]$ExpectedExit, [string]$MessagePattern) {
+function Test-Case([string]$Name, [string]$Mode, [string]$Profile, [int]$ExpectedExit, [string]$MessagePattern, [string]$OutputPattern) {
     $env:FAKE_MODE = $Mode
     $ErrorActionPreference = 'Continue'   # PowerShell 5.1 turns native stderr (progress lines) into errors
     $output = & $shell -NoProfile -File $runner -Profile $Profile -TimeoutSeconds 10 2>$null
@@ -43,6 +44,7 @@ function Test-Case([string]$Name, [string]$Mode, [string]$Profile, [int]$Expecte
     if ($actualExit -ne $ExpectedExit -or $result.exitCode -ne $ExpectedExit) { throw "$Name expected exit $ExpectedExit, got $actualExit. $($result.message)" }
     if ($result.status -ne $(if ($ExpectedExit -eq 0) { 'PASS' } else { 'FAIL' })) { throw "$Name reported $($result.status)" }
     if ($MessagePattern -and $result.message -notmatch $MessagePattern) { throw "$Name message: $($result.message)" }
+    if ($OutputPattern -and ($output -join "`n") -notmatch $OutputPattern) { throw "$Name output: $($output -join ' ')" }
     if (-not (Test-Path -LiteralPath $result.report)) { throw "$Name saved no report" }
     $cases.Add($Name)
 }
@@ -53,6 +55,7 @@ try {
     Test-Case 'server + harness' server server 0 'linted'
     Test-Case 'fatal exception' crash server 1 'fatal'
     Test-Case 'lint ERROR fails' lint-error server 1 'content error'
+    Test-Case 'broken recipe fails' recipe-error server 1 'content error' 'recipe demo:bad.*Unknown item'
     Test-Case 'failed game test fails' test-fail game 1 '1 of 2 game tests failed'
     Test-Case 'timeout' timeout build 2 'Timeout'
     "PASS: $($cases.Count) runner cases ($($cases -join ', '))"

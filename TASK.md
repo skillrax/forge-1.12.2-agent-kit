@@ -1,13 +1,15 @@
 # Current maintainer task
 
-Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.2).
+Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.3).
 
-Result: Done and verified on this host.
-- agent.ps1: compact text output (-Json for programs), compiler errors with 1.12.2 rename/similar-member hints, `api` lookup over an index of the mapped jar (client-only flags), init skeleton, `new` generators (item/block/ore/food/tools/armor/recipe/smelting/tile/test), version, export.
-- check server: harness lints registered content vs lang/models/textures/blockstates/sounds/tile registration. check game: @GameTest scenarios in src/gametest.
-- Docs: AGENTS.md ~600 tokens startup; INDEX + 20 guides; every guide sample compiled/linted/tested in qa/fixtures/guide-samples.
-- Evidence: qa/unit/Test-AgentInterface.ps1, Test-TestingTools.ps1, Test-Packaging.ps1, qa/integration/Test-KitSamples.ps1 (generators 14 items/3 blocks; samples 17 items/5 blocks/entity/enchant/potion; all game tests PASS), extracted 0.5.0-beta.1 ZIP built a generated mod with check server PASS; 0.5.0-beta.2 (MCP removed) passes qa/integration/Test-KitZip.ps1.
+Result: Field-test feedback (feedback/KIT-FEEDBACK-0543-16-10-26.txt, "Gron" mod) addressed and verified on this host.
+- Bugs: unquoted comma lists work (A1); axe damage/speed follow vanilla per material (A2); generators reject unknown item references (A3); broken recipe/loot JSON is a check server ERROR (A4); check strips UTF-8 BOMs and says so (A5).
+- api: class lookup shows declaration + private constants; `Class.new` shows constructors; private members fall back to source; `-Find` greps the source jar; output names the source (B1-B4).
+- Generators: `-Like <vanilla material>` presets, `-Durability diamond`, `-Recipes` for tool/armor sets, vanilla reference tables, shaped placeholder textures (`-Look`), one-line output (`-List`), checks appended to GeneratedContentTest.java; `batch plan.txt` stops at first failure; TestContext craft/smelt/drops/count; status flags unfilled test scaffolds.
+- Evidence: qa/unit Test-AgentInterface, Test-TestingTools (+broken recipe case), Test-MappedSource (+grep, nested head), Test-Packaging PASS; qa/integration/Test-KitSamples PASS (generators incl. tool/armor recipe sets and generated checks; guide samples).
 
-Next action: Fresh-agent trial: copy kit/ (or the ZIP) to a short path, open it in Claude Code and in a local-model agent (32k context), give a plain request (e.g. "ruby ore, tools, armor and a ruby apple that heals"), record tokens, interventions and the check/gametest results. Then a human look in runClient at textures/GUI.
+Not done: full declarative mod.json + apply (C4; batch covers the minimum).
 
-Blocker: None. Not verified: cold PC setup, graphical client, real local-model behavior. Historical qa/integration runners still target the old runner (see qa/README.md).
+Next action: Build a 0.5.0-beta.3 ZIP and run qa/integration/Test-KitZip.ps1; then a cold-PC trial (empty GRADLE_USER_HOME) and a 32k local-model trial with a plain request; record tokens, interventions, check/gametest results.
+
+Blocker: None. Not verified: cold first-run Forge download, graphical client, real local-model behavior.

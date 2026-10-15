@@ -85,11 +85,44 @@ exit 0
     Assert ($dup -match 'already declared') 'duplicate rejected'
     $passed.Add('generators: item block ore food tools armor recipe smelting tile test, duplicate refusal')
 
+    # Presets, recipe sets, generated checks, reference validation.
+    $tools = Invoke-Agent @('new', 'tools', 'opal', '-Like', 'iron', '-Durability', 'diamond', '-Repair', 'gem', '-Recipes')
+    Assert ($tools -match '^created tools opal: opal_sword' -and $tools -match '5 recipe\(s\)') "tools summary: $tools"
+    $items = Read-Text "$java/ModItems.java"
+    Assert ($items -match 'addToolMaterial\("opal", 2, 1561, 6\.0F, 2\.0F, 14\)' -and $items -match 'new ToolItems\.Axe\(OPAL_TOOLS, 8\.0F, -3\.1F\)') 'iron preset with diamond durability, vanilla iron axe'
+    Assert ((Read-Text "$assets/recipes/opal_pickaxe.json") -match '"pattern": \[ "XXX", " # ", " # " \]') 'vanilla pickaxe shape'
+    $generated = Read-Text 'src/gametest/java/com/example/demo/GeneratedContentTest.java'
+    Assert ($generated -match 't\.craft\("demo:gem", "demo:gem", "demo:gem", "", "minecraft:stick"' -and $generated -match 't\.drops\("demo:gem_ore"' -and $generated -match 'getMaxDamage\(\) == 1561') 'generated checks'
+    $bad = Invoke-Agent @('new', 'recipe', 'bad', '-Ingredients', 'minecraft:iron_ingt', '-Result', 'gem') 1
+    Assert ($bad -match 'not a Minecraft 1\.12\.2 item/block id') "vanilla typo: $bad"
+    $missing = Invoke-Agent @('new', 'smelting', 'x', '-From', 'nothing_here', '-Result', 'gem') 1
+    Assert ($missing -match 'does not exist yet') "unknown own item: $missing"
+    Assert (-not (Test-Path (Join-Path $fixture "$assets/recipes/bad.json"))) 'rejected recipe left no file'
+    # PowerShell turns an unquoted 3,8,6,3 into an array; it must still work.
+    Push-Location $fixture
+    try { $arrayOut = & (Join-Path $fixture 'agent.ps1') new armor jade -Protection 3,8,6,3 -Like diamond 2>$null } finally { Pop-Location }
+    Assert (($arrayOut -join "`n") -match '^created armor jade' -and (Read-Text "$java/ModItems.java") -match 'new int\[\] \{3, 6, 8, 3\}, 10, SoundEvents\.ITEM_ARMOR_EQUIP_DIAMOND, 2\.0F') "unquoted list: $arrayOut"
+    $passed.Add('presets, recipe sets, generated checks, reference validation, unquoted lists')
+
+    # Batch stops at the first failing line.
+    [IO.File]::WriteAllText((Join-Path $fixture 'plan.txt'), "# comment`nnew item amber`nnew recipe broken -Ingredients `"no_such_item`" -Result amber`nnew item never_made`n")
+    Push-Location $fixture
+    try { $batch = Invoke-Agent @('batch', 'plan.txt') 1 } finally { Pop-Location }
+    Assert ($batch -match 'created item amber' -and $batch -match 'stopped at line 3' -and (Read-Text "$java/ModItems.java") -notmatch 'never_made') "batch: $batch"
+    $passed.Add('batch stops at first failure')
+
     $version = Invoke-Agent @('version', '1.2.3')
     Assert ((Read-Text 'build.gradle') -match "version = '1.2.3'" -and (Read-Text "$java/DemoMod.java") -match 'VERSION = "1.2.3"' -and (Read-Text 'src/main/resources/mcmod.info') -match '"version": "1.2.3"') "version: $version"
     $passed.Add('version sync')
 
     $env:FAKE_MODE = 'ok'
+    # A byte-order mark (PowerShell Set-Content) is stripped before building.
+    $bomFile = Join-Path $fixture "$java/BomProbe.java"
+    [IO.File]::WriteAllText($bomFile, 'class BomProbe {}', (New-Object Text.UTF8Encoding($true)))
+    $bomCheck = Invoke-Agent @('check')
+    Assert ($bomCheck -match 'removed a UTF-8 byte-order mark from src/main/java/com/example/demo/BomProbe\.java' -and [IO.File]::ReadAllBytes($bomFile)[0] -eq [byte][char]'c') "BOM strip: $bomCheck"
+    Remove-Item -LiteralPath $bomFile
+    Assert ((Invoke-Agent @('status')) -match 'placeholder check not filled in: GemOreDropsTest\.java') 'scaffold reminder'
     $check = Invoke-Agent @('check')
     Assert ($check -match '^PASS build') "check: $check"
     $json = (Invoke-Agent @('check', '-Json')) | ConvertFrom-Json

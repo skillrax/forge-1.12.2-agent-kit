@@ -1,5 +1,6 @@
 # Generates known-good content into a skeleton made by `agent.ps1 init`: Java declarations at
-# // kit:<marker> lines, JSON models/blockstates/recipes, lang entries and placeholder textures.
+# // kit:<marker> lines, JSON models/blockstates/recipes, lang entries, placeholder textures and
+# matching checks in src/gametest/.../GeneratedContentTest.java.
 # Usage: agent.ps1 new <kind> <name> [options]   (kinds and options: docs/GENERATORS.md)
 [CmdletBinding()]
 param(
@@ -8,6 +9,7 @@ param(
     [string]$Display,
     [string]$Tab,
     [int]$StackSize,
+    [ValidateSet('gem', 'ingot', 'raw', 'nugget', 'dust', 'rod')][string]$Look,
     [string]$Material = 'ROCK',
     [double]$Hardness = 3.0,
     [double]$Resistance = -1,
@@ -26,21 +28,28 @@ param(
     [switch]$Wolf,
     [switch]$AlwaysEdible,
     [string]$Effect,
-    [int]$Durability = -1,
-    [double]$Speed = 6.0,
-    [double]$Damage = 2.0,
-    [int]$Enchant = 14,
-    [string]$Protection = '3,8,6,3',
-    [double]$Toughness = 0,
+    [string]$Like,
+    [string]$Durability,
+    [double]$Speed,
+    [double]$Damage,
+    [int]$Enchant,
+    [string]$Protection,
+    [double]$Toughness,
+    [double]$AxeDamage,
+    [double]$AxeSpeed,
     [string]$Repair,
+    [switch]$Recipes,
+    [string]$Handle = 'minecraft:stick',
     [string]$Shape,
-    [string[]]$Key,
-    [string[]]$Ingredients,
+    [string]$Key,
+    [string]$Ingredients,
     [string]$Result,
     [string]$From,
     [switch]$Ticking,
     [int]$Inventory = 0,
     [string]$Color,
+    [switch]$Force,
+    [switch]$List,
     [switch]$Json
 )
 $ErrorActionPreference = 'Stop'
@@ -49,6 +58,27 @@ $root = Split-Path -Parent $PSScriptRoot
 $utf8 = New-Object Text.UTF8Encoding($false)
 $created = New-Object 'System.Collections.Generic.List[string]'
 $notes = New-Object 'System.Collections.Generic.List[string]'
+$registered = New-Object 'System.Collections.Generic.List[string]'
+$script:checkCount = 0
+$script:recipeCount = 0
+
+# Vanilla values (net.minecraft.item.Item.ToolMaterial, ItemArmor.ArmorMaterial, ItemAxe).
+$toolPresets = [ordered]@{
+    wood    = @{ level = 0; uses = 59;   speed = 2.0;  damage = 0.0; enchant = 15; axeDamage = 6.0; axeSpeed = -3.2 }
+    stone   = @{ level = 1; uses = 131;  speed = 4.0;  damage = 1.0; enchant = 5;  axeDamage = 8.0; axeSpeed = -3.2 }
+    iron    = @{ level = 2; uses = 250;  speed = 6.0;  damage = 2.0; enchant = 14; axeDamage = 8.0; axeSpeed = -3.1 }
+    diamond = @{ level = 3; uses = 1561; speed = 8.0;  damage = 3.0; enchant = 10; axeDamage = 8.0; axeSpeed = -3.0 }
+    gold    = @{ level = 0; uses = 32;   speed = 12.0; damage = 0.0; enchant = 22; axeDamage = 6.0; axeSpeed = -3.0 }
+}
+# protection = helmet,chestplate,leggings,boots
+$armorPresets = [ordered]@{
+    leather   = @{ durability = 5;  protection = '1,3,2,1'; enchant = 15; toughness = 0.0; sound = 'LEATHER' }
+    chainmail = @{ durability = 15; protection = '2,5,4,1'; enchant = 12; toughness = 0.0; sound = 'CHAIN' }
+    iron      = @{ durability = 15; protection = '2,6,5,2'; enchant = 9;  toughness = 0.0; sound = 'IRON' }
+    gold      = @{ durability = 7;  protection = '2,5,3,1'; enchant = 25; toughness = 0.0; sound = 'GOLD' }
+    diamond   = @{ durability = 33; protection = '3,8,6,3'; enchant = 10; toughness = 2.0; sound = 'DIAMOND' }
+}
+$presetAliases = @{ wooden = 'wood'; golden = 'gold'; chain = 'chainmail' }
 
 # ---- project discovery -------------------------------------------------------------------
 
@@ -74,18 +104,21 @@ function Get-Project {
         mainClass = [IO.Path]::GetFileNameWithoutExtension($mainFile)
         items = (Join-Path $dir 'ModItems.java'); blocks = (Join-Path $dir 'ModBlocks.java')
         assets = (Join-Path $root ('src/main/resources/assets/' + $modId))
+        tests = (Join-Path $root ('src/gametest/java/' + $package.Replace('.', '/')))
     }
 }
 
 # ---- file editing ------------------------------------------------------------------------
 
+function Get-Rel([string]$Path) { $Path.Substring($root.Length).TrimStart('\', '/').Replace('\', '/') }
+function Note-File([string]$Path) { $rel = Get-Rel $Path; if (-not $created.Contains($rel)) { $created.Add($rel) } }
+
 function Write-New([string]$Path, [string]$Text) {
     if ([IO.File]::Exists($Path)) { throw "$(Get-Rel $Path) already exists; refusing to overwrite." }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
     [IO.File]::WriteAllText($Path, $Text.Replace("`r`n", "`n"), $utf8)
-    $created.Add((Get-Rel $Path))
+    Note-File $Path
 }
-function Get-Rel([string]$Path) { $Path.Substring($root.Length).TrimStart('\', '/').Replace('\', '/') }
 
 function Add-AtMarker([string]$File, [string]$Marker, [string[]]$Lines) {
     $text = [IO.File]::ReadAllText($File)
@@ -93,9 +126,8 @@ function Add-AtMarker([string]$File, [string]$Marker, [string[]]$Lines) {
     if (-not $match.Success) { throw "Marker '// kit:$Marker' not found in $(Get-Rel $File); restore it or add the code by hand." }
     $indent = $match.Groups[1].Value
     $block = ($Lines | ForEach-Object { if ($_) { $indent + $_ } else { '' } }) -join "`n"
-    $text = $text.Insert($match.Index, $block + "`n")
-    [IO.File]::WriteAllText($File, $text, $utf8)
-    if (-not $created.Contains((Get-Rel $File))) { $created.Add((Get-Rel $File)) }
+    [IO.File]::WriteAllText($File, $text.Insert($match.Index, $block + "`n"), $utf8)
+    Note-File $File
 }
 
 function Add-Import([string]$File, [string[]]$Imports) {
@@ -109,13 +141,43 @@ function Add-Import([string]$File, [string[]]$Imports) {
     [IO.File]::WriteAllText($File, $text, $utf8)
 }
 
-function Add-Lang([string]$Key, [string]$Value) {
+function Add-Lang([string]$LangKey, [string]$Value) {
     $path = Join-Path $project.assets 'lang/en_us.lang'
     $text = if ([IO.File]::Exists($path)) { [IO.File]::ReadAllText($path) } else { '' }
-    if ($text -match ('(?m)^' + [regex]::Escape($Key) + '=')) { return }
+    if ($text -match ('(?m)^' + [regex]::Escape($LangKey) + '=')) { return }
     if ($text.Length -and -not $text.EndsWith("`n")) { $text += "`n" }
-    [IO.File]::WriteAllText($path, $text + "$Key=$Value`n", $utf8)
-    if (-not $created.Contains((Get-Rel $path))) { $created.Add((Get-Rel $path)) }
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+    [IO.File]::WriteAllText($path, $text + "$LangKey=$Value`n", $utf8)
+    Note-File $path
+}
+
+# Checks appended to one auto-generated game test, run by `agent.ps1 check game`.
+function Add-Check([string[]]$Lines) {
+    $file = Join-Path $project.tests 'GeneratedContentTest.java'
+    if (-not [IO.File]::Exists($file)) {
+        Write-New $file @"
+package $($project.package);
+
+import java.util.List;
+import kit.gametest.GameTest;
+import kit.gametest.Scenario;
+import kit.gametest.TestContext;
+import net.minecraft.item.ItemStack;
+
+/** Written by agent.ps1 new ...: one check per generated feature. Edit freely; keep the marker line. */
+@GameTest("generated-content")
+public class GeneratedContentTest implements Scenario {
+    @Override
+    public void plan(TestContext t) {
+        t.then("generated content", () -> {
+            // kit:checks
+        });
+    }
+}
+"@
+    }
+    Add-AtMarker $file 'checks' $Lines
+    $script:checkCount += @($Lines | Where-Object { $_ -match 't\.require\(' }).Count
 }
 
 function Assert-NewName([string]$RegistryName) {
@@ -127,7 +189,10 @@ function Assert-NewName([string]$RegistryName) {
 function ConvertTo-Constant([string]$Text) { $Text.ToUpperInvariant() }
 function ConvertTo-Pascal([string]$Text) { ($Text.Split('_') | Where-Object { $_ } | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '' }
 function ConvertTo-Title([string]$Text) { ($Text.Split('_') | Where-Object { $_ } | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join ' ' }
-function ConvertTo-JavaString([string]$Text) { '"' + $Text.Replace('\', '\\').Replace('"', '\"') + '"' }
+function F([double]$Value) { $Value.ToString('0.0###', [Globalization.CultureInfo]::InvariantCulture) + 'F' }
+function Q([string]$Text) { '"' + $Text.Replace('\', '\\').Replace('"', '\"') + '"' }
+
+# ---- item references ---------------------------------------------------------------------
 
 # "ruby" -> "<modid>:ruby"; "minecraft:diamond", "minecraft:dye@4" kept.
 function ConvertTo-ItemId([string]$Ref) {
@@ -137,6 +202,54 @@ function ConvertTo-ItemId([string]$Ref) {
     if ($id -notmatch '^[a-z0-9_.-]+:[a-z0-9_/.-]+$') { throw "Not an item id: '$Ref' (use name, modid:name or minecraft:name)" }
     return $id
 }
+
+# Vanilla registry names, read once from the pinned source (Item.registerItems / Block.registerBlocks).
+function Get-VanillaIds {
+    if ($script:vanillaIds) { return $script:vanillaIds }
+    $cache = Join-Path $root '.kit/vanilla-ids.txt'
+    if (-not [IO.File]::Exists($cache)) {
+        $home2 = if ($env:GRADLE_USER_HOME) { $env:GRADLE_USER_HOME } else { Join-Path $env:USERPROFILE '.gradle' }
+        $jar = Join-Path $home2 'caches/minecraftforge/forgegradle/mavenizer/caches/forge/net/minecraftforge/forge/1.12.2-14.23.5.2859/stable/39-1.12/remapped-javadoc.jar'
+        if (-not [IO.File]::Exists($jar)) { return $null }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [IO.Compression.ZipFile]::OpenRead($jar)
+        $ids = New-Object 'System.Collections.Generic.SortedSet[string]'
+        try {
+            foreach ($entryName in @('net/minecraft/item/Item.java', 'net/minecraft/block/Block.java')) {
+                $reader = New-Object IO.StreamReader($zip.GetEntry($entryName).Open())
+                try { $source = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                foreach ($m in [regex]::Matches($source, 'register(?:Item|Block)\(\d+,\s*"([a-z0-9_]+)"')) { [void]$ids.Add($m.Groups[1].Value) }
+            }
+        } finally { $zip.Dispose() }
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $cache) | Out-Null
+        [IO.File]::WriteAllLines($cache, [string[]]@($ids), $utf8)
+    }
+    $script:vanillaIds = New-Object 'System.Collections.Generic.HashSet[string]' (,[string[]][IO.File]::ReadAllLines($cache))
+    return $script:vanillaIds
+}
+
+# Fails on references that cannot exist at runtime (unknown own-mod or vanilla names); -Force skips.
+function Assert-ItemRef([string]$Ref, [string]$What) {
+    if (-not $Ref -or $Ref -match '^ore:') { return }
+    $id = ConvertTo-ItemId $Ref
+    if ($Force) { return }
+    $ns, $path = $id.Split(':', 2)
+    if ($ns -eq $project.modId) {
+        $known = $registered.Contains($path)
+        if (-not $known) {
+            foreach ($file in [IO.Directory]::GetFiles((Join-Path $root 'src/main/java'), '*.java', [IO.SearchOption]::AllDirectories)) {
+                if ([IO.File]::ReadAllText($file) -match ('"' + [regex]::Escape($path) + '"')) { $known = $true; break }
+            }
+        }
+        if (-not $known) { throw "$What '$id' does not exist yet. Create it first (agent.ps1 new item $path ...), fix the name, or pass -Force." }
+    } elseif ($ns -eq 'minecraft') {
+        $vanilla = Get-VanillaIds
+        if ($vanilla -and -not $vanilla.Contains($path)) { throw "$What '$id' is not a Minecraft 1.12.2 item/block id (check spelling, e.g. minecraft:iron_ingot), or pass -Force." }
+    } else {
+        $notes.Add("$id belongs to another mod; it must be installed for the recipe to load")
+    }
+}
+
 # Java expression for an item, evaluated when called (safe in lambdas and init).
 function ConvertTo-ItemExpr([string]$Ref) {
     $id = ConvertTo-ItemId $Ref
@@ -150,63 +263,100 @@ function ConvertTo-ItemExpr([string]$Ref) {
 
 # ---- placeholder textures ----------------------------------------------------------------
 
+# 16x16 masks: . empty, o outline, d dark, x base, h highlight, s handle.
+$masks = @{
+    ingot = '................|................|................|................|................|................|.......oooooo...|.....oohhhhhxo..|...oohhxxxxxxdo.|..ohxxxxxxxxddo.|..oxxxxxxxxddoo.|..oddddddddoo...|...ooooooooo....|................|................|................'
+    raw = '................|................|................|......oooo......|....oohhhxoo....|...ohhxxxxxdo...|..ohxxxhxxxxdo..|..oxxxxxxxxddo..|.ohxxxxxxxxxdo..|.oxxxhxxxxxddo..|.oxxxxxxxdxddo..|..odxxxxddddo...|...oodddddoo....|.....oooooo.....|................|................'
+    nugget = '................|................|................|................|................|......oooo......|.....ohhxxo.....|....ohxxxxdo....|....oxxxxxdo....|....odxxxddo....|.....oddddo.....|......oooo......|................|................|................|................'
+    dust = '................|................|................|................|................|................|................|.......oo.......|......ohxo......|.....ohxxxo.....|....ohxxxxdo....|...ohxxhxxxdo...|..ohxxxxxxxxdo..|..oddddddddddo..|...oooooooooo...|................'
+    rod = '................|............oo..|...........ohxo.|..........ohxdo.|.........ohxdo..|........ohxdo...|.......ohxdo....|......ohxdo.....|.....ohxdo......|....ohxdo.......|...ohxdo........|..ohxdo.........|.ohxdo..........|.oxdo...........|..oo............|................'
+    sword = '............ooo.|...........ohxo.|..........ohxo..|.........ohxo...|........ohxo....|.......ohxo.....|......ohxo......|..oo.ohxo.......|..odohxo........|...oddo.........|...osdo.........|..osoodo........|.oso..oo........|oso.............|oo..............|................'
+    pickaxe = '................|...oooooooo.....|..ohhxxxxxxoo...|...ooooooxxxdo..|........osodxo..|.......oso.odxo.|......oso...odo.|.....oso....odo.|....oso......o..|...oso..........|..oso...........|.oso............|oso.............|oo..............|................|................'
+    axe = '................|.......ooo......|......ohxxoo....|.....ohxxxxdo...|.....oxxxxsdo...|......odxsodo...|.......osodo....|......oso.oo....|.....oso........|....oso.........|...oso..........|..oso...........|.oso............|oso.............|oo..............|................'
+    shovel = '................|...........ooo..|..........ohxxo.|.........ohxxxdo|.........oxxxdo.|........osxddo..|.......oso.oo...|......oso.......|.....oso........|....oso.........|...oso..........|..oso...........|.oso............|oso.............|oo..............|................'
+    hoe = '................|.......oooo.....|......ohhxxoo...|.......oooxsdo..|.........oso.o..|........oso.....|.......oso......|......oso.......|.....oso........|....oso.........|...oso..........|..oso...........|.oso............|oso.............|oo..............|................'
+    helmet = '................|................|................|....oooooooo....|...ohhhxxxxxo...|..ohxxxxxxxxdo..|..oxxxxxxxxxdo..|..oxxooooooxdo..|..oxo......oxo..|..oxo......odo..|..ooo......ooo..|................|................|................|................|................'
+    chestplate = '................|..oooo....oooo..|.ohxxoo..ooxxdo.|.oxxxxooooxxxdo.|.oxxxxxhhxxxxdo.|.oooxxxxxxxxooo.|...oxxxxxxxdo...|...oxxxhxxxdo...|...oxxxxxxxdo...|...oxxxxxxxdo...|...oxxxxxxxdo...|...oddddddddo...|...oooooooooo...|................|................|................'
+    leggings = '................|...oooooooooo...|...ohhxxxxxxo...|...oxxxxxxxdo...|...oxxxoxxxdo...|...oxxo.oxxdo...|...oxxo.oxxdo...|...oxxo.oxxdo...|...oxxo.oxxdo...|...oxxo.oxxdo...|...oxdo.oxddo...|...oooo.oooo....|................|................|................|................'
+    boots = '................|................|................|................|................|...oooo..oooo...|...ohxo..ohxo...|...oxxo..oxxo...|...oxxo..oxxo...|..oxxdo..oxxdo..|.ohxxdo..ohxxdo.|.oddddo..oddddo.|.oooooo..oooooo.|................|................|................'
+    food = '................|.......oo.......|........ss......|.....oooosoo....|....ohhxxxxdo...|...ohxxxxxxxdo..|...ohxxxxxxxdo..|...oxxxxxxxxdo..|...oxxxxxxxxdo..|...oxxxxxxxddo..|....oxxxxxddo...|....odxxxdddo...|.....odddddo....|......oooooo....|................|................'
+}
+
 Add-Type -AssemblyName System.Drawing
+# gron_ingot, raw_gron, gron_ore and gron_block share the color of material "gron".
+function Get-MaterialSeed([string]$Seed) {
+    $root2 = $Seed -replace '^(raw|block_of|crushed|polished|cut)_', '' -replace '_(ingot|nugget|dust|gem|ore|block|shard|crystal|raw|plate|gear|rod|sword|pickaxe|axe|shovel|hoe|helmet|chestplate|leggings|boots|apple|layer_\d)$', ''
+    if ($root2) { return $root2 } else { return $Seed }
+}
 function Get-BaseColor([string]$Seed) {
+    $Seed = Get-MaterialSeed $Seed
     if ($Color) { return [Drawing.ColorTranslator]::FromHtml('#' + $Color.TrimStart('#')) }
     $hash = 0; foreach ($c in $Seed.ToCharArray()) { $hash = ($hash * 31 + [int]$c) % 360 }
-    # HSV(hash, 0.65, 0.85) -> RGB
     $h = $hash / 60.0; $s = 0.65; $v = 0.85; $i = [Math]::Floor($h); $f = $h - $i
     $p = $v * (1 - $s); $q = $v * (1 - $s * $f); $t = $v * (1 - $s * (1 - $f))
     $rgb = switch ([int]$i % 6) { 0 { $v, $t, $p } 1 { $q, $v, $p } 2 { $p, $v, $t } 3 { $p, $q, $v } 4 { $t, $p, $v } default { $v, $p, $q } }
     return [Drawing.Color]::FromArgb([int]($rgb[0] * 255), [int]($rgb[1] * 255), [int]($rgb[2] * 255))
 }
-function Get-Shade([Drawing.Color]$C, [double]$Factor, [int]$Alpha = 255) {
+function Get-Shade([Drawing.Color]$C, [double]$Factor) {
     $clamp = { param($x) [Math]::Max(0, [Math]::Min(255, [int]$x)) }
-    [Drawing.Color]::FromArgb($Alpha, (& $clamp ($C.R * $Factor)), (& $clamp ($C.G * $Factor)), (& $clamp ($C.B * $Factor)))
+    [Drawing.Color]::FromArgb(255, (& $clamp ($C.R * $Factor)), (& $clamp ($C.G * $Factor)), (& $clamp ($C.B * $Factor)))
 }
-# Simple, recognisable 16x16 (or armor 64x32) placeholders; replace with real art any time.
+# Recognisable placeholders (shaped icons, noisy blocks/ores); replace with real art any time.
 function New-Texture([string]$Path, [string]$Style, [string]$Seed) {
     if ([IO.File]::Exists($Path)) { return }
     $base = Get-BaseColor $Seed
     $rand = New-Object Random ($Seed.GetHashCode())
     $w = 16; $h = 16; if ($Style -eq 'armor') { $w = 64; $h = 32 }
     $bmp = New-Object Drawing.Bitmap $w, $h, ([Drawing.Imaging.PixelFormat]::Format32bppArgb)
-    for ($x = 0; $x -lt $w; $x++) {
-        for ($y = 0; $y -lt $h; $y++) {
-            $pixel = [Drawing.Color]::Transparent
-            switch ($Style) {
-                'block' { $pixel = Get-Shade $base (0.9 + $rand.NextDouble() * 0.2); if ($x -in 0, 15 -or $y -in 0, 15) { $pixel = Get-Shade $base 0.7 } }
-                'ore' { $g = 110 + $rand.Next(30); $pixel = [Drawing.Color]::FromArgb(255, $g, $g, $g) }
-                'armor' { $pixel = Get-Shade $base (0.85 + $rand.NextDouble() * 0.2) }
-                'item' { $d = [Math]::Abs($x - 7.5) + [Math]::Abs($y - 7.5); if ($d -le 6.5) { $pixel = Get-Shade $base $(if ($x + $y -lt 13) { 1.15 } else { 0.85 }) }; if ($d -gt 5.5 -and $d -le 6.5) { $pixel = Get-Shade $base 0.6 } }
-                'food' { $d = [Math]::Sqrt([Math]::Pow($x - 7.5, 2) + [Math]::Pow($y - 8.5, 2)); if ($d -le 6) { $pixel = Get-Shade $base $(if ($d -gt 5) { 0.65 } elseif ($x -lt 7 -and $y -lt 8) { 1.2 } else { 1.0 }) }; if ($x -eq 8 -and $y -in 1, 2) { $pixel = [Drawing.Color]::FromArgb(255, 90, 60, 30) } }
-                'tool' {
-                    if ($x + $y -eq 15 -and $x -le 7) { $pixel = [Drawing.Color]::FromArgb(255, 110, 80, 45) }
-                    if ($x + $y -in 15, 16 -and $x -gt 7) { $pixel = Get-Shade $base 1.0 }
-                    if ($x -ge 9 -and $y -le 6 -and [Math]::Abs(($x - 9) - (6 - $y)) -le 1) { $pixel = Get-Shade $base 1.15 }
+    if ($masks.ContainsKey($Style)) {
+        $rows = $masks[$Style].Split('|')
+        $shades = @{ 'o' = 0.45; 'd' = 0.75; 'x' = 1.0; 'h' = 1.3 }
+        for ($y = 0; $y -lt 16; $y++) {
+            for ($x = 0; $x -lt 16; $x++) {
+                $cell = [string]$rows[$y][$x]
+                $pixel = switch ($cell) {
+                    '.' { [Drawing.Color]::Transparent }
+                    's' { [Drawing.Color]::FromArgb(255, 110, 80, 45) }
+                    default { Get-Shade $base $shades[$cell] }
                 }
+                $bmp.SetPixel($x, $y, $pixel)
             }
-            $bmp.SetPixel($x, $y, $pixel)
         }
-    }
-    if ($Style -eq 'ore') {
-        for ($k = 0; $k -lt 6; $k++) {
-            $cx = 2 + $rand.Next(11); $cy = 2 + $rand.Next(11)
-            foreach ($o in @(@(0, 0), @(1, 0), @(0, 1), @(1, 1))) { $bmp.SetPixel($cx + $o[0], $cy + $o[1], (Get-Shade $base (0.85 + $rand.NextDouble() * 0.3))) }
+    } else {
+        for ($x = 0; $x -lt $w; $x++) {
+            for ($y = 0; $y -lt $h; $y++) {
+                $pixel = switch ($Style) {
+                    'block' { if ($x -in 0, 15 -or $y -in 0, 15) { Get-Shade $base 0.7 } else { Get-Shade $base (0.9 + $rand.NextDouble() * 0.2) } }
+                    'ore' { $g = 110 + $rand.Next(30); [Drawing.Color]::FromArgb(255, $g, $g, $g) }
+                    'armor' { Get-Shade $base (0.85 + $rand.NextDouble() * 0.2) }
+                    default {   # gem
+                        $d = [Math]::Abs($x - 7.5) + [Math]::Abs($y - 7.5)
+                        if ($d -gt 6.5) { [Drawing.Color]::Transparent } elseif ($d -gt 5.5) { Get-Shade $base 0.6 } else { Get-Shade $base $(if ($x + $y -lt 13) { 1.15 } else { 0.85 }) }
+                    }
+                }
+                $bmp.SetPixel($x, $y, $pixel)
+            }
+        }
+        if ($Style -eq 'ore') {
+            for ($k = 0; $k -lt 6; $k++) {
+                $cx = 2 + $rand.Next(11); $cy = 2 + $rand.Next(11)
+                foreach ($o in @(@(0, 0), @(1, 0), @(0, 1), @(1, 1))) { $bmp.SetPixel($cx + $o[0], $cy + $o[1], (Get-Shade $base (0.85 + $rand.NextDouble() * 0.3))) }
+            }
         }
     }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
     $bmp.Save($Path, [Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
-    $created.Add((Get-Rel $Path))
+    Note-File $Path
 }
 
-# ---- shared asset writers ----------------------------------------------------------------
+# ---- shared writers ----------------------------------------------------------------------
 
 function New-ItemAssets([string]$ItemName, [string]$Title, [string]$Style, [string]$Parent = 'item/generated', [string]$Seed = $ItemName) {
     Write-New (Join-Path $project.assets "models/item/$ItemName.json") ('{ "parent": "' + $Parent + '", "textures": { "layer0": "' + $project.modId + ':items/' + $ItemName + '" } }' + "`n")
     New-Texture (Join-Path $project.assets "textures/items/$ItemName.png") $Style $Seed
     Add-Lang "item.$($project.modId).$ItemName.name" $Title
+    $registered.Add($ItemName)
 }
 function New-BlockAssets([string]$BlockName, [string]$Title, [string]$Style) {
     $id = $project.modId + ':' + $BlockName
@@ -215,6 +365,42 @@ function New-BlockAssets([string]$BlockName, [string]$Title, [string]$Style) {
     Write-New (Join-Path $project.assets "models/item/$BlockName.json") ('{ "parent": "' + $project.modId + ':block/' + $BlockName + '" }' + "`n")
     New-Texture (Join-Path $project.assets "textures/blocks/$BlockName.png") $Style $BlockName
     Add-Lang "tile.$($project.modId).$BlockName.name" $Title
+    $registered.Add($BlockName)
+}
+
+# "ruby", "minecraft:dye@4", "ore:ingotIron" -> recipe ingredient JSON
+function ConvertTo-Ingredient([string]$Ref) {
+    if ($Ref -match '^ore:([A-Za-z0-9_]+)$') { return '{ "type": "forge:ore_dict", "ore": "' + $Matches[1] + '" }' }
+    $id = ConvertTo-ItemId $Ref
+    if ($Ref -match '@(\d+)$') { return '{ "item": "' + $id + '", "data": ' + $Matches[1] + ' }' }
+    return '{ "item": "' + $id + '" }'
+}
+# Test-side spelling of an ingredient: own/vanilla ids with optional @meta, or ore:name.
+function ConvertTo-TestRef([string]$Ref) {
+    if ($Ref -match '^ore:') { return $Ref }
+    $id = ConvertTo-ItemId $Ref
+    if ($Ref -match '@(\d+)$') { return "$id@$($Matches[1])" }
+    return $id
+}
+
+# Shaped recipe JSON plus a crafting check. $Map: symbol -> item reference.
+function Write-ShapedRecipe([string]$FileName, [string[]]$Rows, $Map, [string]$ResultRef, [int]$ResultCount) {
+    foreach ($symbol in @($Map.Keys)) { Assert-ItemRef $Map[$symbol] 'Ingredient' }
+    Assert-ItemRef $ResultRef 'Result'
+    $resultId = ConvertTo-ItemId $ResultRef
+    $resultJson = '{ "item": "' + $resultId + '"' + $(if ($ResultRef -match '@(\d+)$') { ', "data": ' + $Matches[1] } else { '' }) + $(if ($ResultCount -gt 1) { ', "count": ' + $ResultCount } else { '' }) + ' }'
+    $keyJson = ($Map.Keys | ForEach-Object { '    "' + $_ + '": ' + (ConvertTo-Ingredient $Map[$_]) }) -join ",`n"
+    Write-New (Join-Path $project.assets "recipes/$FileName.json") ("{`n  `"type`": `"minecraft:crafting_shaped`",`n  `"pattern`": [ " + (($Rows | ForEach-Object { '"' + $_ + '"' }) -join ', ') + " ],`n  `"key`": {`n$keyJson`n  },`n  `"result`": $resultJson`n}`n")
+    $script:recipeCount++
+    # The pattern sits in the grid's top-left corner; every cell is spelled out for the test.
+    $cells = @()
+    for ($r = 0; $r -lt 3; $r++) { for ($c = 0; $c -lt 3; $c++) {
+        $symbol = if ($r -lt $Rows.Count -and $c -lt $Rows[$r].Length) { [string]$Rows[$r][$c] } else { ' ' }
+        $cells += $(if ($symbol -eq ' ') { '""' } else { Q (ConvertTo-TestRef $Map[$symbol]) })
+    } }
+    Add-Check @(
+        "{ ItemStack r = t.craft($($cells -join ', '));",
+        "  t.require(r.getItem() == t.item($(Q $resultId)) && r.getCount() == $ResultCount, $(Q "recipe $FileName gave ") + r); }")
 }
 
 function Get-Range([string]$Text, [int]$DefaultMin, [int]$DefaultMax, [string]$What) {
@@ -223,10 +409,16 @@ function Get-Range([string]$Text, [int]$DefaultMin, [int]$DefaultMax, [string]$W
     if ($Text -match '^(\d+)-(\d+)$' -and [int]$Matches[1] -le [int]$Matches[2]) { return @([int]$Matches[1], [int]$Matches[2]) }
     throw "$What must be N or MIN-MAX, got '$Text'"
 }
-function F([double]$Value) { $Value.ToString('0.0###', [Globalization.CultureInfo]::InvariantCulture) + 'F' }
+
+function Get-Preset($Table, [string]$PresetName, [string]$What) {
+    $key = $PresetName.ToLowerInvariant()
+    if ($presetAliases.ContainsKey($key)) { $key = $presetAliases[$key] }
+    if (-not $Table.Contains($key)) { throw "Unknown $What '$PresetName'. Use one of: $(@($Table.Keys) -join ', ')" }
+    return $Table[$key]
+}
 
 $sounds = @{ ROCK = 'STONE'; IRON = 'METAL'; WOOD = 'WOOD'; GROUND = 'GROUND'; GRASS = 'PLANT'; SAND = 'SAND'; GLASS = 'GLASS'; CLOTH = 'CLOTH'; PLANTS = 'PLANT'; LEAVES = 'PLANT'; ICE = 'GLASS'; PACKED_ICE = 'GLASS'; CLAY = 'GROUND'; SNOW = 'SNOW'; CRAFTED_SNOW = 'SNOW'; ANVIL = 'ANVIL'; REDSTONE_LIGHT = 'GLASS'; GOURD = 'WOOD'; CACTUS = 'CLOTH'; SPONGE = 'PLANT'; CORAL = 'STONE'; CIRCUITS = 'STONE'; CARPET = 'CLOTH' }
-$tools = @{ ROCK = 'pickaxe'; IRON = 'pickaxe'; ANVIL = 'pickaxe'; WOOD = 'axe'; GOURD = 'axe'; GROUND = 'shovel'; GRASS = 'shovel'; SAND = 'shovel'; CLAY = 'shovel'; SNOW = 'shovel'; CRAFTED_SNOW = 'shovel' }
+$harvestTools = @{ ROCK = 'pickaxe'; IRON = 'pickaxe'; ANVIL = 'pickaxe'; WOOD = 'axe'; GOURD = 'axe'; GROUND = 'shovel'; GRASS = 'shovel'; SAND = 'shovel'; CLAY = 'shovel'; SNOW = 'shovel'; CRAFTED_SNOW = 'shovel' }
 
 # ---- kinds -------------------------------------------------------------------------------
 
@@ -236,7 +428,10 @@ function Build-Item {
     $expr = "item(`"$Name`", new Item()).setCreativeTab(CreativeTabs.$tab)"
     if ($StackSize) { $expr += ".setMaxStackSize($StackSize)" }
     Add-AtMarker $project.items 'items' @("public static final Item $const = $expr;")
-    New-ItemAssets $Name $title 'item'
+    $style = if ($Look) { $Look } elseif ($Name -match 'ingot') { 'ingot' } elseif ($Name -match '^raw_|_raw$') { 'raw' } elseif ($Name -match 'nugget') { 'nugget' } elseif ($Name -match 'dust|powder') { 'dust' } elseif ($Name -match 'rod|stick') { 'rod' } else { 'gem' }
+    New-ItemAssets $Name $title $style
+    $id = "$($project.modId):$Name"
+    if ($StackSize) { Add-Check @("t.require(t.item($(Q $id)).getItemStackLimit() == $StackSize, $(Q "$Name stack size"));") }
 }
 
 function Build-Block {
@@ -245,15 +440,21 @@ function Build-Block {
     if (-not $sounds.ContainsKey($mat)) { throw "Unknown -Material $Material. Use one of: $($sounds.Keys -join ', ')" }
     $res = if ($Resistance -ge 0) { $Resistance } else { $Hardness }
     $expr = "new BasicBlock(Material.$mat, SoundType.$($sounds[$mat]), $(F $Hardness), $(F $res))"
-    $harvestTool = if ($Tool) { $Tool } else { $tools[$mat] }
-    if ($harvestTool) { $expr += ".harvest(`"$harvestTool`", $([Math]::Max(0, $Level)))" }
+    $harvestTool = if ($Tool) { $Tool } else { $harvestTools[$mat] }
+    $harvestLevel = [Math]::Max(0, $Level)
+    if ($harvestTool) { $expr += ".harvest(`"$harvestTool`", $harvestLevel)" }
     if ($Light -gt 0) { $expr += ".light($(F $Light))" }
     Add-AtMarker $project.blocks 'blocks' @("public static final Block $const = block(`"$Name`", $expr);")
     New-BlockAssets $Name $title 'block'
+    if ($harvestTool) {
+        $id = "$($project.modId):$Name"
+        Add-Check @("t.require($(Q $harvestTool).equals(t.block($(Q $id)).getHarvestTool(t.block($(Q $id)).getDefaultState())) && t.block($(Q $id)).getHarvestLevel(t.block($(Q $id)).getDefaultState()) == $harvestLevel, $(Q "$Name harvest tool/level"));")
+    }
 }
 
 function Build-Ore {
     $const = ConvertTo-Constant $Name
+    Assert-ItemRef $Drops 'Drop'
     $oreFile = Join-Path $project.dir 'OreBlock.java'
     if (-not [IO.File]::Exists($oreFile)) {
         Write-New $oreFile @"
@@ -309,11 +510,11 @@ public class OreBlock extends BasicBlock {
 }
 "@
     }
-    $count = Get-Range $Count 1 1 '-Count'
-    $xp = if ($Drops) { Get-Range $Xp 3 7 '-Xp' } else { @(0, 0) }
+    $countRange = Get-Range $Count 1 1 '-Count'
+    $xpRange = if ($Drops) { Get-Range $Xp 3 7 '-Xp' } else { @(0, 0) }
     $dropExpr = if ($Drops) { '() -> ' + (ConvertTo-ItemExpr $Drops) } else { 'null' }
     $lvl = if ($Level -ge 0) { $Level } else { 1 }
-    Add-AtMarker $project.blocks 'blocks' @("public static final Block $const = block(`"$Name`", new OreBlock($(F $Hardness), $lvl, $dropExpr, $($count[0]), $($count[1]), $($xp[0]), $($xp[1])));")
+    Add-AtMarker $project.blocks 'blocks' @("public static final Block $const = block(`"$Name`", new OreBlock($(F $Hardness), $lvl, $dropExpr, $($countRange[0]), $($countRange[1]), $($xpRange[0]), $($xpRange[1])));")
     New-BlockAssets $Name $title 'ore'
 
     $genFile = Join-Path $project.dir 'ModWorldGen.java'
@@ -376,6 +577,12 @@ public class ModWorldGen implements IWorldGenerator {
     if ($heights[1] -gt 255) { throw '-Height max is 255' }
     Add-AtMarker $genFile 'ores' @("ore(ModBlocks.$const, $Dimension, $Veins, $VeinSize, $($heights[0]), $($heights[1]));")
     $notes.Add("world generation: $Veins veins of $VeinSize in dimension $Dimension, y $($heights[0])-$($heights[1]); only new chunks get ore")
+    $oreId = "$($project.modId):$Name"
+    $dropId = if ($Drops) { ConvertTo-ItemId $Drops } else { $oreId }
+    $min = if ($Drops) { $countRange[0] } else { 1 }; $max = if ($Drops) { $countRange[1] } else { 1 }
+    Add-Check @(
+        "{ List<ItemStack> d = t.drops($(Q $oreId), `"minecraft:diamond_pickaxe`"); int n = t.count(d, $(Q $dropId));",
+        "  t.require(n >= $min && n <= $max, $(Q "$Name drops ") + d); }")
 }
 
 function Build-Food {
@@ -391,10 +598,15 @@ function Build-Food {
     Add-Import $project.items @('net.minecraft.item.ItemFood')
     Add-AtMarker $project.items 'items' @("public static final Item $const = $expr;")
     New-ItemAssets $Name $title 'food'
+    $id = "$($project.modId):$Name"
+    Add-Check @("t.require(((net.minecraft.item.ItemFood) t.item($(Q $id))).getHealAmount(t.stack($(Q $id), 1)) == $Hunger, $(Q "$Name hunger"));")
 }
 
 function Build-Tools {
     $const = ConvertTo-Constant $Name
+    if ($Recipes -and -not $Repair) { throw '-Recipes needs -Repair <material item> (the ingot/gem the tools are made of).' }
+    Assert-ItemRef $Repair 'Repair item'
+    if ($Recipes) { Assert-ItemRef $Handle 'Handle' }
     $toolFile = Join-Path $project.dir 'ToolItems.java'
     if (-not [IO.File]::Exists($toolFile)) {
         Write-New $toolFile @"
@@ -418,88 +630,123 @@ public final class ToolItems {
 }
 "@
     }
-    $lvl = if ($Level -ge 0) { $Level } else { 2 }
-    $uses = if ($Durability -ge 0) { $Durability } else { 500 }
-    $axeDamage = [Math]::Max(6.0, 5.0 + $Damage)
+    # Start from -Like (default iron); -Durability may name another material; explicit numbers win.
+    $base = Get-Preset $toolPresets $(if ($Like) { $Like } else { 'iron' }) 'tool material'
+    $lvl = if ($Level -ge 0) { $Level } else { $base.level }
+    $uses = $base.uses
+    if ($Durability) { $uses = if ($Durability -match '^\d+$') { [int]$Durability } else { (Get-Preset $toolPresets $Durability 'tool material').uses } }
+    $spd = if ($PSBoundParameters.ContainsKey('Speed')) { $Speed } else { $base.speed }
+    $dmg = if ($PSBoundParameters.ContainsKey('Damage')) { $Damage } else { $base.damage }
+    $ench = if ($PSBoundParameters.ContainsKey('Enchant')) { $Enchant } else { $base.enchant }
+    # Vanilla axes by harvest level when no -Like: 0 -> 6/-3.2, 1 -> 8/-3.2, 2 -> 8/-3.1, 3+ -> 8/-3.0.
+    $axeBase = if ($Like) { $base } else { $toolPresets[@('wood', 'stone', 'iron', 'diamond')[[Math]::Min(3, $lvl)]] }
+    $axeDmg = if ($PSBoundParameters.ContainsKey('AxeDamage')) { $AxeDamage } else { $axeBase.axeDamage }
+    $axeSpd = if ($PSBoundParameters.ContainsKey('AxeSpeed')) { $AxeSpeed } else { $axeBase.axeSpeed }
     $mat = "${const}_TOOLS"
     Add-Import $project.items @('net.minecraft.item.ItemHoe', 'net.minecraft.item.ItemSpade', 'net.minecraft.item.ItemSword', 'net.minecraftforge.common.util.EnumHelper')
     Add-AtMarker $project.items 'items' @(
-        "/** Tool material: harvest level $lvl, $uses uses, speed $Speed, damage bonus $Damage, enchantability $Enchant. */",
-        "public static final Item.ToolMaterial $mat = EnumHelper.addToolMaterial(`"${Name}`", $lvl, $uses, $(F $Speed), $(F $Damage), $Enchant);",
+        "/** Tool material: harvest level $lvl, $uses uses, speed $spd, damage bonus $dmg, enchantability $ench; axe $axeDmg damage, $axeSpd speed. */",
+        "public static final Item.ToolMaterial $mat = EnumHelper.addToolMaterial(`"${Name}`", $lvl, $uses, $(F $spd), $(F $dmg), $ench);",
         "public static final Item ${const}_SWORD = item(`"${Name}_sword`", new ItemSword($mat));",
         "public static final Item ${const}_PICKAXE = item(`"${Name}_pickaxe`", new ToolItems.Pickaxe($mat));",
-        "public static final Item ${const}_AXE = item(`"${Name}_axe`", new ToolItems.Axe($mat, $(F $axeDamage), -3.0F));",
+        "public static final Item ${const}_AXE = item(`"${Name}_axe`", new ToolItems.Axe($mat, $(F $axeDmg), $(F $axeSpd)));",
         "public static final Item ${const}_SHOVEL = item(`"${Name}_shovel`", new ItemSpade($mat));",
         "public static final Item ${const}_HOE = item(`"${Name}_hoe`", new ItemHoe($mat));")
-    foreach ($piece in @('sword', 'pickaxe', 'axe', 'shovel', 'hoe')) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) 'tool' 'item/handheld' $Name }
+    foreach ($piece in @('sword', 'pickaxe', 'axe', 'shovel', 'hoe')) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/handheld' $Name }
     if ($Repair) {
         Add-Import $project.mainFile @('net.minecraft.item.Item', 'net.minecraft.item.ItemStack')
         Add-AtMarker $project.mainFile 'init' @("ModItems.$mat.setRepairItem(new ItemStack($(ConvertTo-ItemExpr $Repair)));")
     }
-    $notes.Add('no crafting recipes generated; add them with agent.ps1 new recipe')
+    $ns = $project.modId
+    Add-Check @(
+        "t.require(t.item($(Q "${ns}:${Name}_pickaxe")).getMaxDamage() == $uses, $(Q "${Name} tool durability"));",
+        "t.require(t.item($(Q "${ns}:${Name}_pickaxe")).getHarvestLevel(t.stack($(Q "${ns}:${Name}_pickaxe"), 1), `"pickaxe`", null, null) == $lvl, $(Q "${Name} pickaxe level"));",
+        "t.require(Math.abs(((net.minecraft.item.ItemSword) t.item($(Q "${ns}:${Name}_sword"))).getAttackDamage() - $(F $dmg)) < 0.001F, $(Q "${Name} sword damage bonus"));")
+    if ($Recipes) {
+        $shapes = [ordered]@{ sword = @('X', 'X', '#'); pickaxe = @('XXX', ' # ', ' # '); axe = @('XX', 'X#', ' #'); shovel = @('X', '#', '#'); hoe = @('XX', ' #', ' #') }
+        foreach ($piece in $shapes.Keys) { Write-ShapedRecipe "${Name}_$piece" $shapes[$piece] ([ordered]@{ X = $Repair; '#' = $Handle }) "${Name}_$piece" 1 }
+    } else { $notes.Add('no crafting recipes generated; add -Recipes (vanilla tool shapes) or use agent.ps1 new recipe') }
 }
 
 function Build-Armor {
     $const = ConvertTo-Constant $Name
-    $values = @($Protection.Split(',') | ForEach-Object { [int]$_.Trim() })
+    $base = Get-Preset $armorPresets $(if ($Like) { $Like } else { 'iron' }) 'armor material'
+    $factor = $base.durability
+    if ($Durability) { $factor = if ($Durability -match '^\d+$') { [int]$Durability } else { (Get-Preset $armorPresets $Durability 'armor material').durability } }
+    $prot = if ($Protection) { $Protection } else { $base.protection }
+    $values = @($prot.Split(',') | ForEach-Object { [int]$_.Trim() })
     if ($values.Count -ne 4) { throw '-Protection takes helmet,chestplate,leggings,boots, e.g. 3,8,6,3 (diamond)' }
-    $durability = if ($Durability -ge 0) { $Durability } else { 15 }
+    $ench = if ($PSBoundParameters.ContainsKey('Enchant')) { $Enchant } else { $base.enchant }
+    $tough = if ($PSBoundParameters.ContainsKey('Toughness')) { $Toughness } else { $base.toughness }
+    if ($Recipes -and -not $Repair) { throw '-Recipes needs -Repair <material item> (the ingot/gem the armor is made of).' }
+    Assert-ItemRef $Repair 'Repair item'
     $mat = "${const}_ARMOR"
     Add-Import $project.items @('net.minecraft.init.SoundEvents', 'net.minecraft.inventory.EntityEquipmentSlot', 'net.minecraft.item.ItemArmor', 'net.minecraftforge.common.util.EnumHelper')
     # ArmorMaterial reductions are indexed boots, leggings, chestplate, helmet.
     Add-AtMarker $project.items 'items' @(
-        "/** Armor material: durability factor $durability, protection helmet/chest/legs/boots $Protection, toughness $Toughness. Texture: textures/models/armor/${Name}_layer_1/2.png */",
-        "public static final ItemArmor.ArmorMaterial $mat = EnumHelper.addArmorMaterial(`"$Name`", $($project.mainClass).MODID + `":$Name`", $durability, new int[] {$($values[3]), $($values[2]), $($values[1]), $($values[0])}, $Enchant, SoundEvents.ITEM_ARMOR_EQUIP_IRON, $(F $Toughness));",
+        "/** Armor material: durability factor $factor, protection helmet/chest/legs/boots $($values -join ','), toughness $tough, enchantability $ench. Texture: textures/models/armor/${Name}_layer_1/2.png */",
+        "public static final ItemArmor.ArmorMaterial $mat = EnumHelper.addArmorMaterial(`"$Name`", $($project.mainClass).MODID + `":$Name`", $factor, new int[] {$($values[3]), $($values[2]), $($values[1]), $($values[0])}, $ench, SoundEvents.ITEM_ARMOR_EQUIP_$($base.sound), $(F $tough));",
         "public static final Item ${const}_HELMET = item(`"${Name}_helmet`", new ItemArmor($mat, 0, EntityEquipmentSlot.HEAD));",
         "public static final Item ${const}_CHESTPLATE = item(`"${Name}_chestplate`", new ItemArmor($mat, 0, EntityEquipmentSlot.CHEST));",
         "public static final Item ${const}_LEGGINGS = item(`"${Name}_leggings`", new ItemArmor($mat, 0, EntityEquipmentSlot.LEGS));",
         "public static final Item ${const}_BOOTS = item(`"${Name}_boots`", new ItemArmor($mat, 0, EntityEquipmentSlot.FEET));")
-    foreach ($piece in @('helmet', 'chestplate', 'leggings', 'boots')) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) 'item' 'item/generated' $Name }
+    foreach ($piece in @('helmet', 'chestplate', 'leggings', 'boots')) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/generated' $Name }
     New-Texture (Join-Path $project.assets "textures/models/armor/${Name}_layer_1.png") 'armor' $Name
     New-Texture (Join-Path $project.assets "textures/models/armor/${Name}_layer_2.png") 'armor' $Name
     if ($Repair) {
         Add-Import $project.mainFile @('net.minecraft.item.Item', 'net.minecraft.item.ItemStack')
         Add-AtMarker $project.mainFile 'init' @("ModItems.$mat.setRepairItem(new ItemStack($(ConvertTo-ItemExpr $Repair)));")
     }
-    $notes.Add('no crafting recipes generated; add them with agent.ps1 new recipe')
-}
-
-# "ruby", "minecraft:dye@4", "ore:ingotIron" -> recipe ingredient JSON
-function ConvertTo-Ingredient([string]$Ref) {
-    if ($Ref -match '^ore:([A-Za-z0-9_]+)$') { return '{ "type": "forge:ore_dict", "ore": "' + $Matches[1] + '" }' }
-    $id = ConvertTo-ItemId $Ref
-    if ($Ref -match '@(\d+)$') { return '{ "item": "' + $id + '", "data": ' + $Matches[1] + ' }' }
-    return '{ "item": "' + $id + '" }'
+    $ns = $project.modId
+    # Durability = factor x vanilla base (helmet 11, chestplate 16, leggings 15, boots 13).
+    $pieces = @(@('helmet', $values[0], 11), @('chestplate', $values[1], 16), @('leggings', $values[2], 15), @('boots', $values[3], 13))
+    $checks = foreach ($p in $pieces) {
+        "t.require(((net.minecraft.item.ItemArmor) t.item($(Q "${ns}:${Name}_$($p[0])"))).damageReduceAmount == $($p[1]) && t.item($(Q "${ns}:${Name}_$($p[0])")).getMaxDamage() == $($p[2] * $factor), $(Q "${Name}_$($p[0]) protection/durability"));"
+    }
+    Add-Check @($checks)
+    if ($Recipes) {
+        $shapes = [ordered]@{ helmet = @('XXX', 'X X'); chestplate = @('X X', 'XXX', 'XXX'); leggings = @('XXX', 'X X', 'X X'); boots = @('X X', 'X X') }
+        foreach ($piece in $shapes.Keys) { Write-ShapedRecipe "${Name}_$piece" $shapes[$piece] ([ordered]@{ X = $Repair }) "${Name}_$piece" 1 }
+    } else { $notes.Add('no crafting recipes generated; add -Recipes (vanilla armor shapes) or use agent.ps1 new recipe') }
 }
 
 function Build-Recipe {
     if (-not $Result) { throw '-Result <item> is required' }
     $countRange = Get-Range $Count 1 1 '-Count'
-    $resultJson = '{ "item": "' + (ConvertTo-ItemId $Result) + '"' + $(if ($Result -match '@(\d+)$') { ', "data": ' + $Matches[1] } else { '' }) + $(if ($countRange[0] -gt 1) { ', "count": ' + $countRange[0] } else { '' }) + ' }'
     if ($Shape) {
         $rows = @($Shape.Split(','))
         if ($rows.Count -gt 3 -or @($rows | Where-Object { $_.Length -gt 3 -or $_.Length -eq 0 }).Count) { throw '-Shape is up to 3 comma-separated rows of up to 3 characters, e.g. "###,#X#,###" (space = empty)' }
         $map = [ordered]@{}
-        foreach ($entry in $Key) { foreach ($part in $entry.Split(',')) { if ($part -notmatch '^(.)=(.+)$') { throw "-Key entries look like X=item, got '$part'" }; $map[$Matches[1]] = $Matches[2] } }
+        foreach ($part in @($Key -split ',')) { if (-not $part) { continue }; if ($part -notmatch '^(.)=(.+)$') { throw "-Key entries look like X=item, got '$part'" }; $map[$Matches[1]] = $Matches[2] }
         $symbols = @(($rows -join '').ToCharArray() | Where-Object { $_ -ne ' ' } | ForEach-Object { [string]$_ } | Select-Object -Unique)
         foreach ($s in $symbols) { if (-not $map.Contains($s)) { throw "Shape symbol '$s' has no -Key $s=<item>" } }
         foreach ($k in @($map.Keys)) { if ($k -notin $symbols) { throw "-Key '$k' is not used in -Shape" } }
-        $keyJson = ($map.Keys | ForEach-Object { '    "' + $_ + '": ' + (ConvertTo-Ingredient $map[$_]) }) -join ",`n"
-        $json = "{`n  `"type`": `"minecraft:crafting_shaped`",`n  `"pattern`": [ " + (($rows | ForEach-Object { '"' + $_ + '"' }) -join ', ') + " ],`n  `"key`": {`n$keyJson`n  },`n  `"result`": $resultJson`n}`n"
+        Write-ShapedRecipe $Name $rows $map $Result $countRange[0]
     } elseif ($Ingredients) {
-        $list = @($Ingredients | ForEach-Object { $_.Split(',') } | Where-Object { $_ })
-        if ($list.Count -lt 1 -or $list.Count -gt 9) { throw '-Ingredients takes 1 to 9 items' }
-        $json = "{`n  `"type`": `"minecraft:crafting_shapeless`",`n  `"ingredients`": [ " + (($list | ForEach-Object { ConvertTo-Ingredient $_ }) -join ', ') + " ],`n  `"result`": $resultJson`n}`n"
+        $items = @($Ingredients -split ',' | Where-Object { $_ })
+        if ($items.Count -lt 1 -or $items.Count -gt 9) { throw '-Ingredients takes 1 to 9 items' }
+        foreach ($i in $items) { Assert-ItemRef $i 'Ingredient' }
+        Assert-ItemRef $Result 'Result'
+        $resultId = ConvertTo-ItemId $Result
+        $resultJson = '{ "item": "' + $resultId + '"' + $(if ($Result -match '@(\d+)$') { ', "data": ' + $Matches[1] } else { '' }) + $(if ($countRange[0] -gt 1) { ', "count": ' + $countRange[0] } else { '' }) + ' }'
+        Write-New (Join-Path $project.assets "recipes/$Name.json") ("{`n  `"type`": `"minecraft:crafting_shapeless`",`n  `"ingredients`": [ " + (($items | ForEach-Object { ConvertTo-Ingredient $_ }) -join ', ') + " ],`n  `"result`": $resultJson`n}`n")
+        $script:recipeCount++
+        Add-Check @(
+            "{ ItemStack r = t.craft($((($items | ForEach-Object { Q (ConvertTo-TestRef $_) }) -join ', ')));",
+            "  t.require(r.getItem() == t.item($(Q $resultId)) && r.getCount() == $($countRange[0]), $(Q "recipe $Name gave ") + r); }")
     } else { throw 'Give -Shape with -Key (shaped) or -Ingredients (shapeless).' }
-    Write-New (Join-Path $project.assets "recipes/$Name.json") $json
 }
 
 function Build-Smelting {
     if (-not $From -or -not $Result) { throw 'Usage: agent.ps1 new smelting <name> -From <item> -Result <item> [-Count n] [-Xp 0.7]' }
+    Assert-ItemRef $From 'Input'; Assert-ItemRef $Result 'Result'
     $countRange = Get-Range $Count 1 1 '-Count'
     $xpValue = if ($Xp) { [double]$Xp } else { 0.7 }
     Add-Import $project.mainFile @('net.minecraft.item.Item', 'net.minecraft.item.ItemStack', 'net.minecraftforge.fml.common.registry.GameRegistry')
     Add-AtMarker $project.mainFile 'init' @("GameRegistry.addSmelting(new ItemStack($(ConvertTo-ItemExpr $From)), new ItemStack($(ConvertTo-ItemExpr $Result), $($countRange[0])), $(F $xpValue)); // smelting: $Name")
+    Add-Check @(
+        "{ ItemStack r = t.smelt($(Q (ConvertTo-TestRef $From)));",
+        "  t.require(r.getItem() == t.item($(Q (ConvertTo-ItemId $Result))) && r.getCount() == $($countRange[0]), $(Q "smelting $Name gave ") + r); }")
 }
 
 function Build-Tile {
@@ -648,7 +895,7 @@ $dropCode}
 function Build-Test {
     if ($Name -notmatch '^[a-z][a-z0-9-]*$') { throw 'Test ids are lowercase with dashes, e.g. ruby-ore-drops' }
     $pascal = (($Name.Split('-') | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '') + 'Test'
-    Write-New (Join-Path $root ('src/gametest/java/' + $project.package.Replace('.', '/') + "/$pascal.java")) @"
+    Write-New (Join-Path $project.tests "$pascal.java") @"
 package $($project.package);
 
 import kit.gametest.GameTest;
@@ -671,6 +918,7 @@ public class $pascal implements Scenario {
             // player.setHeldItem(EnumHand.MAIN_HAND, t.stack("$($project.modId):some_item", 1));
         });
         t.waitTicks(1);
+        // KIT-SCAFFOLD: replace this placeholder check with the real expected outcome.
         t.check("expected-outcome", () -> true, () -> "describe what was observed");
     }
 }
@@ -699,10 +947,22 @@ try {
         'tile' { Build-Tile }
         'test' { Build-Test }
     }
-    if ($Json) { [ordered]@{ schemaVersion = 1; status = 'PASS'; kind = $Kind; name = $Name; files = $created; notes = $notes } | ConvertTo-Json -Compress }
+    if ($Json) { [ordered]@{ schemaVersion = 1; status = 'PASS'; kind = $Kind; name = $Name; registered = $registered; files = $created; notes = $notes } | ConvertTo-Json -Compress }
     else {
-        "created $Kind $Name"
-        foreach ($file in $created) { '  ' + $file }
+        # One summary line; -List shows every file.
+        $java = @($created | Where-Object { $_ -like '*.java' -and $_ -notlike 'src/gametest/*' } | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) })
+        $parts = @()
+        if ($registered.Count) { $parts += ($registered -join ', ') }
+        if ($java.Count) { $parts += ($java -join ', ') }
+        $models = @($created | Where-Object { $_ -like '*/models/*.json' }).Count; $textures = @($created | Where-Object { $_ -like '*.png' }).Count
+        $assets = @(); if ($models) { $assets += "$models model(s)" }; if ($textures) { $assets += "$textures texture(s)" }
+        if (@($created | Where-Object { $_ -like '*/lang/*' }).Count) { $assets += 'lang' }
+        if ($assets.Count) { $parts += ($assets -join ', ') }
+        if ($script:recipeCount) { $parts += "$($script:recipeCount) recipe(s)" }
+        if ($script:checkCount) { $parts += "$($script:checkCount) check(s) in GeneratedContentTest" }
+        if ($Kind -eq 'test') { $parts += ($created -join ', ') }
+        "created $Kind ${Name}: " + ($parts -join ' | ')
+        if ($List) { foreach ($file in $created) { '  ' + $file } }
         foreach ($note in $notes) { 'note: ' + $note }
     }
 } catch {

@@ -8,9 +8,17 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
+import net.minecraft.inventory.Container;
 import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.item.crafting.CraftingManager;
+import net.minecraft.item.crafting.FurnaceRecipes;
+import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraftforge.oredict.OreDictionary;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.EnumPacketDirection;
@@ -69,7 +77,52 @@ public final class TestContext {
         if (!Item.REGISTRY.containsKey(key)) throw new IllegalArgumentException("Unregistered item: " + id);
         return Item.REGISTRY.getObject(key);
     }
-    public ItemStack stack(String id, int count) { return new ItemStack(item(id), count); }
+    /** "modid:name", "modid:name@meta" or "ore:oreDictName". */
+    public ItemStack stack(String id, int count) {
+        if (id.startsWith("ore:")) {
+            List<ItemStack> ores = OreDictionary.getOres(id.substring(4));
+            if (ores.isEmpty()) throw new IllegalArgumentException("No ore dictionary entries for " + id);
+            ItemStack ore = ores.get(0).copy();
+            if (ore.getMetadata() == OreDictionary.WILDCARD_VALUE) ore.setItemDamage(0);
+            ore.setCount(count);
+            return ore;
+        }
+        int at = id.indexOf('@');
+        return at < 0 ? new ItemStack(item(id), count) : new ItemStack(item(id.substring(0, at)), count, Integer.parseInt(id.substring(at + 1)));
+    }
+    /** Result of the crafting grid, row-major 3x3; "" or null = empty cell. Fewer than 9 cells fill from the top-left. */
+    public ItemStack craft(String... cells) {
+        if (cells.length > 9) throw new IllegalArgumentException("A crafting grid has 9 cells");
+        InventoryCrafting grid = new InventoryCrafting(new Container() {
+            @Override public boolean canInteractWith(EntityPlayer player) { return false; }
+        }, 3, 3);
+        for (int i = 0; i < cells.length; i++) if (cells[i] != null && !cells[i].isEmpty()) grid.setInventorySlotContents(i, stack(cells[i], 1));
+        return CraftingManager.findMatchingResult(grid, world());
+    }
+    /** Furnace result for one item (ItemStack.EMPTY if none). */
+    public ItemStack smelt(String id) { return FurnaceRecipes.instance().getSmeltingResult(stack(id, 1)); }
+    private int dropSlot;
+    /** Places the block in a free spot, mines it with the tool (null/"" = hand) and returns the dropped stacks. */
+    public List<ItemStack> drops(String blockId, String toolId) {
+        int slot = dropSlot++ % 49;
+        BlockPos pos = origin.add(1 + (slot % 7) * 2, 0, 1 + (slot / 7) * 2);
+        place(pos, blockId);
+        FakePlayer miner = player("drops-" + slot);
+        miner.setHeldItem(EnumHand.MAIN_HAND, toolId == null || toolId.isEmpty() ? ItemStack.EMPTY : stack(toolId, 1));
+        if (!breakBlock(miner, pos)) throw new AssertionError("could not break " + blockId + " with " + toolId);
+        List<ItemStack> result = new ArrayList<>();
+        for (EntityItem drop : world().getEntitiesWithinAABB(EntityItem.class, new AxisAlignedBB(pos).grow(1.5))) {
+            result.add(drop.getItem().copy());
+            drop.setDead();
+        }
+        return result;
+    }
+    /** Total count of one item in a list of stacks. */
+    public int count(List<ItemStack> stacks, String id) {
+        Item wanted = item(id); int total = 0;
+        for (ItemStack s : stacks) if (s.getItem() == wanted) total += s.getCount();
+        return total;
+    }
     public void place(BlockPos pos, String id) { place(pos, block(id).getDefaultState()); }
     public void place(BlockPos pos, IBlockState state) {
         if (!world().setBlockState(pos, state, 3) && world().getBlockState(pos) != state)

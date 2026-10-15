@@ -23,7 +23,7 @@ function New-KitCheckout([string]$Dir) {
 }
 
 try {
-    # 1. Generators replayed from scratch, then behavior tests for their output.
+    # 1. Generators replayed from scratch; their own GeneratedContentTest plus GeneratorTests must pass.
     $gen = Join-Path $Work 'generators'
     New-KitCheckout $gen
     foreach ($command in @(
@@ -32,8 +32,8 @@ try {
         @('new', 'ore', 'ruby_ore', '-Drops', 'ruby', '-Count', '1-2', '-Xp', '3-7', '-Level', '2', '-Height', '5-32'),
         @('new', 'block', 'ruby_block', '-Material', 'IRON', '-Hardness', '5', '-Level', '2'),
         @('new', 'food', 'ruby_apple', '-Hunger', '6', '-Saturation', '1.2', '-AlwaysEdible', '-Effect', 'regeneration:100:1'),
-        @('new', 'tools', 'ruby', '-Level', '2', '-Durability', '1200', '-Speed', '8', '-Damage', '3', '-Repair', 'ruby'),
-        @('new', 'armor', 'ruby', '-Durability', '30', '-Protection', '3,8,6,3', '-Toughness', '2', '-Repair', 'ruby'),
+        @('new', 'tools', 'ruby', '-Level', '2', '-Durability', '1200', '-Speed', '8', '-Damage', '3', '-Repair', 'ruby', '-Recipes'),
+        @('new', 'armor', 'ruby', '-Like', 'iron', '-Durability', 'diamond', '-Protection', '3,8,6,3', '-Toughness', '2', '-Repair', 'ruby', '-Recipes'),
         @('new', 'recipe', 'ruby_block', '-Shape', '###,###,###', '-Key', '#=ruby', '-Result', 'ruby_block'),
         @('new', 'recipe', 'ruby_from_block', '-Ingredients', 'ruby_block', '-Result', 'ruby', '-Count', '9'),
         @('new', 'smelting', 'ruby', '-From', 'ruby_ore', '-Result', 'ruby', '-Xp', '1.0'),

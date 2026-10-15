@@ -180,6 +180,22 @@ if ($exitCode -eq 0 -and $Profile -in @('build', 'unit')) {
 $harness = $null
 if ($harnessPath -and [IO.File]::Exists($harnessPath)) {
     $harness = [IO.File]::ReadAllText($harnessPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    # Forge logs broken recipe/loot JSON and keeps going; the game then silently lacks them. Make them lint errors.
+    if ($logPath -and [IO.File]::Exists($logPath)) {
+        $logLines = [IO.File]::ReadAllLines($logPath)
+        $loadErrors = @()
+        for ($i = 0; $i -lt $logLines.Length; $i++) {
+            if ($logLines[$i] -match 'Parsing error loading recipe (\S+)|Couldn''t load loot table (\S+)') {
+                $subject = if ($Matches[1]) { 'recipe ' + $Matches[1] } else { 'loot table ' + $Matches[2] }
+                $reason = ''
+                for ($j = $i + 1; $j -lt [Math]::Min($logLines.Length, $i + 6); $j++) {
+                    if ($logLines[$j] -match '^\s*(?:Caused by: )?[\w.$]+(?:Exception|Error): (.+)$') { $reason = $Matches[1].Trim(); break }
+                }
+                $loadErrors += [pscustomobject]@{ level = 'ERROR'; subject = $subject; message = $(if ($reason) { "failed to load: $reason" } else { 'failed to load (see log)' }) }
+            }
+        }
+        if ($loadErrors.Count) { $harness.lint = @($harness.lint) + $loadErrors }
+    }
     if ($exitCode -eq 0) {
         $failedTests = @($harness.tests | Where-Object { $_.status -ne 'PASS' })
         $lintErrors = @($harness.lint | Where-Object { $_.level -eq 'ERROR' })

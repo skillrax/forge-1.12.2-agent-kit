@@ -15,7 +15,7 @@ try {
         $entry=$zip.CreateEntry('example/Food.java')
         $writer=New-Object IO.StreamWriter($entry.Open(),(New-Object Text.UTF8Encoding($false)))
         try {
-            $source=@('package example;','public class Food {',('    // '+[char]0x2603),'    public void feed() {',('        '+('x'*400)), '    }', '    public void feed(int amount) {', '    }', '    @Deprecated public static final int COUNT = 3;', '    @Deprecated public void annotated() {}', '    public void multiline(', '        int count) {}', '    void caller() { feed(); }', '}')
+            $source=@('package example;','public class Food {',('    // '+[char]0x2603),'    public void feed() {',('        '+('x'*400)), '    }', '    public void feed(int amount) {', '    }', '    @Deprecated public static final int COUNT = 3;', '    @Deprecated public void annotated() {}', '    public void multiline(', '        int count) {}', '    void caller() { feed(); }', '    static class Inner {', '        int secret = 7;', '    }', '}')
             $writer.Write($source -join "`n")
         } finally { $writer.Dispose() }
     } finally { $zip.Dispose() }
@@ -39,6 +39,12 @@ try {
     if($LASTEXITCODE -ne 0 -or $found.declarations.Count -ne 3 -or -not $found.hasMoreDeclarations -or $found.declarationCount -ne 5){throw "Discovery bounds/count incorrect: $discovery"}
     $invalid=& $shell -NoProfile -File $helper -Class example.Food -Declarations -Member feed -Archive $archive
     if($LASTEXITCODE -ne 1){throw 'Conflicting selectors accepted'}
-    [ordered]@{status='PASS'; cases=@('bounded excerpt','240-character lines','Unicode','overload selection','missing class/member','annotated field/method','bounded declaration discovery/no calls','conflicting selectors'); fixture=$fixture; scope='synthetic source-reader fixture'} | ConvertTo-Json -Compress
+    $grep=& $shell -NoProfile -File $helper -Grep 'SECRET = 7' -Text -Archive $archive
+    if($LASTEXITCODE -ne 0 -or ($grep -join "`n") -notmatch 'example\.Food:15: int secret = 7;'){throw "Grep incorrect: $grep"}
+    $none=& $shell -NoProfile -File $helper -Grep 'no such text' -Text -Archive $archive
+    if($LASTEXITCODE -ne 0 -or ($none -join "`n") -notmatch 'no source line'){throw "Empty grep incorrect: $none"}
+    $head=& $shell -NoProfile -File $helper -Class example.Food -Head -TypeName Inner -MaxLines 2 -Text -Archive $archive
+    if($LASTEXITCODE -ne 0 -or $head[0] -notmatch 'lines 14-15' -or ($head -join "`n") -notmatch 'secret'){throw "Nested head incorrect: $head"}
+    [ordered]@{status='PASS'; cases=@('bounded excerpt','240-character lines','Unicode','overload selection','missing class/member','annotated field/method','bounded declaration discovery/no calls','conflicting selectors','grep across sources','nested type head'); fixture=$fixture; scope='synthetic source-reader fixture'} | ConvertTo-Json -Compress
     exit 0
 } catch { @{status='FAIL';message=$_.Exception.Message;fixture=$fixture} | ConvertTo-Json -Compress; exit 1 }

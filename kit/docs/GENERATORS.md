@@ -10,41 +10,62 @@
 | `BasicBlock.java` | full block with material, sound, hardness, resistance; `.harvest("pickaxe", 2)`, `.light(1.0F)` |
 | `ClientEvents.java` | client only; gives every item of the mod the model `models/item/<name>.json` (opt out: `implements ClientEvents.CustomModel`); `// kit:models` |
 
-Generators insert code above those `// kit:` markers. Keep the markers. Hand-written code next to generated code is fine.
+Generators insert code above those `// kit:` markers; keep the markers. Hand-written code next to generated code is fine.
 
-`./agent.ps1 new <kind> <name> [options]`. Names are lowercase registry paths (`ruby_ore`). Item references are `name` (this mod), `modid:name` or `minecraft:name`. Every kind writes lang entries (`-Display "Text"` overrides the title-cased name) and 16x16 placeholder textures (`-Color ff0000` sets the color).
+`./agent.ps1 new <kind> <name> [options]`. Names are lowercase registry paths (`ruby_ore`). Item references are `name` (this mod), `modid:name` or `minecraft:name`; unknown names are rejected (create the item first, fix the spelling, or `-Force`). Every kind writes lang entries (`-Display "Text"` overrides the title-cased name) and placeholder textures shaped like the item, one color per material (`-Color ff0000` overrides). Output is one summary line (`-List` lists every file).
 
 | Kind | Options (defaults) | Creates |
 |---|---|---|
-| `item` | `-Tab MATERIALS` `-StackSize n` | item, model, texture |
+| `item` | `-Tab MATERIALS` `-StackSize n` `-Look gem\|ingot\|raw\|nugget\|dust\|rod` (guessed from the name) | item, model, texture |
 | `block` | `-Material ROCK` (IRON WOOD GROUND SAND GLASS CLOTH PLANTS ...) `-Hardness 3` `-Resistance` `-Tool pickaxe` `-Level 0` `-Light 0..1` | block + item, blockstate, models, texture |
 | `ore` | `-Drops item` (else drops itself) `-Count 1-2` `-Xp 3-7` `-Level 1` `-Hardness 3` `-Veins 8` `-VeinSize 8` `-Height 5-48` `-Dimension 0` (-1 Nether, 1 End) | OreBlock (Fortune, Silk Touch, XP), ModWorldGen entry |
 | `food` | `-Hunger 4` `-Saturation 0.3` `-Wolf` `-AlwaysEdible` `-Effect name:ticks[:amplifier[:chance]]` | ItemFood; amplifier 0 = level I |
-| `tools` | `-Level 2` `-Durability 500` `-Speed 6` `-Damage 2` `-Enchant 14` `-Repair item` | material + sword, pickaxe, axe, shovel, hoe (`<name>_sword` ...) |
-| `armor` | `-Durability 15` `-Protection 3,8,6,3` (helmet,chest,legs,boots) `-Toughness 0` `-Enchant 14` `-Repair item` | material + 4 pieces, item and worn textures |
+| `tools` | `-Like iron` (wood stone iron diamond gold) `-Level` `-Durability n\|material` `-Speed` `-Damage` `-Enchant` `-AxeDamage` `-AxeSpeed` `-Repair item` `-Recipes` `-Handle minecraft:stick` | material + sword, pickaxe, axe, shovel, hoe (`<name>_sword` ...); `-Recipes` adds vanilla-shaped recipes from `-Repair` |
+| `armor` | `-Like iron` (leather chainmail iron gold diamond) `-Durability n\|material` `-Protection h,c,l,b` `-Toughness` `-Enchant` `-Repair item` `-Recipes` | material + helmet, chestplate, leggings, boots, item and worn textures |
 | `recipe` | shaped: `-Shape "###,#S#,###" -Key "#=ruby,S=minecraft:stick"`; shapeless: `-Ingredients "a,b"`; both: `-Result item -Count n` | `recipes/<name>.json`. Ingredients may be `minecraft:dye@4` (metadata) or `ore:ingotIron` (ore dictionary) |
 | `smelting` | `-From item -Result item -Count 1 -Xp 0.7` | `GameRegistry.addSmelting` line in init |
 | `tile` | `-Ticking` `-Inventory n` | `<Name>Block` + `<Name>Tile` (NBT save, client sync, optional ITickable and item capability, drops contents), registration |
-| `test` | name like `ruby-ore-drops` | `src/gametest/.../<Name>Test.java` scaffold |
+| `test` | name like `ruby-ore-drops` | `src/gametest/.../<Name>Test.java` scaffold (status reminds you until the placeholder check is replaced) |
 
-Vanilla diamond values for reference: tools level 3, 1561 uses, speed 8, damage 3, enchant 10; armor durability 33, protection 3,8,6,3, toughness 2, enchant 10. Iron: level 2, 250 uses, speed 6, damage 2; armor 15, 2,6,5,2.
+`-Like` sets every value from a vanilla material; any explicit option overrides it. "Iron stats with diamond durability": `new tools gron -Like iron -Durability diamond`.
 
-Nothing generates crafting recipes for tools/armor; add them with `new recipe`. Ore generation affects only newly generated chunks.
+| Tools (vanilla) | level | uses | speed | damage | enchant | axe damage / speed |
+|---|---|---|---|---|---|---|
+| wood | 0 | 59 | 2 | 0 | 15 | 6 / -3.2 |
+| stone | 1 | 131 | 4 | 1 | 5 | 8 / -3.2 |
+| iron | 2 | 250 | 6 | 2 | 14 | 8 / -3.1 |
+| diamond | 3 | 1561 | 8 | 3 | 10 | 8 / -3.0 |
+| gold | 0 | 32 | 12 | 0 | 22 | 6 / -3.0 |
 
-Examples:
+| Armor (vanilla) | durability factor | protection helmet,chest,legs,boots | enchant | toughness |
+|---|---|---|---|---|
+| leather | 5 | 1,3,2,1 | 15 | 0 |
+| chainmail | 15 | 2,5,4,1 | 12 | 0 |
+| iron | 15 | 2,6,5,2 | 9 | 0 |
+| gold | 7 | 2,5,3,1 | 25 | 0 |
+| diamond | 33 | 3,8,6,3 | 10 | 2 |
 
-```powershell
-./agent.ps1 init gems "Gem Mod"
-./agent.ps1 new item ruby
-./agent.ps1 new ore ruby_ore -Drops ruby -Count 1-2 -Level 2 -Height 5-32
-./agent.ps1 new block ruby_block -Material IRON -Hardness 5 -Level 2
-./agent.ps1 new recipe ruby_block -Shape "###,###,###" -Key "#=ruby" -Result ruby_block
-./agent.ps1 new recipe ruby_from_block -Ingredients ruby_block -Result ruby -Count 9
-./agent.ps1 new smelting ruby -From ruby_ore -Result ruby -Xp 1.0
-./agent.ps1 new tools ruby -Level 3 -Durability 1200 -Speed 8 -Damage 3 -Repair ruby
-./agent.ps1 new armor ruby -Durability 30 -Protection 3,8,6,3 -Toughness 2 -Repair ruby
-./agent.ps1 new food ruby_apple -Hunger 6 -Saturation 1.2 -AlwaysEdible -Effect regeneration:100:1
-./agent.ps1 new tile ruby_box -Ticking -Inventory 9
+Sword damage = 3 + damage (+1 base in the tooltip); armor piece durability = factor x 11/16/15/13 (helmet/chest/legs/boots).
+
+**Generated checks.** Every generator (except tile/test) appends assertions to `src/gametest/.../GeneratedContentTest.java`: recipes craft their result, smelting smelts, ores drop the right items, tool/armor/food stats match. `./agent.ps1 check game` runs them; edit them like any test.
+
+**Batch.** Put one command per line in a text file (`#` comments, quotes for values with spaces) and run `./agent.ps1 batch plan.txt`. It stops at the first failure and says which line.
+
+```text
+# plan.txt
+init gems "Gem Mod"
+new item ruby
+new item raw_ruby
+new ore ruby_ore -Drops raw_ruby -Count 1-2 -Level 2 -Height 5-32
+new smelting ruby -From raw_ruby -Result ruby -Xp 1.0
+new block ruby_block -Material IRON -Hardness 5 -Level 2
+new recipe ruby_block -Shape "###,###,###" -Key "#=ruby" -Result ruby_block
+new recipe ruby_from_block -Ingredients ruby_block -Result ruby -Count 9
+new tools ruby -Like diamond -Repair ruby -Recipes
+new armor ruby -Like iron -Durability diamond -Repair ruby -Recipes
+new food ruby_apple -Hunger 6 -Saturation 1.2 -AlwaysEdible -Effect regeneration:100:1
+new tile ruby_box -Ticking -Inventory 9
+check game
 ```
 
-Anything not covered: write it by hand following the matching guide (docs/INDEX.md), registering through ModItems/ModBlocks so models and registration stay automatic.
+Ore generation affects only newly generated chunks. Anything not covered: write it by hand following the matching guide (docs/INDEX.md), registering through ModItems/ModBlocks so models and registration stay automatic.

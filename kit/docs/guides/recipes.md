@@ -19,7 +19,7 @@ Generators: `new recipe` (shaped/shapeless JSON) and `new smelting`. Formats, fo
 - `"data"` = metadata (wool colors, dyes); omit for normal items. Results can carry `"nbt": "{...}"` as a string.
 - Ore dictionary ingredients match any registered `ingotIron`, `gemDiamond`, `logWood`... Register your own in init: `OreDictionary.registerOre("gemRuby", ModItems.RUBY)`.
 - Group recipes in the recipe book with `"group": "mymod:tools"`.
-- A broken recipe file does not stop the game: Forge logs `Parsing error loading recipe` (shown by `check server`) and the recipe is missing.
+- A broken recipe file does not stop the game (Forge logs it and the recipe is missing); `check server` turns it into an ERROR naming the file and reason.
 
 Smelting (init): `GameRegistry.addSmelting(new ItemStack(input), new ItemStack(output, count), xp)`. Fuel: override `getItemBurnTime` in your item, or `FurnaceFuelBurnTimeEvent` for others.
 
@@ -27,13 +27,12 @@ Custom logic (NBT-dependent results, damaging a tool in the grid): extend `net.m
 
 ## Test
 
+Generated recipes and smelting already get checks in `GeneratedContentTest.java`. By hand:
+
 ```java
-InventoryCrafting grid = new InventoryCrafting(new Container() {
-    @Override public boolean canInteractWith(EntityPlayer player) { return false; }
-}, 3, 3);
-for (int i = 0; i < 9; i++) grid.setInventorySlotContents(i, new ItemStack(ModItems.RUBY));
-ItemStack result = CraftingManager.findMatchingResult(grid, t.world());
-ItemStack smelted = FurnaceRecipes.instance().getSmeltingResult(new ItemStack(ModBlocks.RUBY_ORE));
+ItemStack block = t.craft("mymod:ruby", "mymod:ruby", "mymod:ruby", "mymod:ruby", "mymod:ruby", "mymod:ruby", "mymod:ruby", "mymod:ruby", "mymod:ruby");
+t.require(block.getItem() == t.item("mymod:ruby_block"), "9 rubies gave " + block);
+t.require(t.smelt("mymod:ruby_ore").getItem() == t.item("mymod:ruby"), "smelting");
 ```
 
 Also test one wrong arrangement is rejected when the recipe shape matters.
