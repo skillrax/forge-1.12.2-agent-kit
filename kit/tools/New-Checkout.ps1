@@ -25,10 +25,10 @@ try {
         if(Test-Path -LiteralPath $ancestor){$entry=Get-Item -LiteralPath $ancestor -Force;if($entry.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Destination ancestors must not be junctions/symlinks.'}}
         $parent=Split-Path -Parent $ancestor;if($parent -eq $ancestor){break};$ancestor=$parent
     }
-    $required=@('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','START.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs','mcp')
+    $required=@('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','SETUP.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs','examples','mcp')
     foreach($name in $required){if(-not (Test-Path -LiteralPath (Join-Path $root $name))){throw ('Required source entry missing: '+$name)}}
     New-Item -ItemType Directory -Path $target | Out-Null
-    foreach ($name in @('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','START.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs')) {
+    foreach ($name in @('AGENTS.md','agent.ps1','build.gradle','settings.gradle','gradlew','gradlew.bat','README.md','SETUP.md','Setup.cmd','THIRD-PARTY-NOTICES.md','licenses','kit.json','TASK.md','.gitignore','gradle','src','testing','tools','.agents','docs','examples')) {
         Copy-SourceEntry (Join-Path $root $name) (Join-Path $target $name)
     }
     foreach ($optional in @('CLAUDE.md','integrations')) {
@@ -38,10 +38,9 @@ try {
     Get-ChildItem -LiteralPath (Join-Path $root 'mcp') -File | Copy-Item -Destination (Join-Path $target 'mcp')
     $name = [IO.Path]::GetFileName($target).Replace('\','\\').Replace("'", "\'")
     [IO.File]::WriteAllText((Join-Path $target 'settings.gradle'), "rootProject.name = '$name'`n")
-    [IO.File]::WriteAllText((Join-Path $target 'TASK.md'), "# Active task`nObjective: Fresh source-only checkout; set feature acceptance before implementation.`nCurrent step: Run tools/Setup.ps1 then agent status/environment from this directory.`nLatest validation: None; copied evidence is not current.`nRemaining: Setup and feature-specific validation.`nBlockers: None known.`n")
-    [ordered]@{ status='PASS'; projectRoot=$target; nextAction='Run tools/Setup.ps1 in the destination; open/trust it and verify MCP projectRoot.' } | ConvertTo-Json -Compress
+    "created $target (source only; run ./agent.ps1 status there)"
     exit 0
 } catch {
-    [ordered]@{ status='FAIL'; message=$_.Exception.Message } | ConvertTo-Json -Compress
+    'FAIL: ' + $_.Exception.Message
     exit 1
 }

@@ -1,24 +1,23 @@
-# Focused maintainer QA and examples
+# Maintainer QA
 
-Run checks relevant to the changed mechanism/tool. A small proof normally needs a mod build and short gameplay/logging check, with a nearby failure case if useful. Deep campaigns are optional and do not govern the new release goal.
+Run what the change affects (docs/DEVELOPMENT.md). From the repository root:
 
-| Change or lookup | Available asset |
-|---|---|
-| Validation/diagnostics | `unit/Test-TestingTools.ps1`, `unit/Test-AgentInterface.ps1` |
-| Setup/Java/launcher | Matching `unit/Test-*Setup.ps1`, `Test-*JavaEnvironment.ps1`, `Test-WingetLauncher.ps1`, `Test-SetupLauncher.ps1` |
-| Mapped source | `unit/Test-MappedSource.ps1` |
-| Packaging | `unit/Test-Packaging.ps1` |
-| New candidate | `integration/Test-KitZip.ps1 -Manifest <new-manifest-path>` |
-| Version/export behavior | `integration/Test-VersionDelivery.ps1` |
-| Installed production JARs / optional third-party integration | `integration/Test-InstalledWorkflow.ps1` (inspect its explicit artifact parameters); recipient workflow: `kit/docs/INSTALLED-TESTING.md` |
-| Generic installed scenario lifecycle / discovery | `integration/Test-InstalledHarness.ps1`, `integration/Test-InstalledDiscovery.ps1`; setup: `fixtures/installed-harness/README.md` |
-| Optional MCP | `npm --prefix qa ci`, then `npm --prefix qa test` |
-| Playable patterns | `fixtures/workshop`, `fixtures/clockwork-labels`, `fixtures/aegis-apple` |
-| Relevant example reproduction | Matching `integration/Test-Workshop.ps1`, `Test-Clockwork*.ps1`, `Test-AegisApple.ps1`; inspect parameters first |
-| Small energy proof | `integration/Test-Energy.ps1`; gameplay checklist in `fixtures/energy/README.md` |
+| Check | Command | Covers |
+|---|---|---|
+| Agent interface | `powershell -NoProfile -File qa/unit/Test-AgentInterface.ps1` | status, init, all generators, version, compact/JSON output, compiler hints, errors, export gate (fake Gradle) |
+| Runner contract | `powershell -NoProfile -File qa/unit/Test-TestingTools.ps1` | exit codes, server/harness handshake, lint ERROR and failed game tests, timeout (fake Gradle) |
+| Generators + guide samples | `powershell -NoProfile -File qa/integration/Test-KitSamples.ps1` | real Minecraft: generated mod and every guide sample compile, lint clean, pass game tests |
+| Setup/Java/launcher | `qa/unit/Test-*Setup.ps1`, `Test-*JavaEnvironment.ps1`, `Test-WingetLauncher.ps1`, `Test-SetupLauncher.ps1` | setup scripts |
+| Mapped source | `qa/unit/Test-MappedSource.ps1` | source reader |
+| Packaging | `qa/unit/Test-Packaging.ps1`; candidate: `qa/integration/Test-KitZip.ps1 -Manifest <path>` | allowlist and ZIP |
+| Installed-artifact harness | `qa/integration/Test-InstalledHarness.ps1`, `Test-InstalledDiscovery.ps1`, `Test-InstalledWorkflow.ps1` | optional installed-server path |
+| MCP | `npm --prefix qa ci`, then `npm --prefix qa test` | MCP server |
 
-Example from root: `powershell -NoProfile -File qa/unit/Test-Packaging.ps1`.
+Fixtures:
+- `fixtures/guide-samples`: complete mod containing every code sample in kit/docs (keep in sync with the guides).
+- `fixtures/generators/GeneratorTests.java`: behavior tests for generator output.
+- Other `fixtures/*`: accepted proof projects (sources, checklists, evaluation mods). They document how mechanisms were proven and remain useful worked examples.
 
-Fixtures are example/QA source outside the recipient package. Some historical runners execute extensive assertions even in Reproduce mode; use them only when useful. They seed existing solutions and are not fresh AI trials. Do not rewrite unused runners solely to reduce a campaign.
+Historical runners: most `integration/Invoke-*`, `Test-<Proof>.ps1`, `Test-*KitCandidate.ps1`, `Test-ForgeSkill.ps1`, `Test-BetaWorkflow.ps1` and `Test-VersionDelivery.ps1` were written for the pre-refactor runner (JSON by default, `-Action check -Profile mod`, starters under kit/.agents/skills/.../assets, Record-Evidence). They need `-Json` and the new kit/examples paths before reuse; adapt one only when its mechanism changes.
 
-Thermal and benchmarks are frozen under `archive/2026-10-12-pre-pivot/qa/`; restoration limits are in archive/README.md. Maintainer QA/research stays outside the ZIP. Optional reusable installed-test support is explicitly packaged under kit/testing; its driver builds to a separate JAR and never enters the production mod.
+QA code never enters recipient ZIPs or mod jars.

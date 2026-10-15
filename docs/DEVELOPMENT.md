@@ -1,44 +1,32 @@
-# Small development loop
+# Maintaining the kit
 
-The goal is a usable kit backed by representative examples. Thermal qualification and measured token-savings gates are retired. Existing QA is available for diagnosis and focused regression; it is not mandatory on every task.
+The kit's job: let an AI agent, including small local models, turn a user's description into a correct 1.12.2 mod with few tokens and few mistakes. Prefer, in order: a generator (deterministic, tested) > a check that catches the mistake > a hint in tool output > a sentence in a guide.
 
-1. State one missing mechanism or observed defect and a short stopping condition in TASK.md.
-2. Read the relevant reference/example. Reuse demonstrated patterns; avoid cataloguing future variants.
-3. Implement the smallest useful example/fix. Keep production, client-only code and QA separate.
-4. Run the affected build/check and one short gameplay/logging scenario. Include a nearby failure case when relevant, such as full outputs for a machine. Server startup proves startup only.
-5. Record outcome, example/artifact path and material limits. Extract a short reusable lesson if useful. Stop when the stated mechanism works.
+## Loop
 
-Persistence changes may need one save/reload check; client changes need client observation; transfers need simple accounting. Whole lifecycle matrices, fault injection, large loads and multi-run comparisons are optional investigations for a specific issue/claim. Do not repeat unchanged passing checks without an affected input or concrete reason.
+1. One defect or missing mechanism, with a stopping condition, in TASK.md.
+2. Change the tool/guide/generator. Keep production code, client-only code and test code separate.
+3. Verify:
+   - tool changes: `qa/unit/Test-AgentInterface.ps1` and `qa/unit/Test-TestingTools.ps1` (fake Gradle, ~20 s);
+   - harness, generators, guides or build changes: `qa/integration/Test-KitSamples.ps1` (real Minecraft, ~2 min);
+   - new mechanism: one game test in the relevant fixture plus a nearby failure case. Client-visible results need a human look.
+4. Replace TASK.md state; put lessons in the relevant guide, not in startup files.
 
-## Private beta preparation
+## Rules for recipient docs
 
-Stop capability expansion for this candidate. Focus on recipient workflow, token efficiency and reliability with the existing demonstrated mechanisms.
+- AGENTS.md stays under ~2.5 KB; guides under ~6 KB each; one topic per guide; INDEX.md one line per guide.
+- Every Java snippet in a guide must exist, compiled and tested, in qa/fixtures/guide-samples (names may differ: `MyMod` there is `RubymodMod`). Check method names with `agent.ps1 api` before writing them.
+- State behavior and pitfalls, not proof history. Proof details stay in qa/fixtures and docs/CAPABILITIES.md.
+- New common mistakes go into tooling first: `$KitRenames` in kit/testing/Diagnostics.ps1 (compiler hints), AssetLint (server check) or a generator.
 
-Implemented workflow improvements: failed checks return bounded causes; status recommends a focused next action; validation records the exact inspected JAR; checkout preflights required entries and rejects source-descendant/junction destinations; MCP identity reads kit.json; fresh-PC instructions follow the actual launcher.
+## Tool contracts
 
-Optional installed-artifact server testing now has a separate runner/driver and evidence contract: [recipient guide](../kit/docs/INSTALLED-TESTING.md). Use it for an affected production-JAR or third-party interaction question, not as a new default release gate. Existing development-server PASS remains readiness evidence only.
+- `agent.ps1` prints plain text; `-Json` prints the full result (schemaVersion 1). MCP uses `-Json`.
+- Profiles: environment, build (`mod`/`all` are aliases), unit, server, game. server/game add the check harness (`kitHarness` source set) and src/gametest to the dev server classpath; neither enters the jar.
+- The harness writes `run/testing-server/<run>/kit-check.json` and stops the server; the runner fails on lint ERROR, failed tests or no harness report.
+- Generators insert above `// kit:<marker>` lines in the init skeleton and refuse to overwrite files.
+- The installed-driver path (testing/installed-driver, tools/*Installed*) is optional and unchanged; it must stay behind the `installedTestDriver` Gradle property.
 
-Project scenarios live in src/installedTest and are auto-indexed; use the shared tick/assertion lifecycle rather than editing the core driver per mod. Define real outcomes from feature acceptance, inspect compact failures first, and keep unit tests for isolated logic. Build/runtime reuse and bounded diagnostics reduce repeated work; no quantitative token-cost improvement is claimed.
+## Releases
 
-Normal builds reuse unchanged Gradle work, with automatic clean for missing/failed baselines, changed build configuration or removed source/resource paths. Explicit -Clean remains available. Real checks confirm unchanged compilation reuse, removed/renamed class/resource exclusion and exact-artifact export despite an extra JAR. MCP setup reuses a matching dependency/Node identity only after module readiness, supports forced repair and bounds/logs npm execution. Initialize-Mod provides an empty, consistent foundation and refuses existing mod content.
-
-Evidence: evidence/beta-workflow/summary.json; Node installation/prompt basis: evidence/node-setup/summary.json. These are focused workflow/build observations, not measured token savings, cold-PC acceptance or gameplay proof. Preserve pinned dependencies, exports, QA separation and bounded lookup. The optional mapped-source MCP wrapper remains a later convenience, outside this beta preparation pass.
-
-## Beta candidate stopping rule
-
-- Working setup/build/export and correctly allowlisted package.
-- Existing capabilities indexed and accepted examples retained.
-- A short separate-PC trial of setup, one small requested mod, export and actual installed gameplay; report cold-cache status and interventions honestly.
-- Concise relevant guidance and known limitations.
-
-Machine/pipe variants and new capabilities do not add gates. Other missing mechanisms are future tasks. A private beta candidate can be handed off for the separate-PC trial with that trial explicitly pending. This candidate does not claim full Thermal equivalence, arbitrary compatibility, large-network performance, universal autonomy or measured token savings.
-
-Change kit version only when preparing changed recipient content; source of truth is kit/kit.json. Preserve archives/exports. Check affected tooling after tooling changes; check actual ZIP contents/extraction for a new candidate. Public publication remains a separate user decision with applicable license/notice checks.
-
-## Context and handoffs
-
-AGENTS.md holds stable instructions; TASK.md is the single current-state handoff. Keep both short and replace stale state instead of appending history. README.md maps the workspace. These three docs are on-demand references, not startup prerequisites. History belongs in Git, immutable exports or archive/.
-
-Before interruption, leave the next executable action and evidence path in TASK.md. A new chat should resume without reconstructing the timeline. Do not add a new plan/report for every small step.
-
-Optional installed driver registration must remain behind the installedTestDriver Gradle property. The remapper attaches registered JAR tasks to assemble; unconditional registration makes an empty recipient build require test scenarios. Build-InstalledTestDriver.ps1 opts in explicitly. Keep ordinary foundation builds and the separate driver build as distinct checks when changing this boundary.
+Change kit/kit.json version for changed recipient content. Regenerate packaging/files.json from the kit tree (packaging/README.md), build with packaging/Build-KitZip.ps1 and verify the extracted ZIP builds. Preserve exports and pinned dependencies. Public publishing is a separate user decision.

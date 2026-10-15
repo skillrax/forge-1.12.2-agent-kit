@@ -37,9 +37,9 @@ test('MCP tools expose errors honestly and validate inputs', { timeout: 15000 },
     assert.equal(listing.tools.length, 3);
     const status = await client.callTool({ name: 'project_status', arguments: {} });
     assert.ok(!status.isError);
-    const validation = await client.callTool({ name: 'validate', arguments: { profile: 'mod' } });
+    const validation = await client.callTool({ name: 'validate', arguments: { profile: 'build' } });
     assert.equal(validation.isError, true);
-    assert.equal(validation.structuredContent.profile, 'mod');
+    assert.equal(validation.structuredContent.profile, 'build');
     const diagnostics = await client.callTool({ name: 'diagnostics', arguments: {} });
     assert.ok(!diagnostics.isError, 'Reading a failed check is a successful query.');
     assert.equal(diagnostics.structuredContent.validationStatus, 'FAIL');

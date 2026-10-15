@@ -12,8 +12,7 @@ export function createServer(runner = runAgent) {
       const { data, exitCode } = await runner(input, { signal: context.signal });
       // Text content mirrors the shell's compact output; the full result stays in structuredContent.
       const text = data.problems !== undefined
-        ? [`${data.status} ${data.profile} (${Math.round(data.elapsedSeconds ?? 0)}s): ${data.message}`, ...data.problems, data.status === 'PASS' ? '' : `run ${data.runId}`].filter(Boolean).join('
-')
+        ? [`${data.status} ${data.profile} (${Math.round(data.elapsedSeconds ?? 0)}s): ${data.message}`, ...data.problems, data.status === 'PASS' ? '' : `run ${data.runId}`].filter(Boolean).join('\n')
         : JSON.stringify(data);
       return { content: [{ type: 'text', text }], structuredContent: data, isError: exitCode !== 0 };
     } catch (error) {

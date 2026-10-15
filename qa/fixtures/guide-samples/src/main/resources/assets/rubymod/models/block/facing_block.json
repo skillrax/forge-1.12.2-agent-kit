@@ -1,0 +1,1 @@
+{ "parent": "block/half_slab", "textures": { "bottom": "minecraft:blocks/planks_oak", "top": "minecraft:blocks/planks_oak", "side": "minecraft:blocks/planks_oak" } }

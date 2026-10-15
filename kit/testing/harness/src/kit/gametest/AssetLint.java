@@ -58,13 +58,12 @@ final class AssetLint {
             if (!modIds.contains(ns)) warn("namespace " + ns, "registry entries use namespace '" + ns + "', which is not a loaded mod id; use your modid in setRegistryName");
         for (String ns : modIds) lang(ns);
 
-        for (Block block : ForgeRegistries.BLOCKS) if (mine(block)) block(block);
-        for (Item item : ForgeRegistries.ITEMS) if (mine(item)) item(item);
-        for (EntityEntry entry : ForgeRegistries.ENTITIES) if (mine(entry)) {
-            String key = "entity." + entry.getName() + ".name";
-            langKey(entry.getRegistryName().getNamespace(), key, "entity " + entry.getRegistryName());
-        }
-        for (SoundEvent sound : ForgeRegistries.SOUND_EVENTS) if (mine(sound)) sound(sound);
+        // One broken entry must not hide the others.
+        for (Block block : ForgeRegistries.BLOCKS) if (mine(block)) guard("block " + block.getRegistryName(), () -> block(block));
+        for (Item item : ForgeRegistries.ITEMS) if (mine(item)) guard("item " + item.getRegistryName(), () -> item(item));
+        for (EntityEntry entry : ForgeRegistries.ENTITIES) if (mine(entry)) guard("entity " + entry.getRegistryName(),
+                () -> langKey(entry.getRegistryName().getNamespace(), "entity." + entry.getName() + ".name", "entity " + entry.getRegistryName()));
+        for (SoundEvent sound : ForgeRegistries.SOUND_EVENTS) if (mine(sound)) guard("sound " + sound.getRegistryName(), () -> sound(sound));
 
         JsonObject report = new JsonObject();
         JsonArray mods = new JsonArray();
@@ -148,7 +147,8 @@ final class AssetLint {
         ResourceLocation id = sound.getRegistryName();
         String path = "assets/" + id.getNamespace() + "/sounds.json";
         JsonObject sounds = json(path, "sound " + id);
-        ResourceLocation name = sound.getSoundName();
+        // SoundEvent.getSoundName is client-only; mods register sounds under the same name.
+        ResourceLocation name = id;
         if (sounds == null) { if (!exists(path)) warn("sound " + id, "missing " + path); return; }
         if (!sounds.has(name.getPath())) { warn("sound " + id, path + " has no entry \"" + name.getPath() + "\""); return; }
         JsonElement entry = sounds.get(name.getPath());
@@ -295,6 +295,11 @@ final class AssetLint {
             error(subject, path + " is invalid JSON: " + error.getMessage());
         }
         return null;
+    }
+
+    private void guard(String subject, Runnable check) {
+        try { check.run(); }
+        catch (Throwable error) { warn(subject, "could not be inspected: " + error); }
     }
 
     private void warn(String subject, String message) { add("WARN", subject, message); }

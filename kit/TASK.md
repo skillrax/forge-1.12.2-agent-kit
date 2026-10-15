@@ -1,5 +1,5 @@
-# Current task
-Objective: Set the requested mod behavior and acceptance examples.
-Current step: Run setup then status before feature implementation.
-Validation: None in this workspace.
-Remaining: Implement feature; validate build, behavior and relevant client/server scope.
+# Task
+Goal: (the user's request, in their words)
+Decisions: (choices made, defaults assumed)
+Done: nothing yet
+Next: agent.ps1 status, then agent.ps1 init <modid> "<Name>"

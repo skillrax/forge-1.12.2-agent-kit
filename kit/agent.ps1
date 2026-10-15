@@ -184,6 +184,7 @@ function Invoke-Api {
     }
     $found = @(foreach ($owner in $chain) { if ($api.members.ContainsKey($owner)) { foreach ($m in $api.members[$owner]) { if ($m[2] -eq $member) { ,@($owner, $m) } } } })
     if (-not $found.Count) {
+        if ($script:KitRenames.ContainsKey($member)) { throw "No member '$member' in 1.12.2 (stable_39); use $($script:KitRenames[$member])" }
         $similar = Find-KitSimilarMembers $api $chain[0] $member $null
         throw ("No member '$member' on $className or its superclasses." + $(if ($similar.Count) { ' Did you mean: ' + ($similar -join ' | ') } else { '' }))
     }
@@ -294,19 +295,21 @@ try {
             $stale = $false
             if ($last) { $stale = (Get-NewestSourceTime) -gt [IO.File]::GetLastWriteTimeUtc($last.report) }
             $task = if ([IO.File]::Exists((Join-Path $root 'TASK.md'))) { [IO.File]::ReadAllText((Join-Path $root 'TASK.md')) } else { '' }
-            $next = if (-not ($javaSelection.gradle -and $javaSelection.java8)) { 'Run Setup.cmd (SETUP.md).' }
+            $next = if ($javaSelection -and -not ($javaSelection.gradle -and $javaSelection.java8)) { 'Run Setup.cmd (SETUP.md).' }
                 elseif (-not $info) { 'No mod yet: agent.ps1 init <modid> "<Name>" (creates a working skeleton).' }
                 elseif (-not $last -or $stale) { 'Run agent.ps1 check (then check server before finishing).' }
                 elseif ($last.status -ne 'PASS') { 'Fix the last failure (agent.ps1 errors), then rerun agent.ps1 check ' + $last.profile + '.' }
                 else { 'Continue TASK.md.' }
             if ($Json) {
-                [ordered]@{ schemaVersion = 1; action = 'status'; projectRoot = $root; mod = $info; java = $javaSelection; lastRun = $(if ($last) { $last | Select-Object runId, profile, status, message, log }); lastRunStale = $stale; task = $task; nextAction = $next } | ConvertTo-Json -Depth 6 -Compress
+                [ordered]@{ schemaVersion = 1; action = 'status'; projectRoot = $root; mod = $info; java = $javaSelection; lastRun = if ($last) { $last | Select-Object runId, profile, status, message, log } else { $null }; lastRunStale = $stale; task = $task; nextAction = $next } | ConvertTo-Json -Depth 6 -Compress
             } else {
                 'project: ' + $root
                 'mod: ' + $(if ($info) { '{0} {1} ({2})' -f $info.modId, $info.version, $info.entry } else { 'none' })
                 'java: ' + $java
                 'last check: ' + $(if ($last) { '{0} {1} {2}{3}' -f $last.status, $last.profile, ([IO.File]::GetLastWriteTime($last.report).ToString('yyyy-MM-dd HH:mm')), $(if ($stale) { ' (source changed since)' } else { '' }) } else { 'none' })
                 'next: ' + $next
+                # Gradle/Java fail with "Unable to access jarfile" once nested paths pass Windows' 260-character limit.
+                if ($root.Length -gt 150) { "warning: project path is $($root.Length) characters; builds can fail past Windows' 260-character limit. Move the folder somewhere short (e.g. C:\mods\mykit)." }
             }
         }
         'errors' {

@@ -1,5 +1,0 @@
-{
-  "type": "minecraft:crafting_shapeless",
-  "ingredients": [ { "item": "minecraft:iron_ingot" }, { "item": "minecraft:diamond" } ],
-  "result": { "item": "skillprobe:probe_token", "count": 1 }
-}

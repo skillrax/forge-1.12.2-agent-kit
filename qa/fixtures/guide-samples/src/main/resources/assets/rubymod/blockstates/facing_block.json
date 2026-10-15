@@ -1,0 +1,6 @@
+{ "variants": {
+  "facing=north": { "model": "rubymod:facing_block" },
+  "facing=east":  { "model": "rubymod:facing_block", "y": 90 },
+  "facing=south": { "model": "rubymod:facing_block", "y": 180 },
+  "facing=west":  { "model": "rubymod:facing_block", "y": 270 }
+} }

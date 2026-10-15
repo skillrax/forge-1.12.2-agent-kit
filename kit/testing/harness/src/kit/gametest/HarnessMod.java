@@ -7,6 +7,8 @@ import java.nio.file.*;
 import java.util.*;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.WorldServer;
+import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
@@ -62,7 +64,12 @@ public final class HarnessMod {
     }
 
     @SubscribeEvent public void tick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || done || report == null) return;
+        if (done || report == null) return;
+        if (event.phase == TickEvent.Phase.START) {
+            // Vanilla stops ticking entities/tile entities after 300 ticks without players; tests need them.
+            for (WorldServer world : DimensionManager.getWorlds()) world.resetUpdateEntityTick();
+            return;
+        }
         try {
             if (current == null) {
                 if (pending.isEmpty()) { finish(); return; }

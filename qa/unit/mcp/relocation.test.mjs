@@ -45,15 +45,15 @@ test('copied relative config serves and validates a space-containing checkout; w
     const status = await client.callTool({ name: 'project_status', arguments: {} });
     assert.equal(status.structuredContent.projectRoot.toLowerCase(), root.toLowerCase());
     assert.equal(status.structuredContent.lastRun, null);
-    const check = await client.callTool({ name: 'validate', arguments: { profile: 'all', timeoutSeconds: 120 } });
+    const check = await client.callTool({ name: 'validate', arguments: { profile: 'build', timeoutSeconds: 120 } });
     assert.ok(!check.isError, JSON.stringify(check.structuredContent));
     assert.equal(check.structuredContent.projectRoot.toLowerCase(), root.toLowerCase());
     assert.equal(check.structuredContent.status, 'PASS');
     const fresh = await client.callTool({ name: 'project_status', arguments: {} });
-    assert.equal(fresh.structuredContent.lastRunMatchesCurrentInputs, true);
+    assert.equal(fresh.structuredContent.lastRunStale, false);
     await fs.writeFile(path.join(root, 'src', 'changed.txt'), 'relocation freshness test');
     const stale = await client.callTool({ name: 'project_status', arguments: {} });
-    assert.equal(stale.structuredContent.lastRunMatchesCurrentInputs, false);
+    assert.equal(stale.structuredContent.lastRunStale, true);
   } finally { await client.close(); }
   const wrong = await invoke(['-NoProfile', '-File', path.join(projectRoot, 'tools', 'Start-Mcp.ps1')], root);
   assert.equal(wrong.code, 1);

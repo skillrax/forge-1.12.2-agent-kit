@@ -1,5 +1,7 @@
 # Capability map
 
+Since 0.5.0 recipient guidance lives in kit/docs/guides (index kit/docs/INDEX.md) and starters in kit/examples; "packaged X.md" below refers to the old reference of that name, now merged into the matching guide. Generators and the guide samples (items with behavior, block states and shapes, crops, tile entities, GUI container, entities with loot, events, config, enchantment, potion effect, commands) are compiled, linted and behavior-tested by qa/integration/Test-KitSamples.ps1; the packet sample is compiled and linted only (game tests cannot send packets).
+
 Working examples demonstrate mechanisms, not every implementation. Similar recipes, materials, rates, tiers and appearances are reasonable extensions. A new mechanism needs one small proof when relevant. API availability alone is not runtime proof.
 
 | Mechanism | Existing proof | Reasonable extensions |

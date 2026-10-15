@@ -21,6 +21,15 @@ $script:KitRenames = @{
     'stackSize' = 'getCount()/setCount()/grow()/shrink()'; 'getItemStackLimit' = 'getItemStackLimit(ItemStack)'
     'registerItem' = 'event.getRegistry().register(item) inside RegistryEvent.Register<Item>'
     'tick' = 'update() from net.minecraft.util.ITickable (tile entities)'
+    'getBlockLayer' = 'getRenderLayer() (client-only: annotate the override @SideOnly(Side.CLIENT))'
+    'getTabIconItem' = 'createIcon() (client-only: annotate the override @SideOnly(Side.CLIENT))'
+    'getIconItemStack' = 'getIcon()'
+    'floor_double' = 'MathHelper.floor(double)'; 'floor_float' = 'MathHelper.floor(float)'; 'ceiling_double_int' = 'MathHelper.ceil(double)'
+    'sqrt_double' = 'MathHelper.sqrt(double)'; 'getRandomIntegerInRange' = 'MathHelper.getInt(Random, int, int)'
+    'clamp_int' = 'MathHelper.clamp(int, int, int)'; 'clamp_float' = 'MathHelper.clamp(float, float, float)'
+    'getChunkFromChunkCoords' = 'world.getChunk(chunkX, chunkZ)'; 'getChunkFromBlockCoords' = 'world.getChunk(BlockPos)'
+    'getEntityWorld' = 'entity.world (field) or getEntityWorld()'
+    'isFullBlock' = 'isFullCube(IBlockState)'
 }
 
 function Get-KitApiIndex {
@@ -92,18 +101,24 @@ function Find-KitSimilarMembers {
     param($Api, [string]$ClassName, [string]$Name, [string]$Kind)
     $wanted = $Name.ToLowerInvariant().Replace('_', '')
     $words = @([regex]::Matches($Name, '[A-Z]?[a-z]+|[A-Z]+(?![a-z])') | ForEach-Object { $_.Value.ToLowerInvariant() } | Where-Object { $_.Length -ge 4 -and $_ -notin @('get','set','with') })
-    $scored = @()
-    foreach ($owner in (Get-KitClassChain $Api $ClassName)) {
+    $rows = @(foreach ($owner in (Get-KitClassChain $Api $ClassName)) {
         if (-not $Api.members.ContainsKey($owner)) { continue }
-        foreach ($m in $Api.members[$owner]) {
-            if ($Kind -and $m[0] -ne $Kind) { continue }
-            if ($m[2] -eq '<init>') { continue }
-            $candidate = $m[2].ToLowerInvariant().Replace('_', '')
-            $score = if ($candidate -eq $wanted) { 0 } elseif ($candidate.Contains($wanted) -or ($wanted.Contains($candidate) -and $candidate.Length -ge 4)) { 1 }
-                elseif (@($words | Where-Object { $candidate.Contains($_) }).Count) { 2 }
-                elseif ([Math]::Abs($candidate.Length - $wanted.Length) -le 3 -and (Get-KitDistance $candidate $wanted) -le 3) { 3 } else { -1 }
-            if ($score -ge 0) { $scored += [pscustomobject]@{ score = $score; text = ((Get-KitShortName $owner) + '.' + $m[3] + $(if ($m[4] -match 'client-only') { ' [client-only]' } else { '' })) } }
-        }
+        foreach ($m in $Api.members[$owner]) { if ((-not $Kind -or $m[0] -eq $Kind) -and $m[2] -ne '<init>') { ,@($owner, $m) } }
+    })
+    # Rarer shared words say more: "layer" beats "block" among Block's members.
+    $frequency = @{}
+    foreach ($w in $words) { $frequency[$w] = @($rows | Where-Object { $_[1][2].ToLowerInvariant().Contains($w) }).Count }
+    $scored = @()
+    foreach ($row in $rows) {
+        $owner = $row[0]; $m = $row[1]
+        $candidate = $m[2].ToLowerInvariant().Replace('_', '')
+        $weight = 0.0
+        foreach ($w in $words) { if ($candidate.Contains($w)) { $weight += 1.0 / [Math]::Max(1, $frequency[$w]) } }
+        $score = if ($candidate -eq $wanted) { 0 } elseif ($candidate.Contains($wanted) -or ($wanted.Contains($candidate) -and $candidate.Length -ge 4)) { 1 }
+            elseif ($weight -gt 0) { 3 - $weight }
+            elseif ([Math]::Abs($candidate.Length - $wanted.Length) -le 3 -and (Get-KitDistance $candidate $wanted) -le 3) { 3 } else { -1 }
+        $label = if ($m[0] -eq 'F') { $m[2] + ': ' + $m[3] } else { $m[3] }
+        if ($score -ge 0) { $scored += [pscustomobject]@{ score = $score; text = ((Get-KitShortName $owner) + '.' + $label + $(if ($m[4] -match 'client-only') { ' [client-only]' } else { '' })) } }
     }
     return @($scored | Sort-Object score, text -Unique | Select-Object -First 4 | ForEach-Object { $_.text })
 }

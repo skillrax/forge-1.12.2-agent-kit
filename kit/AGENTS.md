@@ -1,15 +1,33 @@
-# Minecraft1.12.2 kit
+# Minecraft 1.12.2 mod kit
 
-Read START.md, run agent status and resume TASK.md. Keep objective, acceptance, next step and results under2000 characters. Load only the relevant Forge skill reference.
+You build Forge mods for Minecraft 1.12.2 (Forge 14.23.5.2859, MCP stable_39, Java 8) from the user's description. Everything goes through `agent.ps1` in this folder:
 
-Setup requests: use the known Setup.cmd administrator route in START.md; it asks separate Y/N choices for Java settings and recommended Node/MCP before downloads. A ZIP attachment needs extraction and a project rooted in that folder first. Confirm status.projectRoot; a launched process is not setup PASS. Stop on cancellation/failure with the next action and log pointer. Reuse fresh matching environment PASS; Node/MCP are optional. MCP module-load PASS is not app connectivity evidence.
+| Command | What it does |
+|---|---|
+| `./agent.ps1 status` | project, mod, Java, last check, next step |
+| `./agent.ps1 init <modid> "<Name>"` | working mod skeleton (empty project only) |
+| `./agent.ps1 new <kind> <name> [options]` | item, block, ore, food, tools, armor, recipe, smelting, tile, test: docs/GENERATORS.md |
+| `./agent.ps1 check` | compile + jar checks (~10 s) |
+| `./agent.ps1 check server` | + start a server, lint registered content against its assets (~25 s) |
+| `./agent.ps1 check game [-Test id]` | + run game tests from src/gametest/java: docs/TESTING.md |
+| `./agent.ps1 api <Class>[.member]` or `api -Find <text>` | real 1.12.2 signatures and source |
+| `./agent.ps1 version <x.y.z>`, `./agent.ps1 export` | bump version; copy the checked jar to releases/ |
 
-Preserve the pinned game/Forge/mappings and Java8 baseline. Production is src/main; keep client rendering out of common/server classes and assertions out of the JAR.
+If scripts are blocked: `powershell -NoProfile -ExecutionPolicy Bypass -File ./agent.ps1 ...`
 
-Use -Action check -Profile mod (mod is not an Action); unit requires executed tests; server proves startup only. Require exit0/PASS and stated scope. Failures include bounded diagnostics; use -Action errors for that run when needed, fix its cause and rerun. Reuse fresh evidence unless external conditions changed; do not duplicate successful baselines. Checks reuse unchanged Gradle work; -Clean requests recovery. Removed source/resource paths or changed build configuration trigger automatic clean.
+## Loop
 
-For APIs use tools/Read-MappedSource.ps1 with an exact Class/Member and bounded MaxLines. Avoid whole classes/overlapping snippets. Text is UTF-8. See on-demand skill/workflow guidance when needed.
+1. `status`. Java missing: follow SETUP.md.
+2. Put the request, your decisions and acceptance checks in TASK.md. Keep it short; replace, never append.
+3. Use generators for standard content. For anything else read the one matching guide from docs/INDEX.md.
+4. `check` after each change and fix the first error; hints name the 1.12.2 replacement. Unsure of a name or signature: `api`, never guess.
+5. Important behavior gets a game test (`new test <id>`, then `check game`).
+6. Finish with `check server` (or `check game`) passing with no WARN lines, TASK.md updated, `export` if a jar is wanted. Tell the user what was tested automatically and what to look at in the game client (`gradlew.bat runClient`): textures, GUIs, rendering.
 
-Use a focused build and short check of new behavior. Extra fault/load/lifecycle checks need a concrete issue or claim; do not repeat unchanged passes. Report unchecked behavior. User instructions/model settings take precedence; do not change them.
+## Rules
 
-Delivery: export the checked versioned JAR with tools/Export-Release.ps1. Give its path/version, checked scope and pending gameplay/client/install checks. Changed deliveries need a new mod version with synchronized metadata and preserved prior exports; follow user version policy. Update TASK.md with outcome and remaining checks before closing.
+- Java 8, Forge 1.12.2 only. No records/var/text blocks, DeferredRegister, mods.toml or data packs. Code from other versions has wrong names.
+- Rendering, GUI screens, models and keybinds belong in client-only classes (`@Mod.EventBusSubscriber(value = Side.CLIENT)` or `@SideOnly(Side.CLIENT)`). `check server` catches mistakes.
+- Change the world only on the server: `if (!world.isRemote)`.
+- Test code goes in src/gametest, never src/main. Keep the pinned build files unless the user asks.
+- Ask the user only when a choice changes gameplay. Otherwise decide and note it in TASK.md.
