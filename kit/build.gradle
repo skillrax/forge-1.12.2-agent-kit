@@ -24,6 +24,8 @@ minecraft {
 
 repositories {
     minecraft.mavenizer(it)
+    // Most Forge 1.12.2 libraries are also on Maven Central, which is fast; Forge's own server can stall.
+    mavenCentral()
     maven fg.forgeMaven
     maven fg.minecraftLibsMaven
 }
