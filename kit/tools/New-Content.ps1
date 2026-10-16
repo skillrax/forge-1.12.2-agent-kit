@@ -4,7 +4,7 @@
 # Usage: agent.ps1 new <kind> <name> [options]   (kinds and options: docs/GENERATORS.md)
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('item', 'block', 'ore', 'food', 'tools', 'armor', 'recipe', 'smelting', 'tile', 'test')][string]$Kind,
+    [Parameter(Mandatory)][ValidateSet('item', 'block', 'ore', 'food', 'tools', 'armor', 'recipe', 'smelting', 'tile', 'mob', 'test')][string]$Kind,
     [Parameter(Position = 0)][string]$Name,
     [string]$Display,
     [string]$Tab,
@@ -48,6 +48,13 @@ param(
     [string]$From,
     [switch]$Ticking,
     [int]$Inventory = 0,
+    [double]$Health,
+    [double]$Attack,
+    [string]$Egg,
+    [string]$Biomes,
+    [string]$BiomeTypes,
+    [int]$Weight,
+    [string]$Group,
     [string]$Color,
     [switch]$Force,
     [switch]$List,
@@ -77,6 +84,7 @@ $kindOptions = @{
     recipe   = @('Shape', 'Key', 'Ingredients', 'Result', 'Count')
     smelting = @('From', 'Result', 'Count', 'Xp')
     tile     = @('Ticking', 'Inventory')
+    mob      = @('Like', 'Health', 'Attack', 'Speed', 'Drops', 'Count', 'Egg', 'Biomes', 'BiomeTypes', 'Weight', 'Group')
     test     = @()
 }
 
@@ -936,6 +944,188 @@ $dropCode}
     New-BlockAssets $Name $title 'block'
 }
 
+# Vanilla bases (net.minecraft.entity.*): class, renderer, spawn type, vanilla stats; null = attribute the base does not use.
+$mobPresets = [ordered]@{
+    zombie   = @{ cls = 'net.minecraft.entity.monster.EntityZombie';   render = 'RenderZombie';   type = 'MONSTER';  health = 20; attack = 3;     speed = 0.23 }
+    skeleton = @{ cls = 'net.minecraft.entity.monster.EntitySkeleton'; render = 'RenderSkeleton'; type = 'MONSTER';  health = 20; attack = 2;     speed = 0.25 }
+    spider   = @{ cls = 'net.minecraft.entity.monster.EntitySpider';   render = 'RenderSpider';   type = 'MONSTER';  health = 16; attack = 2;     speed = 0.3 }
+    creeper  = @{ cls = 'net.minecraft.entity.monster.EntityCreeper';  render = 'RenderCreeper';  type = 'MONSTER';  health = 20; attack = $null; speed = 0.25 }
+    blaze    = @{ cls = 'net.minecraft.entity.monster.EntityBlaze';    render = 'RenderBlaze';    type = 'MONSTER';  health = 20; attack = 6;     speed = 0.23 }
+    ghast    = @{ cls = 'net.minecraft.entity.monster.EntityGhast';    render = 'RenderGhast';    type = 'MONSTER';  health = 10; attack = $null; speed = $null }
+    cow      = @{ cls = 'net.minecraft.entity.passive.EntityCow';      render = 'RenderCow';      type = 'CREATURE'; health = 10; attack = $null; speed = 0.2 }
+    pig      = @{ cls = 'net.minecraft.entity.passive.EntityPig';      render = 'RenderPig';      type = 'CREATURE'; health = 10; attack = $null; speed = 0.25 }
+    chicken  = @{ cls = 'net.minecraft.entity.passive.EntityChicken';  render = 'RenderChicken';  type = 'CREATURE'; health = 4;  attack = $null; speed = 0.25 }
+}
+# net.minecraftforge.common.BiomeDictionary.Type constants.
+$knownBiomeTypes = @('HOT', 'COLD', 'SPARSE', 'DENSE', 'WET', 'DRY', 'SAVANNA', 'CONIFEROUS', 'JUNGLE', 'SPOOKY', 'DEAD', 'LUSH', 'NETHER', 'END', 'MUSHROOM', 'MAGICAL', 'RARE', 'OCEAN', 'RIVER', 'WATER', 'MESA', 'FOREST', 'PLAINS', 'MOUNTAIN', 'HILLS', 'SWAMP', 'SANDY', 'SNOWY', 'WASTELAND', 'BEACH', 'VOID')
+
+function Format-Number([double]$Value) { $Value.ToString('0.0###', [Globalization.CultureInfo]::InvariantCulture) }
+
+function Build-Mob {
+    if (-not $Like) { throw "new mob needs -Like <base>: $($mobPresets.Keys -join ', ') (movement, AI and model come from it)" }
+    $like = $Like.ToLowerInvariant()
+    $base = $mobPresets[$like]
+    if (-not $base) { throw "Unknown -Like '$Like'. Use one of: $($mobPresets.Keys -join ', ')" }
+    if ($bound.ContainsKey('Attack') -and $null -eq $base.attack) { throw "-Attack does not apply to a $like (no melee attack attribute); pick zombie, skeleton, spider or blaze" }
+    if ($bound.ContainsKey('Speed') -and $null -eq $base.speed) { throw "-Speed does not apply to a $like (its movement ignores the speed attribute)" }
+    if (($bound.ContainsKey('Weight') -or $bound.ContainsKey('Group')) -and -not ($Biomes -or $BiomeTypes)) { throw '-Weight/-Group need -Biomes or -BiomeTypes (where it spawns naturally)' }
+    if ($bound.ContainsKey('Count') -and -not $Drops) { throw '-Count needs -Drops (the item it drops)' }
+    $pascal = ConvertTo-Pascal $Name
+    $main = $project.mainClass
+    $entities = Join-Path $project.dir 'ModEntities.java'
+    if ([IO.File]::Exists((Join-Path $project.dir "$pascal.java"))) { throw "$pascal.java already exists" }
+    if ([IO.File]::Exists($entities) -and [IO.File]::ReadAllText($entities) -match ('"' + [regex]::Escape($Name) + '"')) { throw "an entity named $Name is already registered in ModEntities.java" }
+    $simpleBase = $base.cls.Substring($base.cls.LastIndexOf('.') + 1)
+    $animal = $base.type -eq 'CREATURE'
+
+    # Spawn biomes: registry names ("plains" -> minecraft:plains) and BiomeDictionary types ("type:NETHER").
+    $specs = @()
+    foreach ($b in @(if ($Biomes) { $Biomes.Split(',') })) { $b = $b.Trim().ToLowerInvariant(); if ($b) { $specs += $(if ($b -match ':') { $b } else { "minecraft:$b" }) } }
+    foreach ($b in @(if ($BiomeTypes) { $BiomeTypes.Split(',') })) {
+        $b = $b.Trim().ToUpperInvariant(); if (-not $b) { continue }
+        if ($knownBiomeTypes -notcontains $b) { throw "Unknown -BiomeTypes '$b'. Use: $($knownBiomeTypes -join ', ')" }
+        $specs += "type:$b"
+    }
+    $group = Get-Range $Group 1 3 '-Group'
+    $weight = if ($bound.ContainsKey('Weight')) { $Weight } else { 10 }
+    if ($weight -lt 1) { throw '-Weight must be at least 1' }
+
+    # Egg colors "rrggbb,rrggbb", else derived from the name.
+    if ($Egg) {
+        $colors = @($Egg.Split(',') | ForEach-Object { $_.Trim().TrimStart('#').ToLowerInvariant() })
+        if ($colors.Count -ne 2 -or @($colors | Where-Object { $_ -notmatch '^[0-9a-f]{6}$' }).Count) { throw '-Egg needs two hex colors: rrggbb,rrggbb' }
+    } else {
+        $c = Get-BaseColor $Name; $d = Get-Shade $c 0.45
+        $colors = @(('{0:x2}{1:x2}{2:x2}' -f $c.R, $c.G, $c.B), ('{0:x2}{1:x2}{2:x2}' -f $d.R, $d.G, $d.B))
+    }
+
+    $attrs = @()
+    if ($bound.ContainsKey('Health')) { if ($Health -le 0) { throw '-Health must be positive' }; $attrs += "        getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue($(Format-Number $Health)D);" }
+    if ($bound.ContainsKey('Attack')) { $attrs += "        getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).setBaseValue($(Format-Number $Attack)D);" }
+    if ($bound.ContainsKey('Speed')) { $attrs += "        getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue($(Format-Number $Speed)D);" }
+    $attrBlock = if ($attrs.Count) { "`n    @Override`n    protected void applyEntityAttributes() {`n        super.applyEntityAttributes();`n" + ($attrs -join "`n") + "`n    }`n" } else { '' }
+    $loot = ''; $lootField = ''; $dropId = $null; $range = $null
+    if ($Drops) {
+        Assert-ItemRef $Drops 'Drop'
+        $range = Get-Range $Count 0 2 '-Count'
+        $dropId = ConvertTo-ItemId $Drops
+        $lootField = "    public static final ResourceLocation LOOT = LootTableList.register(new ResourceLocation($main.MODID, `"entities/$Name`"));`n`n"
+        $loot = "`n    @Override`n    protected ResourceLocation getLootTable() { return LOOT; }`n"
+        Write-New (Join-Path $project.assets "loot_tables/entities/$Name.json") @"
+{ "pools": [ { "name": "$Name", "rolls": 1,
+  "entries": [ { "type": "item", "name": "$dropId", "weight": 1,
+    "functions": [ { "function": "set_count", "count": { "min": $($range[0]), "max": $($range[1]) } },
+                   { "function": "looting_enchant", "count": { "min": 0, "max": 1 } } ] } ] } ] }
+"@
+    }
+    $child = if ($animal) { "`n    /** Breeding makes this mob, not a vanilla $like. */`n    @Override`n    public $pascal createChild(EntityAgeable ageable) { return new $pascal(world); }`n" } else { '' }
+    $imports = @("import $($base.cls);", 'import net.minecraft.world.World;')
+    if ($attrs.Count) { $imports += 'import net.minecraft.entity.SharedMonsterAttributes;' }
+    if ($Drops) { $imports += 'import net.minecraft.util.ResourceLocation;'; $imports += 'import net.minecraft.world.storage.loot.LootTableList;' }
+    if ($animal) { $imports += 'import net.minecraft.entity.EntityAgeable;' }
+    $what = if ($Drops) { ' stats, drops' } else { ' stats' }
+    Write-New (Join-Path $project.dir "$pascal.java") @"
+package $($project.package);
+
+$(($imports | Sort-Object) -join "`n")
+
+/** ${title}: a vanilla $like (movement, AI, model) with its own$what and spawn egg. Add behavior here (guides/entities.md). */
+public class $pascal extends $simpleBase {
+$lootField    public $pascal(World world) { super(world); }   // entities need this (World) constructor
+$attrBlock$loot$child}
+"@
+
+    if (-not [IO.File]::Exists($entities)) {
+        Write-New $entities @"
+package $($project.package);
+
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.entity.EnumCreatureType;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.biome.Biome;
+import net.minecraftforge.common.BiomeDictionary;
+import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.registry.EntityEntry;
+import net.minecraftforge.fml.common.registry.EntityEntryBuilder;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
+
+/** Entity registration. Eggs appear in the Miscellaneous tab; names come from entity.<modid>.<name>.name in the lang file. */
+@Mod.EventBusSubscriber(modid = $main.MODID)
+public final class ModEntities {
+    private static int nextId = 0;   // network id, unique within this mod
+
+    @SubscribeEvent
+    public static void register(RegistryEvent.Register<EntityEntry> event) {
+        // kit:entities
+    }
+
+    /** Biomes by registry name ("minecraft:plains") or BiomeDictionary type ("type:NETHER"); unknown names fail loudly. */
+    public static List<Biome> biomes(String... specs) {
+        List<Biome> found = new ArrayList<>();
+        for (String spec : specs) {
+            if (spec.startsWith("type:")) {
+                for (Biome biome : BiomeDictionary.getBiomes(BiomeDictionary.Type.getType(spec.substring(5)))) if (!found.contains(biome)) found.add(biome);
+                continue;
+            }
+            Biome biome = ForgeRegistries.BIOMES.getValue(new ResourceLocation(spec));
+            if (biome == null) throw new IllegalArgumentException("Unknown biome " + spec);
+            if (!found.contains(biome)) found.add(biome);
+        }
+        if (found.isEmpty()) throw new IllegalArgumentException("No biomes match " + String.join(",", specs));
+        return found;
+    }
+
+    private ModEntities() {}
+}
+"@
+    }
+    $specList = ($specs | ForEach-Object { Q $_ }) -join ', '
+    $register = @(
+        "event.getRegistry().register(EntityEntryBuilder.create().entity($pascal.class)",
+        "        .id(new ResourceLocation($main.MODID, `"$Name`"), nextId++).name($main.MODID + `".$Name`")",
+        "        .tracker(64, 3, true).egg(0x$($colors[0]), 0x$($colors[1]))")
+    if ($specs.Count) { $register += "        .spawn(EnumCreatureType.$($base.type), $weight, $($group[0]), $($group[1]), biomes($specList))" }
+    $register += '        .build());'
+    Add-AtMarker $entities 'entities' $register
+    $client = Join-Path $project.dir 'ClientEvents.java'
+    Add-Import $client @('net.minecraftforge.fml.client.registry.RenderingRegistry', "net.minecraft.client.renderer.entity.$($base.render)")
+    Add-AtMarker $client 'models' @("RenderingRegistry.registerEntityRenderingHandler($pascal.class, $($base.render)::new);")
+    Add-Lang "entity.$($project.modId).$Name.name" $title
+    $registered.Add("entity $Name")
+
+    # Generated checks: stats as written, egg, loot range, natural spawn entries.
+    $id = "$($project.modId):$Name"
+    $checks = @("{ net.minecraft.entity.EntityLiving e = (net.minecraft.entity.EntityLiving) t.spawn($(Q $id), t.origin().add(1, 0, 1));",
+                "  t.require(e instanceof $pascal, $(Q "$Name class"));")
+    foreach ($a in @(@('Health', 'MAX_HEALTH', 'health'), @('Attack', 'ATTACK_DAMAGE', 'attack'), @('Speed', 'MOVEMENT_SPEED', 'speed'))) {
+        if (-not $bound.ContainsKey($a[0])) { continue }
+        $checks += "  t.require(Math.abs(e.getEntityAttribute(net.minecraft.entity.SharedMonsterAttributes.$($a[1])).getBaseValue() - $(Format-Number $bound[$a[0]])) < 1e-6, $(Q "$Name $($a[2])"));"
+    }
+    $checks += '  e.setDead(); }'
+    $checks += "t.require(net.minecraft.entity.EntityList.ENTITY_EGGS.containsKey(new net.minecraft.util.ResourceLocation($(Q $id))), $(Q "$Name spawn egg"));"
+    if ($Drops) {
+        $checks += "{ int lo = 99, hi = -1; for (int roll = 0; roll < 200; roll++) { int n = t.count(t.loot($(Q "$($project.modId):entities/$Name")), $(Q $dropId)); lo = Math.min(lo, n); hi = Math.max(hi, n); }"
+        $checks += "  t.require(lo == $($range[0]) && hi == $($range[1]), $(Q "$Name drops per kill ") + lo + `"..`" + hi); }"
+    }
+    if ($specs.Count) {
+        $checks += "for (net.minecraft.world.biome.Biome b : ModEntities.biomes($specList))"
+        $checks += "  t.require(b.getSpawnableList(net.minecraft.entity.EnumCreatureType.$($base.type)).stream().anyMatch(s -> s.entityClass == $pascal.class), $(Q "$Name spawns in ") + b.getRegistryName());"
+    }
+    Add-Check $checks
+
+    $hpValue = if ($bound.ContainsKey('Health')) { $Health } else { $base.health }
+    $hp = (Format-Number $hpValue) + $(if ($bound.ContainsKey('Health')) { '' } else { ' (vanilla)' }) + " = $(Format-Number ($hpValue / 2)) hearts"
+    $atk = if ($bound.ContainsKey('Attack')) { Format-Number $Attack } elseif ($null -eq $base.attack) { 'none' } else { (Format-Number $base.attack) + ' (vanilla)' }
+    $spd = if ($bound.ContainsKey('Speed')) { Format-Number $Speed } elseif ($null -eq $base.speed) { 'own movement' } else { (Format-Number $base.speed) + ' (vanilla)' }
+    $stats = "stats: $like base, health $hp, attack $atk, speed $spd"
+    $stats += $(if ($Drops) { ", drops $($range[0])-$($range[1]) $dropId" } else { ", vanilla $like drops" })
+    $stats += $(if ($specs.Count) { "; spawns $($base.type) weight $weight group $($group[0])-$($group[1]) in $($specs -join ', ')" } else { '; no natural spawning (egg only)' })
+    $notes.Add($stats)
+}
+
 function Build-Test {
     if ($Name -notmatch '^[a-z][a-z0-9-]*$') { throw 'Test ids are lowercase with dashes, e.g. ruby-ore-drops' }
     $pascal = (($Name.Split('-') | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '') + 'Test'
@@ -996,6 +1186,7 @@ try {
         'recipe' { Build-Recipe }
         'smelting' { Build-Smelting }
         'tile' { Build-Tile }
+        'mob' { Build-Mob }
         'test' { Build-Test }
     }
     if ($Json) { [ordered]@{ schemaVersion = 1; status = 'PASS'; kind = $Kind; name = $Name; registered = $registered; files = $created; notes = $notes } | ConvertTo-Json -Compress }

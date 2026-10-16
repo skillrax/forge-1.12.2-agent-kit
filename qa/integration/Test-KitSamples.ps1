@@ -41,7 +41,9 @@ try {
         @('new', 'recipe', 'ruby_block', '-Shape', '###,###,###', '-Key', '#=ruby', '-Result', 'ruby_block'),
         @('new', 'recipe', 'ruby_from_block', '-Ingredients', 'ruby_block', '-Result', 'ruby', '-Count', '9'),
         @('new', 'smelting', 'ruby', '-From', 'ruby_ore', '-Result', 'ruby', '-Xp', '1.0'),
-        @('new', 'tile', 'ruby_box', '-Ticking', '-Inventory', '9'))) { Invoke-Kit $gen $command | Out-Null }
+        @('new', 'tile', 'ruby_box', '-Ticking', '-Inventory', '9'),
+        @('new', 'mob', 'ruby_golem', '-Like', 'zombie', '-Health', '40', '-Attack', '5', '-Drops', 'ruby', '-Count', '1-2', '-BiomeTypes', 'plains', '-Egg', 'aa2233,331111'),
+        @('new', 'mob', 'ruby_cow', '-Like', 'cow', '-Biomes', 'plains,savanna', '-Weight', '6'))) { Invoke-Kit $gen $command | Out-Null }
     $testDir = Join-Path $gen 'src/gametest/java/com/example/rubymod'
     New-Item -ItemType Directory -Force -Path $testDir | Out-Null
     Copy-Item -LiteralPath (Join-Path $repo 'qa/fixtures/generators/GeneratorTests.java') -Destination $testDir

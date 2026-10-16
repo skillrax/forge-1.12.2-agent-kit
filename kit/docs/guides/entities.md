@@ -1,6 +1,6 @@
 # Entities (mobs, projectiles)
 
-Simplest robust path: extend a vanilla entity and reuse its renderer and model. A brand-new model needs a `ModelBase` subclass and `RenderLiving` (client only).
+Simplest robust path: extend a vanilla entity and reuse its renderer and model. `agent.ps1 new mob <name> -Like <base>` writes all of the below (docs/GENERATORS.md); add behavior to the generated class. A brand-new model needs a `ModelBase` subclass and `RenderLiving` (client only).
 
 ```java
 public class RubyZombie extends EntityZombie {

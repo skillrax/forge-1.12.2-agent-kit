@@ -73,6 +73,11 @@ exit 0
     Invoke-Agent @('new', 'recipe', 'gem_block', '-Shape', '###,###,###', '-Key', '#=gem', '-Result', 'gem_block') | Out-Null
     Invoke-Agent @('new', 'smelting', 'gem', '-From', 'gem_ore', '-Result', 'gem') | Out-Null
     Invoke-Agent @('new', 'tile', 'gem_box', '-Ticking', '-Inventory', '9') | Out-Null
+    $mob = Invoke-Agent @('new', 'mob', 'gem_wisp', '-Like', 'blaze', '-Health', '30', '-Drops', 'gem', '-Count', '0-2', '-BiomeTypes', 'nether')
+    Assert ($mob -match 'stats: blaze base, health 30\.0 = 15\.0 hearts' -and $mob -match 'spawns MONSTER weight 10 group 1-3 in type:NETHER') "mob stats line: $mob"
+    Assert ((Read-Text "$java/GemWisp.java") -match 'extends EntityBlaze' -and (Read-Text "$java/ModEntities.java") -match 'biomes\("type:NETHER"\)' -and (Read-Text "$java/ClientEvents.java") -match 'GemWisp\.class, RenderBlaze::new') 'mob files'
+    Assert ((Invoke-Agent @('new', 'mob', 'gem_cow', '-Like', 'cow', '-Attack', '3') 1) -match '-Attack does not apply to a cow') 'mob attack on animal rejected'
+    Assert ((Invoke-Agent @('new', 'mob', 'gem_cow', '-Like', 'zombie', '-BiomeTypes', 'netherr') 1) -match "Unknown -BiomeTypes 'NETHERR'") 'mob biome type typo rejected'
     Invoke-Agent @('new', 'test', 'gem-ore-drops') | Out-Null
     $items = Read-Text "$java/ModItems.java"; $blocks = Read-Text "$java/ModBlocks.java"; $main = Read-Text "$java/DemoMod.java"
     Assert ($items -match 'GEM = item\("gem", new Item\(\)\)\.setCreativeTab\(CreativeTabs\.MATERIALS\)\.setMaxStackSize\(16\);') 'item declaration'
@@ -88,7 +93,7 @@ exit 0
     foreach ($file in @("$assets/textures/items/gem.png", "$assets/textures/blocks/gem_ore.png", "$assets/textures/models/armor/gem_layer_1.png", "$assets/blockstates/gem_block.json", 'src/gametest/java/com/example/demo/GemOreDropsTest.java')) { Assert (Test-Path -LiteralPath (Join-Path $fixture $file)) "missing $file" }
     $dup = Invoke-Agent @('new', 'item', 'gem') 1
     Assert ($dup -match 'already declared') 'duplicate rejected'
-    $passed.Add('generators: item block ore food tools armor recipe smelting tile test, duplicate refusal')
+    $passed.Add('generators: item block ore food tools armor recipe smelting tile mob test, duplicate refusal')
 
     # Presets, recipe sets, generated checks, reference validation.
     $tools = Invoke-Agent @('new', 'tools', 'opal', '-Only', 'all', '-Like', 'iron', '-Durability', 'diamond', '-Repair', 'gem', '-Recipes')
