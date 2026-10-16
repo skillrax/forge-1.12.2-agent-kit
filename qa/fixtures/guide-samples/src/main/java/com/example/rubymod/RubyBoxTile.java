@@ -9,6 +9,8 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.energy.CapabilityEnergy;
+import net.minecraftforge.energy.EnergyStorage;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 
@@ -20,6 +22,14 @@ public class RubyBoxTile extends TileEntity implements ITickable {
     public final ItemStackHandler inventory = new ItemStackHandler(9) {
         @Override protected void onContentsChanged(int slot) { markDirty(); }
     };
+    /** Capacity, max input and max output per tick (not saved here: a real machine saves it). */
+    public final EnergyStorage energy = new EnergyStorage(10000, 100, 100);
+
+    /** No comparator output, so save without TileEntity.markDirty's comparator update (guides/machines.md). */
+    @Override public void markDirty() {
+        if (world != null && !world.isRemote) world.markChunkDirty(pos, this);
+    }
+
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound tag) {
         super.writeToNBT(tag);
@@ -43,14 +53,15 @@ public class RubyBoxTile extends TileEntity implements ITickable {
         // TODO behaviour; call markDirty() after changing saved state, sync() if clients must see it.
     }
     @Override
-    public boolean hasCapability(Capability<?> capability, EnumFacing facing) {
-        return capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY || super.hasCapability(capability, facing);
+    public boolean hasCapability(Capability<?> cap, EnumFacing side) {
+        return cap == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY || cap == CapabilityEnergy.ENERGY || super.hasCapability(cap, side);
     }
 
     @Override
-    public <T> T getCapability(Capability<T> capability, EnumFacing facing) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) return CapabilityItemHandler.ITEM_HANDLER_CAPABILITY.cast(inventory);
-        return super.getCapability(capability, facing);
+    public <T> T getCapability(Capability<T> cap, EnumFacing side) {
+        if (cap == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) return CapabilityItemHandler.ITEM_HANDLER_CAPABILITY.cast(inventory);
+        if (cap == CapabilityEnergy.ENERGY) return CapabilityEnergy.ENERGY.cast(energy);
+        return super.getCapability(cap, side);
     }
     /** Sends this tile's NBT to clients watching it. */
     public void sync() {

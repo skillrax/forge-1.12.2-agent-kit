@@ -23,16 +23,16 @@ static void save(EntityPlayer player, NBTTagCompound state) {             // wri
 Data that belongs to no block, entity or player (a registry of teleporters, contents stored by an item) goes in a `WorldSavedData`, saved as `data/<name>.dat` in the world folder:
 
 ```java
-public final class BagStore extends WorldSavedData {
-    private static final String NAME = MyMod.MODID + "_bags";
+public final class ModSavedData extends WorldSavedData {
+    private static final String NAME = MyMod.MODID + "_data";
     private NBTTagCompound contents = new NBTTagCompound();
-    public BagStore() { super(NAME); }
-    public BagStore(String name) { super(name); }      // used by MapStorage when loading
+    public ModSavedData() { super(NAME); }
+    public ModSavedData(String name) { super(name); }      // used by MapStorage when loading
 
-    public static BagStore get(WorldServer world) {
+    public static ModSavedData get(WorldServer world) {
         MapStorage storage = world.getMinecraftServer().getWorld(0).getMapStorage();   // one store for all dimensions
-        BagStore store = (BagStore) storage.getOrLoadData(BagStore.class, NAME);
-        if (store == null) { store = new BagStore(); storage.setData(NAME, store); }
+        ModSavedData store = (ModSavedData) storage.getOrLoadData(ModSavedData.class, NAME);
+        if (store == null) { store = new ModSavedData(); storage.setData(NAME, store); }
         return store;
     }
     public void put(String id, NBTTagCompound data) { contents.setTag(id, data); markDirty(); }
@@ -58,6 +58,7 @@ public class RubyCommand extends CommandBase {
         sender.sendMessage(new TextComponentString("Gave " + count + " rubies to " + target.getName()));
     }
 }
+
 // Main class:
 @Mod.EventHandler public void serverStarting(FMLServerStartingEvent event) { event.registerServerCommand(new RubyCommand()); }
 ```
@@ -76,11 +77,11 @@ ClientRegistry.registerKeyBinding(OPEN);
     boolean pressed = false;
     while (OPEN.isPressed()) pressed = true;                       // drain presses
     Minecraft mc = Minecraft.getMinecraft();
-    if (pressed && mc.player != null && mc.currentScreen == null) mc.displayGuiScreen(new MyScreen());
+    if (pressed && mc.player != null && mc.currentScreen == null) mc.displayGuiScreen(new RubyInfoScreen());
 }
 ```
 
-Lang keys `key.mymod.open` and `key.categories.mymod`. The screen (a `GuiScreen`) asks the server for state and sends actions by packet; the server validates and replies to that player only. Disable buttons until the first reply arrives.
+Lang keys `key.mymod.open` and `key.categories.mymod`. The screen (a `GuiScreen`, `@SideOnly(Side.CLIENT)`, `doesGuiPauseGame` false for menus that must not pause single player) asks the server for state and sends actions by packet; the server validates and replies to that player only. Disable buttons until the first reply arrives.
 
 ## Test
 

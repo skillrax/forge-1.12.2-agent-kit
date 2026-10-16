@@ -6,6 +6,7 @@ Run what the change affects (docs/DEVELOPMENT.md). From the repository root:
 |---|---|---|
 | Agent interface | `powershell -NoProfile -File qa/unit/Test-AgentInterface.ps1` | status, init, all generators, version, compact/JSON output, compiler hints, errors, export gate (fake Gradle) |
 | Runner contract | `powershell -NoProfile -File qa/unit/Test-TestingTools.ps1` | exit codes, server/harness handshake, lint ERROR and failed game tests, timeout (fake Gradle) |
+| Guide snippets | `powershell -NoProfile -File qa/unit/Test-GuideSnippets.ps1 [-Detail]` | every ```java block in kit/docs occurs in fixtures/guide-samples (~1 s; also run first by Test-KitSamples) |
 | Generators + guide samples | `powershell -NoProfile -File qa/integration/Test-KitSamples.ps1` | real Minecraft: generated mod and every guide sample compile, lint clean, pass game tests |
 | Setup/Java/launcher | `qa/unit/Test-*Setup.ps1`, `Test-*JavaEnvironment.ps1`, `Test-WingetLauncher.ps1`, `Test-SetupLauncher.ps1` | setup scripts |
 | Mapped source | `qa/unit/Test-MappedSource.ps1` | source reader |
@@ -13,7 +14,7 @@ Run what the change affects (docs/DEVELOPMENT.md). From the repository root:
 | Installed-artifact harness | `qa/integration/Test-InstalledHarness.ps1`, `Test-InstalledDiscovery.ps1`, `Test-InstalledWorkflow.ps1` | optional installed-server path |
 
 Fixtures:
-- `fixtures/guide-samples`: complete mod containing every code sample in kit/docs (keep in sync with the guides).
+- `fixtures/guide-samples`: complete mod containing every java block in kit/docs, enforced by Test-GuideSnippets (paragraphs match in order, whitespace and comments ignored; `MyMod`/`mymod` = `RubymodMod`/`rubymod`).
 - `fixtures/generators/GeneratorTests.java`: behavior tests for generator output.
 - Other `fixtures/*`: accepted proof projects (sources, checklists, evaluation mods). They document how mechanisms were proven and remain useful worked examples.
 

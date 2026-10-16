@@ -5,17 +5,17 @@ import net.minecraft.world.WorldServer;
 import net.minecraft.world.storage.MapStorage;
 import net.minecraft.world.storage.WorldSavedData;
 
-/** Captured regions, saved with the world (data/rubymod_bags.dat). The bag stack only holds an ID. */
-public final class BagStore extends WorldSavedData {
-    private static final String NAME = RubymodMod.MODID + "_bags";
+/** Captured regions, saved with the world (data/rubymod_data.dat). The item stack only holds an ID. */
+public final class ModSavedData extends WorldSavedData {
+    private static final String NAME = RubymodMod.MODID + "_data";
     private NBTTagCompound contents = new NBTTagCompound();
-    public BagStore() { super(NAME); }
-    public BagStore(String name) { super(name); }      // used by MapStorage when loading
+    public ModSavedData() { super(NAME); }
+    public ModSavedData(String name) { super(name); }      // used by MapStorage when loading
 
-    public static BagStore get(WorldServer world) {
+    public static ModSavedData get(WorldServer world) {
         MapStorage storage = world.getMinecraftServer().getWorld(0).getMapStorage();   // one store for all dimensions
-        BagStore store = (BagStore) storage.getOrLoadData(BagStore.class, NAME);
-        if (store == null) { store = new BagStore(); storage.setData(NAME, store); }
+        ModSavedData store = (ModSavedData) storage.getOrLoadData(ModSavedData.class, NAME);
+        if (store == null) { store = new ModSavedData(); storage.setData(NAME, store); }
         return store;
     }
     public NBTTagCompound find(String id) { return contents.hasKey(id, 10) ? contents.getCompoundTag(id) : null; }

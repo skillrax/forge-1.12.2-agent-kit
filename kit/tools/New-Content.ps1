@@ -428,9 +428,11 @@ function Get-Range([string]$Text, [int]$DefaultMin, [int]$DefaultMax, [string]$W
     throw "$What must be N or MIN-MAX, got '$Text'"
 }
 
-# -Only "sword,axe" -> those pieces in set order; no -Only -> the whole set.
+# -Only "sword,axe" -> those pieces in set order; "all" -> the whole set. Required, so a request
+# for one sword never gets a pickaxe, axe, shovel and hoe by default.
 function Get-Pieces([string[]]$All) {
-    if (-not $Only) { return $All }
+    if (-not $Only) { throw "new $Kind needs -Only with the pieces the user asked for: any of $($All -join ','), or all" }
+    if ($Only.Trim() -eq 'all') { return $All }
     $wanted = @($Only.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
     foreach ($piece in $wanted) { if ($All -notcontains $piece) { throw "Unknown -Only piece '$piece'. Use any of: $($All -join ',')" } }
     if (-not $wanted.Count) { throw "-Only needs at least one of: $($All -join ',')" }

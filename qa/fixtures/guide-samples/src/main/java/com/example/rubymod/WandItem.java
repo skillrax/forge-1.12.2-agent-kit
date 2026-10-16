@@ -43,6 +43,18 @@ public class WandItem extends Item {
         return new ActionResult<>(EnumActionResult.SUCCESS, stack);
     }
 
+    /** The Shots counter changes on use; only other changes re-equip (bob) the held wand. */
+    @Override
+    public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
+        if (slotChanged || oldStack.getItem() != newStack.getItem() || oldStack.getMetadata() != newStack.getMetadata()
+                || oldStack.getCount() != newStack.getCount()) return true;
+        NBTTagCompound before = oldStack.hasTagCompound() ? oldStack.getTagCompound().copy() : new NBTTagCompound();
+        NBTTagCompound after = newStack.hasTagCompound() ? newStack.getTagCompound().copy() : new NBTTagCompound();
+        before.removeTag("Shots");
+        after.removeTag("Shots");
+        return !before.equals(after);
+    }
+
     @SideOnly(Side.CLIENT)
     @Override
     public void addInformation(ItemStack stack, @Nullable World world, List<String> tooltip, ITooltipFlag flag) {

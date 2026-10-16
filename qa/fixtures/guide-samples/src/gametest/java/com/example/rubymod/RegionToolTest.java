@@ -18,9 +18,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.util.FakePlayer;
 
-/** Cubic bag: chest with items + torch on stone + named armor stand, moved by clicks, then through the Nether and back. */
-@GameTest("cubic-bag-moves-region")
-public final class CubicBagTest implements Scenario {
+/** Region tool: chest with items + torch on stone + named armor stand, moved by clicks, then through the Nether and back. */
+@GameTest("region-tool-moves-region")
+public final class RegionToolTest implements Scenario {
     private FakePlayer player;
     private UUID standId;
 
@@ -35,10 +35,10 @@ public final class CubicBagTest implements Scenario {
             t.place(a.add(2, 0, 2), Blocks.STONE.getDefaultState());
             t.place(a.add(2, 1, 2), Blocks.TORCH.getDefaultState());           // pops off if the stone vanishes first with updates
             Entity stand = t.spawn("minecraft:armor_stand", a.add(1, 0, 1));   // not an animal: test servers (spawn-animals=false) remove those
-            stand.setCustomNameTag("Bag test");
+            stand.setCustomNameTag("Region test");
             standId = stand.getUniqueID();
             player = t.player("mover");
-            player.setHeldItem(EnumHand.MAIN_HAND, new ItemStack(ModItems.CUBIC_BAG));
+            player.setHeldItem(EnumHand.MAIN_HAND, new ItemStack(ModItems.REGION_TOOL));
             t.useOnBlock(player, a, EnumFacing.UP, EnumHand.MAIN_HAND);          // clicking the chest must not open it
             t.useOnBlock(player, a.add(2, 1, 2), EnumFacing.UP, EnumHand.MAIN_HAND);
             NBTTagCompound tag = player.getHeldItemMainhand().getTagCompound();
@@ -52,11 +52,11 @@ public final class CubicBagTest implements Scenario {
         t.check("no-spill-on-capture", () -> t.world().getEntitiesWithinAABB(EntityItem.class, everything).isEmpty(), () -> "items dropped: " + t.world().getEntitiesWithinAABB(EntityItem.class, everything));
         t.then("place by clicking the floor", () -> {
             t.useOnBlock(player, dest.down(), EnumFacing.UP, EnumHand.MAIN_HAND);
-            t.require(!player.getHeldItemMainhand().getTagCompound().hasKey("Capture"), "bag still full");
+            t.require(!player.getHeldItemMainhand().getTagCompound().hasKey("Capture"), "tool still holds a capture");
             t.require(t.inventory(dest).getStackInSlot(0).getCount() == 5, "chest contents");
             t.require(t.state(dest.add(2, 1, 2)).getBlock() == Blocks.TORCH, "torch");
             Entity moved = t.world().getEntityFromUuid(standId);
-            t.require(moved != null && Math.abs(moved.posX - (dest.getX() + 1.5)) < 0.01 && "Bag test".equals(moved.getCustomNameTag()), "armor stand: " + moved);
+            t.require(moved != null && Math.abs(moved.posX - (dest.getX() + 1.5)) < 0.01 && "Region test".equals(moved.getCustomNameTag()), "armor stand: " + moved);
         });
         t.then("nether round trip", () -> {                                    // one step: the Nether has no player to keep chunks loaded
             WorldServer nether = t.server().getWorld(-1);

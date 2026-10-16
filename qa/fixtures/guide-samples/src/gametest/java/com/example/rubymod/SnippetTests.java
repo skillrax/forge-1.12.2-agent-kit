@@ -1,6 +1,8 @@
 package com.example.rubymod;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import kit.gametest.GameTest;
 import kit.gametest.Scenario;
 import kit.gametest.TestContext;
@@ -8,9 +10,18 @@ import net.minecraft.block.BlockCrops;
 import net.minecraft.block.BlockHorizontal;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.projectile.EntitySmallFireball;
+import net.minecraft.inventory.Container;
+import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.energy.CapabilityEnergy;
+import net.minecraftforge.energy.IEnergyStorage;
+import net.minecraftforge.fluids.FluidTank;
+import net.minecraftforge.items.ItemStackHandler;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.DamageSource;
@@ -149,6 +160,74 @@ public final class SnippetTests {
             t.then("place", () -> t.place(pos, "rubymod:ruby_box"));
             t.waitTicks(330);
             t.check("still-ticking", () -> t.tile(pos, RubyBoxTile.class).ticks >= 320, () -> "ticks=" + t.tile(pos, RubyBoxTile.class).ticks);
+        }
+    }
+    @GameTest("recipes-machines-player-data")
+    public static final class Fragments implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("recipes by hand (guides/recipes.md)", () -> {
+                ItemStack block = t.craft("rubymod:ruby", "rubymod:ruby", "rubymod:ruby", "rubymod:ruby", "rubymod:ruby", "rubymod:ruby", "rubymod:ruby", "rubymod:ruby", "rubymod:ruby");
+                t.require(block.getItem() == t.item("rubymod:ruby_block"), "9 rubies gave " + block);
+                t.require(t.smelt("rubymod:ruby_ore").getItem() == t.item("rubymod:ruby"), "smelting");
+            });
+            t.then("craftOnce uses the registered recipe", () -> {
+                InventoryCrafting grid = new InventoryCrafting(new Container() {
+                    @Override public boolean canInteractWith(EntityPlayer player) { return false; }
+                }, 3, 3);
+                grid.setInventorySlotContents(4, new ItemStack(Blocks.LOG));
+                List<ItemStack> returns = new ArrayList<>();
+                ItemStack planks = MachineHelpers.craftOnce(grid, t.world(), returns);
+                t.require(planks.getItem() == Item.getItemFromBlock(Blocks.PLANKS) && planks.getCount() == 4, "log gave " + planks);
+                t.require(returns.size() == 9, "remaining items " + returns.size());
+                grid.setInventorySlotContents(0, new ItemStack(Items.STICK));
+                t.require(MachineHelpers.craftOnce(grid, t.world(), new ArrayList<>()).isEmpty(), "log + stick matched a recipe");
+            });
+            t.then("push moves only what fits", () -> {
+                ItemStackHandler buffer = new ItemStackHandler(1), target = new ItemStackHandler(1);
+                buffer.setStackInSlot(0, new ItemStack(Blocks.COBBLESTONE, 64));
+                target.setStackInSlot(0, new ItemStack(Blocks.COBBLESTONE, 60));
+                int moved = MachineHelpers.push(buffer, 0, target, 8);
+                t.require(moved == 4 && buffer.getStackInSlot(0).getCount() == 60 && target.getStackInSlot(0).getCount() == 64,
+                        "moved " + moved + ", buffer " + buffer.getStackInSlot(0) + ", target " + target.getStackInSlot(0));
+            });
+            t.then("tank NBT with a stale Empty marker", () -> {
+                NBTTagCompound tankTag = new NBTTagCompound();
+                tankTag.setString("Empty", "");
+                tankTag.setString("FluidName", "water");
+                tankTag.setInteger("Amount", 1000);
+                NBTTagCompound nbt = new NBTTagCompound();
+                nbt.setTag("Tank", tankTag);
+                FluidTank plain = new FluidTank(4000);
+                plain.readFromNBT(tankTag.copy());
+                t.require(plain.getFluid() == null, "trap gone? plain read kept " + plain.getFluidAmount());
+                FluidTank tank = new FluidTank(4000);
+                MachineHelpers.readTank(tank, nbt);
+                t.require(tank.getFluidAmount() == 1000, "readTank lost the fluid: " + tank.getFluidAmount());
+            });
+            t.then("energy capability", () -> {
+                BlockPos pos = t.origin().add(2, 0, 12);
+                t.place(pos, "rubymod:ruby_box");
+                IEnergyStorage energy = t.tile(pos, RubyBoxTile.class).getCapability(CapabilityEnergy.ENERGY, null);
+                t.require(energy != null && energy.receiveEnergy(500, false) == 100, "energy " + energy);
+            });
+            t.then("persisted player data survives respawn copy", () -> {
+                FakePlayer before = t.player("keeper"), after = t.player("keeper-respawned");
+                NBTTagCompound state = new NBTTagCompound();
+                state.setInteger("Rubies", 5);
+                PlayerData.save(before, state);
+                t.require(PlayerData.data(before).getInteger("Rubies") == 5, "not saved");
+                after.copyFrom(before, false);   // what a respawn does
+                t.require(PlayerData.data(after).getInteger("Rubies") == 5, "lost on respawn: " + after.getEntityData());
+            });
+            t.then("wand bobs only for non-counter changes", () -> {
+                ItemStack a = new ItemStack(ModItems.WAND), b = a.copy();
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setInteger("Shots", 3);
+                b.setTagCompound(tag);
+                t.require(!ModItems.WAND.shouldCauseReequipAnimation(a, b, false), "Shots change re-equips");
+                b.setItemDamage(1);
+                t.require(ModItems.WAND.shouldCauseReequipAnimation(a, b, false), "damage change ignored");
+            });
         }
     }
 }

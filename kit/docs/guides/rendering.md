@@ -6,13 +6,7 @@ Ordinary blocks and items use JSON models. Code rendering is client-only: everyt
 
 - State (on/off, clock) lives in the tile on the server: change it in `onBlockActivated` (server), `markDirty()`, `world.notifyBlockUpdate(pos, state, state, 3)`; include it in `getUpdateTag`/`getUpdatePacket`. Send state changes, never per-frame values.
 - Bind the renderer in `ClientEvents.models`: `ClientRegistry.bindTileEntitySpecialRenderer(MyTile.class, new MyRenderer())` (`MyRenderer extends TileEntitySpecialRenderer<MyTile>`).
-- Clock that pauses and resumes smoothly: store `elapsedTicks` and `startTick` (`world.getTotalWorldTime()`), then
-
-```java
-double time = elapsedTicks + (active ? Math.max(0, world.getTotalWorldTime() - startTick) + partialTicks : 0);
-```
-
-  On toggle (server) add the active ticks to `elapsedTicks`, reset `startTick`, flip, sync. Rotation `(time * degreesPerTick) % 360`; hover `baseY + Math.sin(time * frequency) * amplitude`. Never increment angles inside `render` (frame-rate dependent).
+- Clock that pauses and resumes smoothly: store `elapsedTicks` and `startTick` (`world.getTotalWorldTime()`); render time is `elapsedTicks`, plus `world.getTotalWorldTime() - startTick + partialTicks` while active (clamp the difference at 0). On toggle (server) add the active ticks to `elapsedTicks`, reset `startTick`, flip, sync. Rotation `(time * degreesPerTick) % 360`; hover `baseY + Math.sin(time * frequency) * amplitude`. Never increment angles inside `render` (frame-rate dependent).
 - Per part: `GlStateManager.pushMatrix()`, translate to pivot, rotate, draw, `popMatrix()` in `finally`. Expand `getRenderBoundingBox()` to cover all moving extents.
 - GL state: change and restore through `GlStateManager` (texture, lighting, cull, blend, color) in `finally`. Drawing color arrays invalidates the cached color: save it first. With the pinned LWJGL 2, `GL11.glGetFloat(GL11.GL_CURRENT_COLOR, buf)` needs a **16-float** direct buffer (`BufferUtils.createFloatBuffer(16)`); a 4-float buffer crashes.
 

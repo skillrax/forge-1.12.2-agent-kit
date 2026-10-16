@@ -16,23 +16,23 @@ import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 
 /** Right-click two corners to capture the cuboid; right-click a block face to place it next to that face. */
-public class CubicBagItem extends Item {
-    public CubicBagItem() { setMaxStackSize(1); setCreativeTab(CreativeTabs.TOOLS); }
+public class RegionToolItem extends Item {
+    public RegionToolItem() { setMaxStackSize(1); setCreativeTab(CreativeTabs.TOOLS); }
 
     @Override   // runs before the clicked block's onBlockActivated, so clicking a chest does not open it
     public EnumActionResult onItemUseFirst(EntityPlayer player, World world, BlockPos pos, EnumFacing side, float hitX, float hitY, float hitZ, EnumHand hand) {
         if (world.isRemote) return EnumActionResult.SUCCESS;             // client: SUCCESS still sends the click to the server
         WorldServer server = (WorldServer) world;
-        ItemStack bag = player.getHeldItem(hand);
-        NBTTagCompound tag = bag.hasTagCompound() ? bag.getTagCompound() : new NBTTagCompound();
-        bag.setTagCompound(tag);
-        BagStore store = BagStore.get(server);
+        ItemStack tool = player.getHeldItem(hand);
+        NBTTagCompound tag = tool.hasTagCompound() ? tool.getTagCompound() : new NBTTagCompound();
+        tool.setTagCompound(tag);
+        ModSavedData store = ModSavedData.get(server);
         try {
             if (tag.hasKey("Capture")) {
                 NBTTagCompound data = store.find(tag.getString("Capture"));
                 RegionMover.require(data != null, "This capture was already placed.");
                 RegionMover.place(server, player, data, pos.offset(side));
-                store.remove(tag.getString("Capture"));                    // a copied bag cannot place it again
+                store.remove(tag.getString("Capture"));                    // a copied tool cannot place it again
                 tag.removeTag("Capture"); tag.removeTag("Size"); tag.removeTag("Preview");
                 say(player, "Placed.");
             } else if (!tag.hasKey("First") || tag.getInteger("Dim") != world.provider.getDimension()) {

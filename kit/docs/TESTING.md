@@ -22,7 +22,7 @@ public class OreDropsTest implements Scenario {
     @Override public void plan(TestContext t) {
         BlockPos pos = t.origin().add(2, 0, 2);
         t.then("mine it", () -> {
-            t.place(pos, "gems:ruby_ore");
+            t.place(pos, "mymod:ruby_ore");
             FakePlayer p = t.player("miner");
             p.setHeldItem(EnumHand.MAIN_HAND, new ItemStack(Items.IRON_PICKAXE));
             t.require(t.breakBlock(p, pos), "not broken");

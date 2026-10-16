@@ -26,7 +26,7 @@ public final class ModEntities {
                 .name(MyMod.MODID + ".ruby_zombie")                // lang: entity.mymod.ruby_zombie.name
                 .tracker(64, 3, true)                               // tracking range, update interval, velocity updates
                 .egg(0x3a5f2e, 0xc01f3f)                            // spawn egg in the Miscellaneous tab
-                .spawn(EnumCreatureType.MONSTER, 20, 1, 3, Biomes.PLAINS, Biomes.DESERT)   // weight, min, max group
+                .spawn(EnumCreatureType.MONSTER, ModConfig.zombieWeight, 1, 3, Biomes.PLAINS, Biomes.DESERT)   // weight (20 = like zombies; here a config value), min, max group
                 .build());
     }
 }

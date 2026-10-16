@@ -44,12 +44,7 @@ A public class implements InstalledScenario and declares @InstalledTest("my-feat
 | block(id), item(id), place(pos, id/state), tile(pos, type), inventory(pos) | Small registry/world helpers with explicit missing/type errors |
 | parameters(), string(key, fallback), integer(key, fallback) | Read scenario-specific JSON inputs |
 
-For example, in plan(), with arrange/hasExpectedOutput/describeOutput implemented by the project:
-
-```java
-t.then("arrange", this::arrange);
-t.waitUntil("processed", 100, this::hasExpectedOutput, this::describeOutput);
-```
+For example, in plan(): `t.then("arrange", this::arrange)` then `t.waitUntil("processed", 100, this::hasExpectedOutput, this::describeOutput)`, with those three methods written by the project.
 
 Detail suppliers should describe observed state (counts, energy, entity status), not just repeat the expectation. Assertion names become scenario.NAME in reports and expectedAssertions. Names must be unique. Every completed scenario must have at least one behavior assertion; successful loading or an empty plan cannot pass. A condition timeout reports its assertion name, elapsed ticks and current detail. Invariants report their number of observed ticks.
 

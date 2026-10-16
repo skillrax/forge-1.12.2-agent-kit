@@ -1,6 +1,11 @@
 package com.example.rubymod;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.settings.KeyBinding;
+import net.minecraftforge.client.settings.KeyConflictContext;
+import net.minecraftforge.fml.client.registry.ClientRegistry;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
+import org.lwjgl.input.Keyboard;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.renderer.entity.RenderZombie;
 import net.minecraft.util.text.TextComponentString;
@@ -19,6 +24,8 @@ public final class ClientEvents {
     /** Items implementing this register their own models in models(). */
     public interface CustomModel {}
 
+    public static final KeyBinding OPEN = new KeyBinding("key.rubymod.open", KeyConflictContext.IN_GAME, Keyboard.KEY_N, "key.categories.rubymod");
+
     @SubscribeEvent
     public static void models(ModelRegistryEvent event) {
         for (Item item : ForgeRegistries.ITEMS) {
@@ -26,7 +33,17 @@ public final class ClientEvents {
             ModelLoader.setCustomModelResourceLocation(item, 0, new ModelResourceLocation(item.getRegistryName(), "inventory"));
         }
         RenderingRegistry.registerEntityRenderingHandler(RubyZombie.class, RenderZombie::new);
+        ClientRegistry.registerKeyBinding(OPEN);
         // kit:models
+    }
+
+    @SubscribeEvent
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        boolean pressed = false;
+        while (OPEN.isPressed()) pressed = true;                       // drain presses
+        Minecraft mc = Minecraft.getMinecraft();
+        if (pressed && mc.player != null && mc.currentScreen == null) mc.displayGuiScreen(new RubyInfoScreen());
     }
 
     /** Called from ModNetwork.CountReply.Handler (network thread): schedule onto the client thread. */

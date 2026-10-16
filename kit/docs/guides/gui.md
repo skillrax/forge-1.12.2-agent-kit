@@ -3,9 +3,9 @@
 A block GUI has three parts: a **Container** (slots, both sides), a **GuiContainer** screen (client only) and an **IGuiHandler** that creates them. Larger working machine GUIs: examples/machine, examples/configurable-machine.
 
 ```java
-public class BoxContainer extends Container {
-    private final BoxTile tile;
-    public BoxContainer(InventoryPlayer playerInventory, BoxTile tile) {
+public class RubyBoxContainer extends Container {
+    private final RubyBoxTile tile;
+    public RubyBoxContainer(InventoryPlayer playerInventory, RubyBoxTile tile) {
         this.tile = tile;
         for (int row = 0; row < 3; row++) for (int col = 0; col < 3; col++)        // 3x3 box: slots 0-8
             addSlotToContainer(new SlotItemHandler(tile.inventory, col + row * 3, 62 + col * 18, 17 + row * 18));
@@ -18,7 +18,8 @@ public class BoxContainer extends Container {
     @Override public ItemStack transferStackInSlot(EntityPlayer player, int index) {           // shift-click
         Slot slot = inventorySlots.get(index);
         if (slot == null || !slot.getHasStack()) return ItemStack.EMPTY;
-        ItemStack stack = slot.getStack(), original = stack.copy();
+        ItemStack stack = slot.getStack();
+        ItemStack original = stack.copy();
         if (index < 9) { if (!mergeItemStack(stack, 9, 45, true)) return ItemStack.EMPTY; }
         else if (!mergeItemStack(stack, 0, 9, false)) return ItemStack.EMPTY;
         if (stack.isEmpty()) slot.putStack(ItemStack.EMPTY); else slot.onSlotChanged();
@@ -27,9 +28,9 @@ public class BoxContainer extends Container {
 }
 
 @SideOnly(Side.CLIENT)
-public class BoxScreen extends GuiContainer {
+public class RubyBoxScreen extends GuiContainer {
     private static final ResourceLocation TEXTURE = new ResourceLocation("minecraft", "textures/gui/container/dispenser.png");   // or mymod:textures/gui/box.png (256x256 canvas)
-    public BoxScreen(InventoryPlayer inv, BoxTile tile) { super(new BoxContainer(inv, tile)); xSize = 176; ySize = 166; }
+    public RubyBoxScreen(InventoryPlayer playerInventory, RubyBoxTile tile) { super(new RubyBoxContainer(playerInventory, tile)); xSize = 176; ySize = 166; }
     @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground(); super.drawScreen(mouseX, mouseY, partialTicks); renderHoveredToolTip(mouseX, mouseY);
     }
@@ -39,25 +40,27 @@ public class BoxScreen extends GuiContainer {
         drawTexturedModalRect(guiLeft, guiTop, 0, 0, xSize, ySize);
     }
     @Override protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(I18n.format("tile.mymod.box.name"), 8, 6, 0x404040);
+        fontRenderer.drawString(I18n.format("tile.mymod.ruby_box.name"), 8, 6, 0x404040);
         fontRenderer.drawString(I18n.format("container.inventory"), 8, ySize - 94, 0x404040);
     }
 }
 
 public class ModGuiHandler implements IGuiHandler {           // common class; getClientGuiElement only runs on the client
-    public static final int BOX = 0;
+    public static final int RUBY_BOX = 0;
     @Override public Object getServerGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
         TileEntity tile = world.getTileEntity(new BlockPos(x, y, z));
-        return id == BOX && tile instanceof BoxTile ? new BoxContainer(player.inventory, (BoxTile) tile) : null;
+        if (id == RUBY_BOX && tile instanceof RubyBoxTile) return new RubyBoxContainer(player.inventory, (RubyBoxTile) tile);
+        return null;
     }
     @Override public Object getClientGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
         TileEntity tile = world.getTileEntity(new BlockPos(x, y, z));
-        return id == BOX && tile instanceof BoxTile ? new BoxScreen(player.inventory, (BoxTile) tile) : null;
+        if (id == RUBY_BOX && tile instanceof RubyBoxTile) return new RubyBoxScreen(player.inventory, (RubyBoxTile) tile);
+        return null;
     }
 }
 ```
 
-Wire it: in preInit `NetworkRegistry.INSTANCE.registerGuiHandler(INSTANCE, new ModGuiHandler());`; in the block's `onBlockActivated`, on the server: `player.openGui(MyMod.INSTANCE, ModGuiHandler.BOX, world, pos.getX(), pos.getY(), pos.getZ());` and return true.
+Wire it: in preInit `NetworkRegistry.INSTANCE.registerGuiHandler(INSTANCE, new ModGuiHandler());`; in the block's `onBlockActivated`, on the server: `player.openGui(MyMod.INSTANCE, ModGuiHandler.RUBY_BOX, world, pos.getX(), pos.getY(), pos.getZ());` and return true.
 
 ## Progress bars and numbers
 
@@ -73,4 +76,4 @@ A settings or info screen extends `GuiScreen` (client only), opened from client 
 
 ## Test
 
-Construct the container in a game test (`new BoxContainer(player.inventory, tile)`) and call `transferStackInSlot`; `player.openGui` does nothing for a FakePlayer. Layout and textures need the client.
+Construct the container in a game test (`new RubyBoxContainer(player.inventory, tile)`) and call `transferStackInSlot`; `player.openGui` does nothing for a FakePlayer. Layout and textures need the client.

@@ -157,7 +157,8 @@ final class AssetLint {
             String fileName = file.isJsonObject() ? file.getAsJsonObject().get("name").getAsString() : file.getAsString();
             ResourceLocation location = new ResourceLocation(fileName);
             String ogg = "assets/" + location.getNamespace() + "/sounds/" + location.getPath() + ".ogg";
-            if ((!location.getNamespace().equals("minecraft") || vanillaAssets) && !exists(ogg)) warn("sound " + id, "missing " + ogg);
+            // Vanilla .ogg files come from the asset index, not the client jar, so they cannot be checked here.
+            if (!location.getNamespace().equals("minecraft") && !exists(ogg)) warn("sound " + id, "missing " + ogg);
         }
     }
 

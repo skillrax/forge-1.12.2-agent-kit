@@ -70,8 +70,8 @@ public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStac
             || oldStack.getCount() != newStack.getCount()) return true;
     NBTTagCompound before = oldStack.hasTagCompound() ? oldStack.getTagCompound().copy() : new NBTTagCompound();
     NBTTagCompound after = newStack.hasTagCompound() ? newStack.getTagCompound().copy() : new NBTTagCompound();
-    before.removeTag("Charge");
-    after.removeTag("Charge");
+    before.removeTag("Shots");
+    after.removeTag("Shots");
     return !before.equals(after);
 }
 ```

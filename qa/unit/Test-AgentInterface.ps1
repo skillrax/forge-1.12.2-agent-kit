@@ -68,8 +68,8 @@ exit 0
     Invoke-Agent @('new', 'block', 'gem_block', '-Material', 'IRON', '-Hardness', '5', '-Level', '2') | Out-Null
     Invoke-Agent @('new', 'ore', 'gem_ore', '-Drops', 'gem', '-Count', '1-3', '-Height', '5-30') | Out-Null
     Invoke-Agent @('new', 'food', 'gem_apple', '-Hunger', '6', '-Effect', 'speed:200:1') | Out-Null
-    Invoke-Agent @('new', 'tools', 'gem', '-Repair', 'gem') | Out-Null
-    Invoke-Agent @('new', 'armor', 'gem', '-Protection', '3,8,6,3') | Out-Null
+    Invoke-Agent @('new', 'tools', 'gem', '-Only', 'all', '-Repair', 'gem') | Out-Null
+    Invoke-Agent @('new', 'armor', 'gem', '-Only', 'all', '-Protection', '3,8,6,3') | Out-Null
     Invoke-Agent @('new', 'recipe', 'gem_block', '-Shape', '###,###,###', '-Key', '#=gem', '-Result', 'gem_block') | Out-Null
     Invoke-Agent @('new', 'smelting', 'gem', '-From', 'gem_ore', '-Result', 'gem') | Out-Null
     Invoke-Agent @('new', 'tile', 'gem_box', '-Ticking', '-Inventory', '9') | Out-Null
@@ -91,7 +91,7 @@ exit 0
     $passed.Add('generators: item block ore food tools armor recipe smelting tile test, duplicate refusal')
 
     # Presets, recipe sets, generated checks, reference validation.
-    $tools = Invoke-Agent @('new', 'tools', 'opal', '-Like', 'iron', '-Durability', 'diamond', '-Repair', 'gem', '-Recipes')
+    $tools = Invoke-Agent @('new', 'tools', 'opal', '-Only', 'all', '-Like', 'iron', '-Durability', 'diamond', '-Repair', 'gem', '-Recipes')
     Assert ($tools -match '^created tools opal: opal_sword' -and $tools -match '5 recipe\(s\)') "tools summary: $tools"
     $items = Read-Text "$java/ModItems.java"
     Assert ($items -match 'addToolMaterial\("opal", 2, 1561, 6\.0F, 2\.0F, 14\)' -and $items -match 'new ToolItems\.Axe\(OPAL_TOOLS, 8\.0F, -3\.1F\)') 'iron preset with diamond durability, vanilla iron axe'
@@ -105,7 +105,7 @@ exit 0
     Assert (-not (Test-Path (Join-Path $fixture "$assets/recipes/bad.json"))) 'rejected recipe left no file'
     # PowerShell turns an unquoted 3,8,6,3 into an array; it must still work.
     Push-Location $fixture
-    try { $arrayOut = & (Join-Path $fixture 'agent.ps1') new armor jade -Protection 3,8,6,3 -Like diamond 2>$null } finally { Pop-Location }
+    try { $arrayOut = & (Join-Path $fixture 'agent.ps1') new armor jade -Only all -Protection 3,8,6,3 -Like diamond 2>$null } finally { Pop-Location }
     Assert (($arrayOut -join "`n") -match '^created armor jade' -and (Read-Text "$java/ModItems.java") -match 'new int\[\] \{3, 6, 8, 3\}, 10, SoundEvents\.ITEM_ARMOR_EQUIP_DIAMOND, 2\.0F') "unquoted list: $arrayOut"
     $passed.Add('presets, recipe sets, generated checks, reference validation, unquoted lists')
 
@@ -120,11 +120,13 @@ exit 0
     $denseArmor = Invoke-Agent @('new', 'armor', 'dense', '-Like', 'diamond', '-Durability', '99', '-Protection', '9,24,18,9', '-Toughness', '6', '-Enchant', '3', '-Only', 'chestplate,boots')
     Assert ((Read-Text "$java/ModItems.java") -match 'new int\[\] \{9, 18, 24, 9\}, 3, SoundEvents\.ITEM_ARMOR_EQUIP_DIAMOND, 6\.0F' -and (Read-Text "$java/ModItems.java") -notmatch 'dense_helmet') "explicit armor numbers, two pieces: $denseArmor"
     Assert ($denseArmor -match 'stats: chestplate 24 armor/1584 uses, boots 9 armor/1287 uses; toughness 6, enchantability 3; total armor 33' -and $denseArmor -match 'stops counting at 20') "armor stats line: $denseArmor"
-    $wrongKind = Invoke-Agent @('new', 'tools', 'nope', '-Toughness', '6') 1
+    $wrongKind = Invoke-Agent @('new', 'tools', 'nope', '-Only', 'all', '-Toughness', '6') 1
     Assert ($wrongKind -match '-Toughness does not apply to new tools \(used by new armor\)' -and (Read-Text "$java/ModItems.java") -notmatch 'NOPE_') "option for another kind rejected: $wrongKind"
     $badPiece = Invoke-Agent @('new', 'tools', 'nope', '-Only', 'sword,spear') 1
     Assert ($badPiece -match "Unknown -Only piece 'spear'") "bad -Only piece: $badPiece"
-    $passed.Add('explicit tool/armor numbers win over -Like, -Only, stats line, options for other kinds rejected')
+    $noPieces = Invoke-Agent @('new', 'armor', 'nope', '-Like', 'iron') 1
+    Assert ($noPieces -match 'new armor needs -Only' -and (Read-Text "$java/ModItems.java") -notmatch 'NOPE_') "missing -Only rejected: $noPieces"
+    $passed.Add('explicit tool/armor numbers win over -Like, -Only required, stats line, options for other kinds rejected')
 
     # Batch stops at the first failing line.
     [IO.File]::WriteAllText((Join-Path $fixture 'plan.txt'), "# comment`nnew item amber`nnew recipe broken -Ingredients `"no_such_item`" -Result amber`nnew item never_made`n")

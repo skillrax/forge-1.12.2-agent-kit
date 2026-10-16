@@ -8,14 +8,14 @@ The kit's job: let an AI agent, including small local models, turn a user's desc
 2. Change the tool/guide/generator. Keep production code, client-only code and test code separate.
 3. Verify:
    - tool changes: `qa/unit/Test-AgentInterface.ps1` and `qa/unit/Test-TestingTools.ps1` (fake Gradle, ~20 s);
-   - harness, generators, guides or build changes: `qa/integration/Test-KitSamples.ps1` (real Minecraft, ~2 min);
+   - guide edits: `qa/unit/Test-GuideSnippets.ps1` (~1 s); harness, generators, guide code or build changes: `qa/integration/Test-KitSamples.ps1` (real Minecraft, ~2 min);
    - new mechanism: one game test in the relevant fixture plus a nearby failure case. Client-visible results need a human look.
 4. Replace TASK.md state; put lessons in the relevant guide, not in startup files.
 
 ## Rules for recipient docs
 
 - AGENTS.md stays under ~2.5 KB; guides under ~6 KB each; one topic per guide; INDEX.md one line per guide.
-- Every Java snippet in a guide must exist, compiled and tested, in qa/fixtures/guide-samples (names may differ: `MyMod` there is `RubymodMod`). Check method names with `agent.ps1 api` before writing them.
+- A ```java block in kit/docs is either in qa/fixtures/guide-samples (compiled; behavior covered by a game test where behavior is the point) or it is cut. `qa/unit/Test-GuideSnippets.ps1` enforces this (`MyMod`/`mymod` = `RubymodMod`/`rubymod`; other names must match the fixture). A fragment not worth a fixture becomes prose with inline names. Check method names with `agent.ps1 api` before writing them.
 - State behavior and pitfalls, not proof history. Proof details stay in qa/fixtures and docs/CAPABILITIES.md.
 - New common mistakes go into tooling first: `$KitRenames` in kit/testing/Diagnostics.ps1 (compiler hints), AssetLint (server check) or a generator.
 

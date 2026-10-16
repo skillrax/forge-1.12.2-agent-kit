@@ -12,10 +12,14 @@ A powered machine that repeatedly crafts a saved pattern using the real register
 ## Use the registered recipe
 
 ```java
-IRecipe recipe = CraftingManager.findMatchingRecipe(actualGrid, world);   // grid of copies, one item per used cell
-if (recipe == null || !recipe.matches(actualGrid, world)) return;
-ItemStack result = recipe.getCraftingResult(actualGrid);                 // not getRecipeOutput(): results can depend on inputs
-NonNullList<ItemStack> returns = recipe.getRemainingItems(actualGrid);   // buckets, tools, containers
+/** One craft from a grid of copies (one item per used cell); adds container items to returns. EMPTY if nothing matches. */
+static ItemStack craftOnce(InventoryCrafting actualGrid, World world, List<ItemStack> returns) {
+    IRecipe recipe = CraftingManager.findMatchingRecipe(actualGrid, world);
+    if (recipe == null || !recipe.matches(actualGrid, world)) return ItemStack.EMPTY;
+    ItemStack result = recipe.getCraftingResult(actualGrid);                 // not getRecipeOutput(): results can depend on inputs
+    returns.addAll(recipe.getRemainingItems(actualGrid));                  // buckets, tools, containers
+    return result;
+}
 ```
 
 The `InventoryCrafting`'s container must not touch the real inventory. Reject empty results or malformed remainder lists before doing work.

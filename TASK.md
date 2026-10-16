@@ -1,16 +1,15 @@
 # Current maintainer task
 
-Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.9).
+Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.10).
 
 Direction (user, 2026-10-16): the kit must let an AI build mods it has never seen. Turn each field test into general facts, checks or hints where an AI gets stuck, never into a feature or guide for that one mod. Generators stay small, for standard content only.
 
 Result:
-- beta.8: generators honor explicit tool/armor numbers, `-Only`, wrong-kind options rejected, `stats:` line (dense diamond feedback).
-- beta.9: lessons from a hard custom item (region capture, ghost preview) added to topic guides: what ticks where and when (FORGE-1.12.md); setBlockState side effects, moving blocks with tiles (world-actions); detaching/copying/moving entities (entities); onItemUseFirst, large stack data (items); WorldSavedData (players); tile lifecycle; in-world previews (rendering). Tested code is in qa/fixtures/guide-samples (RegionMover, BagStore, BagGhost, CubicBagTest). Claims checked against the 1.12.2 source with `api`.
-- Evidence: Test-AgentInterface, Test-Packaging, Test-KitSamples PASS.
+- beta.8/9: generators honor explicit numbers, `stats:` line; general lessons from a hard custom item in the topic guides.
+- beta.10: `qa/unit/Test-GuideSnippets.ps1` (~1 s, run first by Test-KitSamples) fails when a ```java block in kit/docs is not in qa/fixtures/guide-samples. 17 of 30 blocks were not; each was aligned with tested code, added with a game test (player data across respawn copy, item push, tank NBT trap, craftOnce, energy capability, re-equip, recipes by hand) or cut to prose (TESR clock, installed-test fragment). Fixtures renamed by mechanism (ModSavedData, RegionPreview, RegionToolItem). `new tools`/`new armor` require `-Only <pieces>|all`. Lint no longer WARNs on vanilla sound files (they live in the asset index, not the jar).
+- Evidence: Test-AgentInterface, Test-Packaging, Test-GuideSnippets, Test-KitSamples PASS.
+- Cold machine (empty Gradle cache) verified by the user on a laptop: dense-diamond test, 2026-10-16.
 
-Known gap: older guide snippets not in guide-samples (persisted player NBT, re-equip animation, keybind, TESR clock); no automated snippet check.
+Next action: user sets up a local-model frontend (OpenCode or similar on an OpenAI-compatible endpoint, 32k context) and runs held-out unseen mod prompts (mostly hard) from the packaged kit in fresh folders; record where it gets stuck, fix the general cause.
 
-Next action: A held-out set of unseen mod prompts (mostly hard); run a fresh agent (32k local model) on each, record where it gets stuck, fix the general cause.
-
-Blocker: None. Not verified: graphical client (ghost preview), real local-model behavior.
+Blocker: None. Not verified: graphical client (ghost preview, keybind screen, textures): manual runClient check per release.

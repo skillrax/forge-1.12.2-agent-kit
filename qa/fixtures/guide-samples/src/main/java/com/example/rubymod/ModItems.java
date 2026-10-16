@@ -44,7 +44,7 @@ public final class ModItems {
     public static final Item RUBY_LEGGINGS = item("ruby_leggings", new ItemArmor(RUBY_ARMOR, 0, EntityEquipmentSlot.LEGS));
     public static final Item RUBY_BOOTS = item("ruby_boots", new ItemArmor(RUBY_ARMOR, 0, EntityEquipmentSlot.FEET));
     public static final Item WAND = item("wand", new WandItem());
-    public static final Item CUBIC_BAG = item("cubic_bag", new CubicBagItem());
+    public static final Item REGION_TOOL = item("region_tool", new RegionToolItem());
     public static final Item RUBY_SEEDS = item("ruby_seeds", new ItemSeeds(ModBlocks.RUBY_CROP, Blocks.FARMLAND)).setCreativeTab(RubymodMod.TAB);
     // kit:items
 

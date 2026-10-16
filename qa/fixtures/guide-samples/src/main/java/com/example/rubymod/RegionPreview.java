@@ -23,18 +23,18 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
-/** Client only: translucent captured blocks where the bag would place them; green outline = free, red = blocked. */
+/** Client only: translucent captured blocks where the tool would place them; green outline = free, red = blocked. */
 @Mod.EventBusSubscriber(modid = RubymodMod.MODID, value = Side.CLIENT)
-public final class BagGhost {
+public final class RegionPreview {
     @SubscribeEvent
     public static void render(RenderWorldLastEvent event) {
         Minecraft mc = Minecraft.getMinecraft();
         RayTraceResult hit = mc.objectMouseOver;
         Entity camera = mc.getRenderViewEntity();
         if (mc.player == null || camera == null || hit == null || hit.typeOfHit != RayTraceResult.Type.BLOCK) return;
-        ItemStack bag = mc.player.getHeldItemMainhand();
-        NBTTagCompound tag = bag.getTagCompound();
-        if (bag.getItem() != ModItems.CUBIC_BAG || tag == null || !tag.hasKey("Capture")) return;
+        ItemStack tool = mc.player.getHeldItemMainhand();
+        NBTTagCompound tag = tool.getTagCompound();
+        if (tool.getItem() != ModItems.REGION_TOOL || tag == null || !tag.hasKey("Capture")) return;
         BlockPos size = BlockPos.fromLong(tag.getLong("Size")), min = hit.getBlockPos().offset(hit.sideHit);
         int[] states = tag.getIntArray("Preview");
         if (states.length != RegionMover.volume(size)) return;
@@ -74,5 +74,5 @@ public final class BagGhost {
         }
     }
 
-    private BagGhost() {}
+    private RegionPreview() {}
 }

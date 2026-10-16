@@ -19,6 +19,6 @@ public final class ModSounds {
 { "zap": { "category": "block", "subtitle": "mymod.subtitle.zap", "sounds": [ "mymod:zap" ] } }
 ```
 
-The file is `assets/mymod/sounds/zap.ogg` (Ogg Vorbis, mono for positional sounds). `check server` reports missing sounds.json entries and .ogg files.
+The file is `assets/mymod/sounds/zap.ogg` (Ogg Vorbis, mono for positional sounds). To reuse a vanilla file instead, list it as `"minecraft:random/click"`. `check server` reports missing sounds.json entries and .ogg files.
 
 Play on the server so everyone nearby hears it: `world.playSound(null, pos, ModSounds.ZAP, SoundCategory.BLOCKS, 1.0F, 1.0F)`. With a player instead of null, that player does not hear it (for sounds their client already played). Vanilla sounds: `SoundEvents.*`. Block step/break sounds come from the block's `SoundType`.
