@@ -7,7 +7,7 @@ Direction (user, 2026-10-16): the kit must let an AI build mods it has never see
 Result:
 - beta.10: Test-GuideSnippets enforces that every ```java block in kit/docs is in qa/fixtures/guide-samples; `-Only` required for tools/armor.
 - Local trials (qa/local-model/results): p0-local works (ore drop/rarity slips); p1-local only compiled after 2 h 22 min at 7 tok/s: hand-wrote what `new tile` generates, over-verified signatures, tested last.
-- beta.11 from those: start custom content from the closest generator; compile to check names, `api` only when error + hint do not settle it; game test as soon as it compiles; shell rule for `$` one-liners (AGENTS.md, now smaller); vanilla ore drops/XP and generation table (GENERATORS.md); comparator output and sneak-click facts (blocks, tile-entities); hints for four invented NBT/inventory names. Facts checked against 1.12.2 source.
+- beta.11: start custom content from the closest generator; compile to check names; test as soon as it compiles; vanilla ore facts; comparator/sneak facts; hints for invented names.
 - p1-local-b (qwen3.8-flash-next IQ3, 70 tok/s, >150k tokens): mod correct, stuck 40 min on its own test: an earlier comparator powered the hopper. beta.12: TESTING.md test-world facts (one behavior per test, redstone carries, area ticks, hopper enabled=false = powered), fixture test hopper-under-tile, progress hides exception noise.
 - Evidence: Test-GuideSnippets, Test-AgentInterface, Test-TestingTools, Test-KitSamples PASS.
 
