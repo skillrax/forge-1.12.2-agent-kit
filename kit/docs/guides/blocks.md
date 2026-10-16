@@ -44,9 +44,9 @@ Several properties: keys like `"facing=north,lit=true"` with property names in a
 
 ## Interaction, ticks, redstone
 
-- Right-click: `onBlockActivated(...)` returns true on both sides; change things only when `!world.isRemote`.
+- Right-click: `onBlockActivated(...)` returns true on both sides; change things only when `!world.isRemote`. While sneaking it is only called if both hands are empty (or both held items return true from `doesSneakBypassUse`); otherwise the held item is used instead (a block item gets placed). So "sneak + right-click" interactions need an empty hand.
 - Timed behavior: `world.scheduleUpdate(pos, this, delayTicks)` then `updateTick`; random ticks: `setTickRandomly(true)` (crop-like).
-- Redstone input: `world.isBlockPowered(pos)` in `neighborChanged`. Output: `canProvidePower` true + `getWeakPower`.
+- Redstone input: `world.isBlockPowered(pos)` in `neighborChanged`. Output: `canProvidePower` true + `getWeakPower`. Comparator output is on the Block: `hasComparatorInputOverride(state)` true + `getComparatorInputOverride(state, world, pos)` returning 0-15 (`ItemHandlerHelper.calcRedstoneFromInventory(handler)` for an inventory); the tile's `markDirty()` tells comparators to re-read it.
 - Light: `.light(1.0F)` on BasicBlock; for a lit/unlit state override `getLightValue(IBlockState, IBlockAccess, BlockPos)`.
 - Change state: `world.setBlockState(pos, state.withProperty(LIT, true), 3)` (3 = notify + send to clients).
 

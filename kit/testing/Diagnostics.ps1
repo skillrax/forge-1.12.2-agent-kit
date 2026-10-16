@@ -30,6 +30,11 @@ $script:KitRenames = @{
     'getChunkFromChunkCoords' = 'world.getChunk(chunkX, chunkZ)'; 'getChunkFromBlockCoords' = 'world.getChunk(BlockPos)'
     'getEntityWorld' = 'entity.world (field) or getEntityWorld()'
     'isFullBlock' = 'isFullCube(IBlockState)'
+    # Names models invent for NBT and inventory code (not from another version).
+    'dropItemStack' = 'InventoryHelper.spawnItemStack(world, x, y, z, stack)'
+    'appendItem' = 'NBTTagList.appendTag(NBTBase)'
+    'addItemToInventory' = 'player.addItemStackToInventory(stack)'
+    'getCompoundTag' = 'NBTTagList.getCompoundTagAt(int); getTagList(key, 10) reads a list of compounds'
 }
 
 function Get-KitApiIndex {

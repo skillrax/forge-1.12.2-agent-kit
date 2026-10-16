@@ -12,6 +12,7 @@ Start with `./agent.ps1 new tile <name> [-Ticking] [-Inventory n]`. It writes `<
 - **Client copy**: the client tile only knows what you send. `getUpdateTag` (chunk load) and `getUpdatePacket`/`onDataPacket` (changes) carry NBT; call `sync()` (`world.notifyBlockUpdate(pos, state, state, 3)`) after server changes the client must see. Do not sync every tick.
 - **Neighbors**: `world.getTileEntity(pos.offset(facing))` can load chunks; check `world.isBlockLoaded(pos)` first, and never keep references to other tiles across ticks.
 - **Inventories**: use `ItemStackHandler` and expose it as `CapabilityItemHandler.ITEM_HANDLER_CAPABILITY` (generated with `-Inventory`). Hoppers and pipes then work. Mark dirty in `onContentsChanged`.
+- **Comparator output**: override `hasComparatorInputOverride`/`getComparatorInputOverride` on the Block (guides/blocks.md); the tile's `markDirty()` makes comparators re-read it.
 - **Comparator / markDirty cost**: `TileEntity.markDirty()` also updates comparators, which looks at neighbor blocks. For machines without comparator output in chunk-boundary-sensitive code see guides/machines.md.
 
 ## Capabilities in one place

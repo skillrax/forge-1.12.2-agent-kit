@@ -12,7 +12,7 @@
 
 Generators insert code above those `// kit:` markers; keep the markers. Hand-written code next to generated code is fine.
 
-**Scope.** Generators make standard vanilla-shaped content and nothing else. Make only what the user asked for: "armor and a sword" is `new armor x -Only all ...` plus `new tools x -Only sword ...`; `-Only` is required so nothing unasked is made. Anything with its own behavior (an item that copies a region with its tile entities and entities, a preview while holding it, a machine with custom rules) is hand-written from the matching guide; do not bend a generator into it. Generated items are ordinary ModItems entries, so hand-written behavior can be added next to them.
+**Scope.** Generators make standard vanilla-shaped content and nothing else. Make only what the user asked for: "armor and a sword" is `new armor x -Only all ...` plus `new tools x -Only sword ...`; `-Only` is required so nothing unasked is made. Custom content starts from a generator too: `new tile` gives a block with a tile entity (NBT save, client sync, optional inventory capability and ticking, drops contents, registration, models, lang, texture), `new item`/`new block` a registered item or block with assets. Then write the behavior in those classes from the matching guide. Do not stretch generator options to fake behavior they do not model.
 
 `./agent.ps1 new <kind> <name> [options]`. Names are lowercase registry paths (`ruby_ore`). Item references are `name` (this mod), `modid:name` or `minecraft:name`; unknown names are rejected (create the item first, fix the spelling, or `-Force`). Every kind writes lang entries (`-Display "Text"` overrides the title-cased name) and placeholder textures shaped like the item, one color per material (`-Color ff0000` overrides). Output is one summary line (`-List` lists every file); tools and armor add a `stats:` line with the values actually written. An option that does not belong to the kind is an error, never ignored.
 
@@ -71,5 +71,16 @@ new food ruby_apple -Hunger 6 -Saturation 1.2 -AlwaysEdible -Effect regeneration
 new tile ruby_box -Ticking -Inventory 9
 check game
 ```
+
+Vanilla ores: iron and gold drop themselves (no XP) and are smelted, so "like iron" means no `-Drops`. Coal, lapis, redstone, diamond and emerald drop items and XP (coal 0-2, lapis 2-5, redstone 1-5, diamond/emerald 3-7). Generation per chunk:
+
+| Ore | `-Veins` | `-VeinSize` | `-Height` |
+|---|---|---|---|
+| coal | 20 | 17 | 0-128 |
+| iron | 20 | 9 | 0-64 |
+| gold | 2 | 9 | 0-32 |
+| redstone | 8 | 8 | 0-16 |
+| diamond | 1 | 8 | 0-16 |
+| lapis | 1 | 7 | 0-32 (vanilla centers it on 16) |
 
 Ore generation affects only newly generated chunks. Anything not covered: write it by hand following the matching guide (docs/INDEX.md), registering through ModItems/ModBlocks so models and registration stay automatic.
