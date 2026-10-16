@@ -14,7 +14,7 @@ Nothing here can see the screen. GUI layout, model appearance and animations nee
 
 ## Game tests
 
-Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food stats); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (status reminds you until its placeholder check is replaced). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor at y=3.
+Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food stats); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (its placeholder check fails until you replace it). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor at y=3.
 
 ```java
 @GameTest("ore-drops-ruby")
@@ -46,6 +46,7 @@ public class OreDropsTest implements Scenario {
 | `drops(blockId, toolId)`, `count(stacks, id)` | place + mine a block with a tool in a free spot, return what dropped; count one item |
 | `player(name)` | survival FakePlayer at origin, facing south |
 | `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths |
+| `messages(p)` | chat and action-bar messages sent to `p`, oldest first (`"actionbar: "` prefix; translated ones end in `[key]`) |
 
 Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`.
 
@@ -54,7 +55,7 @@ Things that bite:
 - The test area ticks like a loaded world: tiles, hoppers and redstone run. A hopper moves one item per 8 ticks; `enabled=false` in its state means it is receiving redstone power (the default is enabled) and it moves nothing.
 - A failed test also prints `area` lines: every block the test placed and any other block in its area (x,y,z from `t.origin()`), with its state, redstone it receives and inventory contents, then entity counts. Read them before adding instrumentation; make your own detail print counts the area lines do not show.
 - The same failure 3 checks in a row prints `STUCK`: isolate the behavior in its own test, then report (AGENTS.md step 7) instead of guessing on.
-- FakePlayer never ticks: item use timers, attack cooldown (hits do ~20% damage) and potion countdowns on it do not advance. Call `finishUsingItem` for food.
+- FakePlayer never ticks: item use timers, attack cooldown (hits do ~20% damage) and potion countdowns on it do not advance. Call `finishUsingItem` for food. Held-item behavior (`Item.onUpdate`, for anything "while in the inventory") never runs by itself: call `stack.getItem().onUpdate(stack, t.world(), p, slot, selected)` each tick from a `waitUntil` or `invariant`.
 - FakePlayer is not in the server's player list: command selectors and name lookups don't find it, and `player.openGui` does nothing. Test containers by constructing them directly.
 - The test world is always day: zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health.
 - Each run uses a new world, so save/load across restarts is not tested. A tile's `writeToNBT`/`readFromNBT` round trip can be checked directly.

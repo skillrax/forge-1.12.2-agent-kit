@@ -31,6 +31,8 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.util.FakePlayer;
@@ -53,6 +55,7 @@ public final class TestContext {
     private final List<Invariant> invariants = new ArrayList<>();
     private final Set<String> names = new HashSet<>();
     private final Set<BlockPos> placed = new LinkedHashSet<>();
+    private final Map<FakePlayer, List<String>> messages = new IdentityHashMap<>();
     private int cursor, assertionCount;
     private long ticks;
     private boolean running;
@@ -152,11 +155,30 @@ public final class TestContext {
 
     /** A survival FakePlayer standing at origin with a working (offline) network handler. */
     public FakePlayer player(String name) {
-        FakePlayer player = new FakePlayer(world(), new GameProfile(UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)), name));
+        List<String> received = new ArrayList<>();
+        // Forge's FakePlayer drops chat and action-bar messages; these are recorded for messages(player).
+        FakePlayer player = new FakePlayer(world(), new GameProfile(UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)), name)) {
+            @Override public void sendMessage(ITextComponent component) { received.add(text(component)); }
+            @Override public void sendStatusMessage(ITextComponent component, boolean actionBar) { received.add((actionBar ? "actionbar: " : "") + text(component)); }
+        };
+        messages.put(player, received);
         new NetHandlerPlayServer(server, new NetworkManager(EnumPacketDirection.SERVERBOUND), player);
         player.interactionManager.setGameType(GameType.SURVIVAL);
         player.setLocationAndAngles(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
         return player;
+    }
+    /**
+     * Chat and action-bar messages sent to a player from player(), oldest first. Action-bar entries start with
+     * "actionbar: "; translated messages end with " [translation.key]", since the server may not translate mod keys.
+     */
+    public List<String> messages(FakePlayer player) {
+        List<String> received = messages.get(player);
+        if (received == null) throw new IllegalArgumentException("messages() needs a player made by t.player(name)");
+        return Collections.unmodifiableList(received);
+    }
+    private static String text(ITextComponent component) {
+        String text = component.getUnformattedText();
+        return component instanceof TextComponentTranslation ? text + " [" + ((TextComponentTranslation) component).getKey() + "]" : text;
     }
     /** Right-click with the held item in the air (Item.onItemRightClick path). */
     public EnumActionResult useItem(EntityPlayerMP player, EnumHand hand) {

@@ -962,8 +962,9 @@ public class $pascal implements Scenario {
             // player.setHeldItem(EnumHand.MAIN_HAND, t.stack("$($project.modId):some_item", 1));
         });
         t.waitTicks(1);
-        // KIT-SCAFFOLD: replace this placeholder check with the real expected outcome.
-        t.check("expected-outcome", () -> true, () -> "describe what was observed");
+        // KIT-SCAFFOLD: replace this placeholder with the real expected outcome. It fails on purpose,
+        // so an unfinished test can never report PASS.
+        t.check("expected-outcome", () -> false, () -> "KIT-SCAFFOLD placeholder: write the real steps and checks in $pascal.java");
     }
 }
 "@

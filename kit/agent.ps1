@@ -102,6 +102,7 @@ function Get-Problems($Result) {
             else {
                 $lines.Add(('FAIL test {0} at {1}: {2}' -f $t.id, $t.phase, $t.message))
                 foreach ($frame in @($t.stack)) { $lines.Add('    at ' + $frame) }
+                if (('{0} {1}' -f $t.type, $t.message) -match 'NoSuchMethodError|NoSuchFieldError') { $lines.Add('  hint: that member is not on the server: it is client-only (@SideOnly(Side.CLIENT); agent.ps1 api marks it [client-only]). Use a server-side alternative, or call it only from client code') }
                 if (@($t.area).Count) {
                     $lines.Add('  area (x,y,z from t.origin()):')
                     foreach ($a in @($t.area)) { $lines.Add('    ' + $a) }

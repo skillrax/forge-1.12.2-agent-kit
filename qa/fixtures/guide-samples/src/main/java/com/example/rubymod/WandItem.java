@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.projectile.EntitySmallFireball;
 import net.minecraft.item.Item;
@@ -41,6 +42,14 @@ public class WandItem extends Item {
         }
         player.getCooldownTracker().setCooldown(this, 20);
         return new ActionResult<>(EnumActionResult.SUCCESS, stack);
+    }
+
+    /** Held-item tick (any inventory slot, both sides): cools the wand by 1 Heat per server tick. FakePlayer never calls it. */
+    @Override
+    public void onUpdate(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
+        if (world.isRemote || !stack.hasTagCompound()) return;
+        int heat = stack.getTagCompound().getInteger("Heat");
+        if (heat > 0) stack.getTagCompound().setInteger("Heat", heat - 1);
     }
 
     /** The Shots counter changes on use; only other changes re-equip (bob) the held wand. */

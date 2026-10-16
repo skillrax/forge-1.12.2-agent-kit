@@ -32,6 +32,8 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.storage.loot.LootTable;
+import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraftforge.common.util.FakePlayer;
 
 /** Behavior checks for the guide samples. */
@@ -253,6 +255,31 @@ public final class SnippetTests {
                             && t.inventory(lockedHopper).getStackInSlot(0).isEmpty()
                             && t.tile(lockedBox, RubyBoxTile.class).inventory.getStackInSlot(0).getCount() == 2,
                     () -> "state " + t.state(lockedHopper) + ", hopper " + t.inventory(lockedHopper).getStackInSlot(0));
+        }
+    }
+    /** TESTING.md: t.messages records what FakePlayer would drop; held-item onUpdate must be called by the test. */
+    @GameTest("messages-and-held-item-ticks")
+    public static final class Messages implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("chat and action bar are recorded", () -> {
+                FakePlayer p = t.player("listener");
+                p.sendMessage(new TextComponentString("hello"));
+                p.sendStatusMessage(new TextComponentTranslation("item.rubymod.wand.name"), true);
+                t.require(t.messages(p).size() == 2 && t.messages(p).get(0).equals("hello"), "chat " + t.messages(p));
+                t.require(t.messages(p).get(1).startsWith("actionbar: ") && t.messages(p).get(1).endsWith("[item.rubymod.wand.name]"), "status " + t.messages(p));
+            });
+            t.then("FakePlayer does not tick held items; the test calls onUpdate", () -> {
+                FakePlayer p = t.player("holder");
+                ItemStack wand = new ItemStack(ModItems.WAND);
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setInteger("Heat", 5);
+                wand.setTagCompound(tag);
+                p.inventory.setInventorySlotContents(5, wand);
+                for (int i = 0; i < 3; i++) p.onUpdate();   // no-op on FakePlayer
+                t.require(wand.getTagCompound().getInteger("Heat") == 5, "FakePlayer ticked the item");
+                for (int i = 0; i < 2; i++) wand.getItem().onUpdate(wand, t.world(), p, 5, false);
+                t.require(wand.getTagCompound().getInteger("Heat") == 3, "heat " + wand.getTagCompound().getInteger("Heat"));
+            });
         }
     }
 }

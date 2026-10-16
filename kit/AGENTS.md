@@ -8,7 +8,7 @@ You build Forge mods for Minecraft 1.12.2 (Forge 14.23.5.2859, MCP stable_39, Ja
 | `./agent.ps1 init <modid> "<Name>"` | mod skeleton (empty project only) |
 | `./agent.ps1 new <kind> <name> [options]` | item, block, ore, food, tools, armor, recipe, smelting, tile, test: docs/GENERATORS.md |
 | `./agent.ps1 check [server\|game [-Test id]]` | compile (~10 s); + server lint of assets (~25 s); + game tests (docs/TESTING.md) |
-| `./agent.ps1 api <Class>[.member\|.new]`, `api -Find <text>` | real 1.12.2 signatures and source |
+| `./agent.ps1 api <Class>[.member\|.new]`, `api -Find <text>` | signatures and source of any Minecraft/Forge 1.12.2 class |
 | `./agent.ps1 batch plan.txt` | one command per line, stop at the first failure |
 | `./agent.ps1 version <x.y.z>`, `export` | bump version; copy the checked jar to releases/ |
 

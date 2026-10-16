@@ -27,7 +27,7 @@ Generators insert code above those `// kit:` markers; keep the markers. Hand-wri
 | `recipe` | shaped: `-Shape "###,#S#,###" -Key "#=ruby,S=minecraft:stick"`; shapeless: `-Ingredients "a,b"`; both: `-Result item -Count n` | `recipes/<name>.json`. Ingredients may be `minecraft:dye@4` (metadata) or `ore:ingotIron` (ore dictionary) |
 | `smelting` | `-From item -Result item -Count 1 -Xp 0.7` | `GameRegistry.addSmelting` line in init |
 | `tile` | `-Ticking` `-Inventory n` | `<Name>Block` + `<Name>Tile` (NBT save, client sync, optional ITickable and item capability, drops contents), registration |
-| `test` | name like `ruby-ore-drops` | `src/gametest/.../<Name>Test.java` scaffold (status reminds you until the placeholder check is replaced) |
+| `test` | name like `ruby-ore-drops` | `src/gametest/.../<Name>Test.java` scaffold whose placeholder check fails until you replace it |
 
 `-Like` sets every value from a vanilla material; any explicit option overrides it. "Iron stats with diamond durability": `new tools gron -Only all -Like iron -Durability diamond`.
 

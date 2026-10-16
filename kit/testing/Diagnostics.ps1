@@ -224,6 +224,7 @@ function Get-KitCompileErrors {
 # Known crash/log signatures and what they usually mean in 1.12.2.
 $script:KitLogHints = @(
     @{ p = 'invalid side SERVER|NoClassDefFoundError: net/minecraft/client|ClassNotFoundException: net\.minecraft\.client'; h = 'common code references a client-only class; move rendering/GUI/model code into a class used only from the client side (@SideOnly(Side.CLIENT) or @Mod.EventBusSubscriber(value = Side.CLIENT))' }
+    @{ p = 'NoSuchMethodError|NoSuchFieldError'; h = 'that member is not on the server: it is client-only (@SideOnly(Side.CLIENT); agent.ps1 api marks it [client-only]). Use a server-side alternative, or call it only from client code' }
     @{ p = 'is missing a mapping! This is a bug'; h = 'tile entity class not registered: GameRegistry.registerTileEntity(MyTile.class, new ResourceLocation(MODID, "name"))' }
     @{ p = 'Can not register to a locked registry|registry is locked'; h = 'register items/blocks only inside RegistryEvent.Register handlers' }
     @{ p = 'Attempted to set registry name with existing registry name'; h = 'setRegistryName called twice on the same object' }
