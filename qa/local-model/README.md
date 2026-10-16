@@ -5,7 +5,7 @@ Measures whether a small local model can build mods it has never seen with the p
 ## Setup (once)
 
 - An OpenAI-compatible server with tool calling: llama.cpp `llama-server --jinja -c 65536 ...` (without `--jinja` tool calls fail), LM Studio, vLLM or Ollama's `/v1`. Use a model trained for agentic tool use; note its exact quantization.
-- OpenCode with your endpoint in its global config, `~/.config/opencode/opencode.json` (`model` is `<provider>/<model id as served>`; set `limit.context` to the server's real context so OpenCode compacts in time):
+- OpenCode with your endpoint in its global config, `~/.config/opencode/opencode.json` (`model` is `<provider>/<model id as served>`; set `limit.context` to the server's real context so OpenCode compacts in time, and `limit.output` above the model's thinking length: at 8192 a thinking model can spend its whole answer budget thinking and loop):
 
 ```json
 {
@@ -17,7 +17,7 @@ Measures whether a small local model can build mods it has never seen with the p
       "npm": "@ai-sdk/openai-compatible",
       "name": "Local",
       "options": { "baseURL": "http://localhost:8080/v1" },
-      "models": { "your-model-id": { "name": "your-model-id", "limit": { "context": 65536, "output": 8192 } } }
+      "models": { "your-model-id": { "name": "your-model-id", "limit": { "context": 65536, "output": 16384 } } }
     }
   }
 }

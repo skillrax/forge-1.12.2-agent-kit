@@ -94,7 +94,8 @@ try {
                     $lastOutputAt=$watch.Elapsed.TotalSeconds
                     # Latest meaningful line (Mavenizer steps, downloads), shown with progress so long steps are visible.
                     $trimmed=$line.Trim()
-                    if($trimmed -and $trimmed -notmatch '^(at |\.\.\.|Cache miss|\.+\d+%)' -and $trimmed -ne $observedStage){$lastDetail=$trimmed.Substring(0,[Math]::Min(110,$trimmed.Length))}
+                    # Progress shows the stage and a recent normal line; exceptions (often FML's harmless dev-jar scan noise) are reported at the end.
+                    if($trimmed -and $trimmed -notmatch '^(at |\.\.\.|Cache miss|\.+\d+%|Caused by|[\w.$]+(Exception|Error))' -and $trimmed -notmatch 'Exception|Unable to read a class file|problem reading the entry|failed to read properly' -and $trimmed -ne $observedStage){$lastDetail=$trimmed.Substring(0,[Math]::Min(110,$trimmed.Length))}
                     if($line -match '^> Task |^> Configure |^Downloading |^Fetching distribution|^Processing Minecraft dependency:'){$observedStage=$line.Substring(0,[Math]::Min(150,$line.Length));$lastDetail=''}
                     if ($usesServer -and $line -match 'Encountered an unexpected exception|Exception in server tick loop|Caught exception from|[A-Z0-9_]+_ASSERTIONS_FAIL:') {
                         $serverFatalError = $true

@@ -50,6 +50,9 @@ public class OreDropsTest implements Scenario {
 Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`.
 
 Things that bite:
+- One behavior per `@GameTest`: each test gets its own cleared area, so setups cannot disturb each other, and `check game -Test id` reruns one. Steps inside one test share the area: keep separate setups 3+ blocks apart, and remember redstone carries (a comparator powers the block it faces away from, and that block powers its neighbors, such as a hopper).
+- The test area ticks like a loaded world: tiles, hoppers and redstone run. A hopper moves one item per 8 ticks; `enabled=false` in its state means it is receiving redstone power (the default is enabled) and it moves nothing.
+- A failing `check`/`waitUntil` detail should print the state you would otherwise instrument: counts and `t.state(pos)` of every block involved. One run then tells causes apart.
 - FakePlayer never ticks: item use timers, attack cooldown (hits do ~20% damage) and potion countdowns on it do not advance. Call `finishUsingItem` for food.
 - FakePlayer is not in the server's player list: command selectors and name lookups don't find it, and `player.openGui` does nothing. Test containers by constructing them directly.
 - The test world is always day: zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health.

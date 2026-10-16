@@ -7,6 +7,7 @@ import kit.gametest.GameTest;
 import kit.gametest.Scenario;
 import kit.gametest.TestContext;
 import net.minecraft.block.BlockCrops;
+import net.minecraft.block.BlockHopper;
 import net.minecraft.block.BlockHorizontal;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.item.EntityItem;
@@ -228,6 +229,30 @@ public final class SnippetTests {
                 b.setItemDamage(1);
                 t.require(ModItems.WAND.shouldCauseReequipAnimation(a, b, false), "damage change ignored");
             });
+        }
+    }
+    /** TESTING.md facts: hoppers tick in the test area and pull through the item capability; a powered hopper is disabled. */
+    @GameTest("hopper-under-tile")
+    public static final class Hopper implements Scenario {
+        @Override public void plan(TestContext t) {
+            BlockPos box = t.origin().add(2, 1, 2), hopper = box.down();
+            BlockPos lockedBox = t.origin().add(8, 1, 2), lockedHopper = lockedBox.down();
+            t.then("boxes with rubies above hoppers, the second hopper next to a redstone block", () -> {
+                t.place(box, "rubymod:ruby_box");
+                t.place(lockedBox, "rubymod:ruby_box");
+                t.tile(box, RubyBoxTile.class).inventory.setStackInSlot(0, new ItemStack(ModItems.RUBY, 2));
+                t.tile(lockedBox, RubyBoxTile.class).inventory.setStackInSlot(0, new ItemStack(ModItems.RUBY, 2));
+                t.place(hopper, "minecraft:hopper");
+                t.place(lockedHopper, "minecraft:hopper");
+                t.place(lockedHopper.east(), "minecraft:redstone_block");
+            });
+            t.waitUntil("hopper-pulls", 40, () -> t.inventory(hopper).getStackInSlot(0).getItem() == ModItems.RUBY,
+                    () -> "hopper " + t.inventory(hopper).getStackInSlot(0) + ", state " + t.state(hopper));
+            t.waitTicks(40);
+            t.check("powered-hopper-idle", () -> !t.state(lockedHopper).getValue(BlockHopper.ENABLED)
+                            && t.inventory(lockedHopper).getStackInSlot(0).isEmpty()
+                            && t.tile(lockedBox, RubyBoxTile.class).inventory.getStackInSlot(0).getCount() == 2,
+                    () -> "state " + t.state(lockedHopper) + ", hopper " + t.inventory(lockedHopper).getStackInSlot(0));
         }
     }
 }
