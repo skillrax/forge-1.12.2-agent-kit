@@ -57,6 +57,7 @@ Things that bite:
 - The same failure 3 checks in a row prints `STUCK`: isolate the behavior in its own test, then report (AGENTS.md step 7) instead of guessing on.
 - FakePlayer never ticks: item use timers, attack cooldown (hits do ~20% damage) and potion countdowns on it do not advance. Call `finishUsingItem` for food. Held-item behavior (`Item.onUpdate`, for anything "while in the inventory") never runs by itself: call `stack.getItem().onUpdate(stack, t.world(), p, slot, selected)` each tick from a `waitUntil` or `invariant`.
 - FakePlayer is not in the server's player list: command selectors and name lookups don't find it, and `player.openGui` does nothing. Test containers by constructing them directly.
+- Random ticks run (crops grow, grass spreads, leaves decay), so "X did not happen" can fail by chance. Assert on state your code owns (a counter, an inventory) instead of on world noise.
 - The test world is always day: zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health.
 - Each run uses a new world, so save/load across restarts is not tested. A tile's `writeToNBT`/`readFromNBT` round trip can be checked directly.
 - Keep test classes in src/gametest; they can use everything in src/main.

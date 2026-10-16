@@ -207,6 +207,17 @@ public final class SnippetTests {
                 MachineHelpers.readTank(tank, nbt);
                 t.require(tank.getFluidAmount() == 1000, "readTank lost the fluid: " + tank.getFluidAmount());
             });
+            t.then("filtered slot rejects other items; isItemValid alone does not", () -> {
+                BlockPos pos = t.origin().add(6, 0, 12);
+                t.place(pos, "rubymod:ruby_box");
+                ItemStackHandler fuel = t.tile(pos, RubyBoxTile.class).fuel;
+                t.require(fuel.insertItem(0, new ItemStack(Blocks.STONE), false).getCount() == 1 && fuel.getStackInSlot(0).isEmpty(), "stone got in");
+                t.require(fuel.insertItem(0, new ItemStack(Items.COAL, 3), false).isEmpty() && fuel.getStackInSlot(0).getCount() == 3, "coal refused");
+                ItemStackHandler naive = new ItemStackHandler(1) {
+                    @Override public boolean isItemValid(int slot, ItemStack stack) { return false; }
+                };
+                t.require(naive.insertItem(0, new ItemStack(Blocks.STONE), false).isEmpty(), "trap gone? insertItem now checks isItemValid");
+            });
             t.then("energy capability", () -> {
                 BlockPos pos = t.origin().add(2, 0, 12);
                 t.place(pos, "rubymod:ruby_box");

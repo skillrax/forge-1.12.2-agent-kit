@@ -136,6 +136,12 @@ function Get-KitCompileHint {
     $owner = $owner -replace '<.*$', ''
     if ($Message -match "illegal character: '\\ufeff'") { return 'the file starts with a UTF-8 byte-order mark (PowerShell Set-Content/Out-File add one); agent.ps1 check strips it, so rerun; write files with your edit tool or [IO.File]::WriteAllText' }
     $api = Get-KitApiIndex $Root
+    # Fields that are private in 1.12.2 (ItemStack.stackSize): javac says "has private access", not "cannot find symbol".
+    if ($Message -match '^([\w$]+)(\(.*\))? has private access in ([\w.$]+)') {
+        $name = $Matches[1]; $type = Get-KitShortName $Matches[3]
+        if ($script:KitRenames.ContainsKey($name)) { return "private in 1.12.2; use $($script:KitRenames[$name])" }
+        return "private in 1.12.2; use the public getter/setter: agent.ps1 api $type"
+    }
     if ($Message -match 'cannot find symbol' -and $symbol -match '^(method|variable|class) ([\w$]+)') {
         $kind = $Matches[1]; $name = $Matches[2]
         if ($script:KitRenames.ContainsKey($name)) { return "1.12.2 uses $($script:KitRenames[$name])" }

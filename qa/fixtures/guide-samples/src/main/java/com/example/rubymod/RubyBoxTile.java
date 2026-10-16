@@ -2,6 +2,8 @@ package com.example.rubymod;
 
 import javax.annotation.Nullable;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Items;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
@@ -22,6 +24,15 @@ public class RubyBoxTile extends TileEntity implements ITickable {
     public final ItemStackHandler inventory = new ItemStackHandler(9) {
         @Override protected void onContentsChanged(int slot) { markDirty(); }
     };
+    /** guides/tile-entities.md: a filtered slot. In Forge 1.12.2 ItemStackHandler.insertItem never calls isItemValid. */
+    public final ItemStackHandler fuel = new ItemStackHandler(1) {
+        @Override public boolean isItemValid(int slot, ItemStack stack) { return stack.getItem() == Items.COAL; }
+        @Override public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
+            return isItemValid(slot, stack) ? super.insertItem(slot, stack, simulate) : stack;   // hoppers and pipes call insertItem
+        }
+        @Override protected void onContentsChanged(int slot) { markDirty(); }
+    };
+
     /** Capacity, max input and max output per tick (not saved here: a real machine saves it). */
     public final EnergyStorage energy = new EnergyStorage(10000, 100, 100);
 
