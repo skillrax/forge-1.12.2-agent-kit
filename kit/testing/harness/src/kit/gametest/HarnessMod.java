@@ -117,6 +117,11 @@ public final class HarnessMod {
             }
             result.add("stack", stack);
         }
+        if (!passed && current != null) {
+            JsonArray area = new JsonArray();
+            for (String line : current.snapshot()) area.add(new JsonPrimitive(line));
+            result.add("area", area);
+        }
         results.add(result);
         System.out.println("KIT_TEST " + (passed ? "PASS " : "FAIL ") + currentId + (passed ? "" : " at " + phase + ": " + message));
     }

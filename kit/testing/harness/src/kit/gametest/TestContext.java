@@ -34,6 +34,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.items.CapabilityItemHandler;
+import net.minecraftforge.items.IItemHandler;
 
 /**
  * Step sequencing, fixtures and assertions for one {@link Scenario}.
@@ -50,6 +52,7 @@ public final class TestContext {
     private final List<Step> steps = new ArrayList<>();
     private final List<Invariant> invariants = new ArrayList<>();
     private final Set<String> names = new HashSet<>();
+    private final Set<BlockPos> placed = new LinkedHashSet<>();
     private int cursor, assertionCount;
     private long ticks;
     private boolean running;
@@ -125,6 +128,7 @@ public final class TestContext {
     }
     public void place(BlockPos pos, String id) { place(pos, block(id).getDefaultState()); }
     public void place(BlockPos pos, IBlockState state) {
+        placed.add(pos.toImmutable());
         if (!world().setBlockState(pos, state, 3) && world().getBlockState(pos) != state)
             throw new IllegalStateException("Could not place " + state + " at " + pos);
     }
@@ -250,6 +254,72 @@ public final class TestContext {
         return true;
     }
     String phase() { return phase; }
+
+    /**
+     * Failure report context: the blocks the test placed, then other non-air blocks in its area
+     * (positions relative to origin()), with redstone power received and inventory contents,
+     * then entity counts. Bounded, so a failure costs a few lines, not a log dive.
+     */
+    List<String> snapshot() {
+        List<String> lines = new ArrayList<>();
+        try {
+            WorldServer world = world();
+            Set<BlockPos> order = new LinkedHashSet<>(placed);
+            for (int y = -1; y < 16; y++) for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
+                BlockPos pos = origin.add(x, y, z);
+                Block block = world.getBlockState(pos).getBlock();
+                if (block != Blocks.AIR && !(y == -1 && block == Blocks.STONE)) order.add(pos);
+            }
+            int shown = 0;
+            for (BlockPos pos : order) {
+                if (shown++ == 12) { lines.add("... " + (order.size() - 12) + " more blocks"); break; }
+                lines.add(describe(world, pos));
+            }
+            Map<String, Integer> entities = new TreeMap<>();
+            for (Entity entity : world.getEntitiesWithinAABB(Entity.class, new AxisAlignedBB(origin.add(0, -1, 0), origin.add(16, 16, 16)))) {
+                ResourceLocation key = EntityList.getKey(entity);
+                String name = entity instanceof EntityItem ? "item " + id(((EntityItem) entity).getItem())
+                        : key == null ? entity.getClass().getSimpleName() : shortId(key.toString());
+                entities.merge(name, 1, Integer::sum);
+            }
+            if (!entities.isEmpty()) {
+                StringBuilder line = new StringBuilder("entities:");
+                for (Map.Entry<String, Integer> e : entities.entrySet()) line.append(' ').append(e.getValue()).append("x ").append(e.getKey()).append(',');
+                lines.add(cut(line.substring(0, line.length() - 1)));
+            }
+        } catch (Throwable error) {
+            lines.add("area snapshot failed: " + error);
+        }
+        return lines;
+    }
+    private String describe(WorldServer world, BlockPos pos) {
+        BlockPos rel = pos.subtract(origin);
+        StringBuilder line = new StringBuilder("(" + rel.getX() + "," + rel.getY() + "," + rel.getZ() + ") " + shortId(String.valueOf(world.getBlockState(pos))));
+        int power = world.getRedstonePowerFromNeighbors(pos);
+        if (power > 0) line.append(" receives redstone ").append(power);
+        TileEntity tile = world.getTileEntity(pos);
+        if (tile != null) {
+            IItemHandler items = tile.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null)
+                    ? tile.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null) : null;
+            if (items == null) line.append(" tile ").append(tile.getClass().getSimpleName());
+            else {
+                List<String> stacks = new ArrayList<>();
+                for (int slot = 0; slot < items.getSlots(); slot++) {
+                    ItemStack stack = items.getStackInSlot(slot);
+                    if (!stack.isEmpty()) stacks.add(stack.getCount() + "x " + id(stack));
+                }
+                line.append(stacks.isEmpty() ? " inventory empty" : " inventory " + String.join(", ", stacks.subList(0, Math.min(4, stacks.size())))
+                        + (stacks.size() > 4 ? " +" + (stacks.size() - 4) + " stacks" : ""));
+            }
+        }
+        return cut(line.toString());
+    }
+    private static String id(ItemStack stack) {
+        ResourceLocation key = stack.getItem().getRegistryName();
+        return (key == null ? "?" : shortId(key.toString())) + (stack.getHasSubtypes() && stack.getMetadata() != 0 ? "@" + stack.getMetadata() : "");
+    }
+    private static String shortId(String text) { return text.replace("minecraft:", ""); }
+    private static String cut(String text) { return text.length() > 200 ? text.substring(0, 200) + "..." : text; }
     int assertions() { return assertionCount; }
 
     /** Clears a 16x16x16 area at origin to air above a stone floor. */

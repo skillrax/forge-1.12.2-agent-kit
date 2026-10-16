@@ -170,6 +170,16 @@ exit 0
     Assert ((Invoke-Agent @('status')) -match 'next: Fix the last failure') 'status after failure'
     $passed.Add('compile diagnostics, hints, errors, status')
 
+    # Same failure three checks in a row (errors reprints do not count): STUCK; a PASS resets the streak.
+    Assert ($failure -notmatch 'STUCK') 'no STUCK on first failure'
+    Invoke-Agent @('check') 1 | Out-Null
+    $stuck = Invoke-Agent @('check') 1
+    Assert ($stuck -match 'STUCK: the same problem 3 checks in a row: src/main/java/com/example/demo/DemoMod\.java: cannot find symbol') "circuit breaker: $stuck"
+    $env:FAKE_MODE = 'ok'
+    Invoke-Agent @('check') | Out-Null
+    Assert (-not (Test-Path (Join-Path $fixture 'reports/testing-tools/streak.json'))) 'streak reset on PASS'
+    $passed.Add('circuit breaker after 3 identical failures')
+
     $export = Invoke-Agent @('export') 1
     Assert ($export -match 'check server') "export gate: $export"
     $passed.Add('export requires server check')

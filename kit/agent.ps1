@@ -102,12 +102,38 @@ function Get-Problems($Result) {
             else {
                 $lines.Add(('FAIL test {0} at {1}: {2}' -f $t.id, $t.phase, $t.message))
                 foreach ($frame in @($t.stack)) { $lines.Add('    at ' + $frame) }
+                if (@($t.area).Count) {
+                    $lines.Add('  area (x,y,z from t.origin()):')
+                    foreach ($a in @($t.area)) { $lines.Add('    ' + $a) }
+                }
             }
         }
         if ($Result.harness.lintError) { $lines.Add('harness lint crashed: ' + $Result.harness.lintError) }
     }
     if ($Result.status -ne 'PASS' -and -not $lines.Count) { foreach ($l in (Get-BoundedDiagnostics $Result.log)) { $lines.Add($l) } }
     return $lines
+}
+
+# The same failure in consecutive checks: a test at the same step, else the first problem without its line number.
+function Get-FailureKey($Result) {
+    if ($Result.status -eq 'PASS' -or $Result.networkError) { return $null }
+    $test = @(@($Result.harness.tests) | Where-Object { $_ -and $_.status -ne 'PASS' }) | Select-Object -First 1
+    if ($test) { return ('test {0} at {1}' -f $test.id, $test.phase) }
+    $first = @($Result.problems) | Select-Object -First 1
+    if ($first) { return ($first -replace ':\d+:', ':') }
+    return [string]$Result.message
+}
+
+# Circuit breaker: small models can loop on one failure for an hour; after 3 identical failures say so.
+function Update-FailureStreak($Result) {
+    $path = Join-Path $reportRoot 'streak.json'
+    $key = Get-FailureKey $Result
+    if (-not $key) { if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) }; return 0 }
+    $previous = $null
+    if ([IO.File]::Exists($path)) { try { $previous = [IO.File]::ReadAllText($path) | ConvertFrom-Json } catch { $previous = $null } }
+    $count = if ($previous -and $previous.key -eq $key) { [int]$previous.count + 1 } else { 1 }
+    [IO.File]::WriteAllText($path, (@{ key = $key; count = $count } | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+    return $count
 }
 
 function Format-Check($Result) {
@@ -128,6 +154,11 @@ function Format-Check($Result) {
     }
     $out = @($head + ': ' + $summary)
     $out += @(Get-Problems $Result)
+    if ($Result.repeatedFailures -ge 3) {
+        $key = Get-FailureKey $Result
+        if ($key -like 'test *') { $out += ('STUCK: {0} failed the same way {1} checks in a row. Stop changing code to guess. Read the area lines; move this behavior into its own @GameTest with only its own setup and rerun it with -Test; if it still fails, finish with a partial report (AGENTS.md).' -f $key, $Result.repeatedFailures) }
+        else { $out += ('STUCK: the same problem {0} checks in a row: {1}. Look up the exact signature (agent.ps1 api Class.member) or write it another way; if it still fails, finish with a partial report (AGENTS.md).' -f $Result.repeatedFailures, $key) }
+    }
     if ($Result.status -ne 'PASS') { $out += ('log: ' + (Get-Relative $Result.log) + '  (run ' + $Result.runId + ')') }
     return ($out -join "`n")
 }
@@ -348,6 +379,7 @@ try {
             $result | Add-Member -NotePropertyName projectRoot -NotePropertyValue $root
             $result | Add-Member -NotePropertyName runId -NotePropertyValue ([IO.Path]::GetFileNameWithoutExtension($result.report))
             $result | Add-Member -NotePropertyName problems -NotePropertyValue @(Get-Problems $result)
+            $result | Add-Member -NotePropertyName repeatedFailures -NotePropertyValue (Update-FailureStreak $result)
             $resultJson = $result | ConvertTo-Json -Depth 8 -Compress
             Set-Content -LiteralPath $result.report -Value $resultJson -Encoding UTF8
             Set-Content -LiteralPath (Join-Path $reportRoot 'latest.json') -Value $resultJson -Encoding UTF8
