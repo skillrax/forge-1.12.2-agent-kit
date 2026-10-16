@@ -1,0 +1,61 @@
+MOD KIT FEEDBACK - cold-PC test
+Generated: 2026-10-16 10:26:55
+Task: "dense diamond" armor + sword, 3x diamond stats, crafted from diamond blocks.
+Kit: agent.ps1, Forge 1.12.2
+
+=== SUMMARY ===
+The generator silently ignored numeric overrides. The mod compiled, check game
+passed, and the output was still wrong. The user found it by playing in runClient.
+
+=== BUG: numeric options ignored (generator, not user error) ===
+File: tools/New-Content.ps1
+Lines ~638-644 (Build-Tools) and ~679-680 (Build-Armor) use
+  $PSBoundParameters.ContainsKey('Speed') etc.
+These are INSIDE functions, so $PSBoundParameters is the function's own (empty)
+set, not the script's. ContainsKey is always false and the -Like preset wins.
+
+Ignored: -Speed -Damage -Enchant -AxeDamage -AxeSpeed -Toughness
+Worked:  -Durability -Protection -Repair (they test the value, not bound-ness)
+
+Command used:
+  new tools dense_diamond -Like diamond -Durability 4683 -Speed 24 -Damage 9 -AxeDamage 24 -Repair minecraft:diamond_block -Recipes
+  new armor dense_diamond -Like diamond -Durability 99 -Protection 9,24,18,9 -Toughness 6 -Repair minecraft:diamond_block -Recipes
+Result: ModItems.java had speed 8.0F, damage 3.0F, axe 8.0F, toughness 2.0F.
+(agent.ps1 ConvertTo-Splat was checked and is fine.)
+
+Suggested fix: at top of New-Content.ps1 add $script:Bound = $PSBoundParameters
+and use $script:Bound.ContainsKey(...) in the Build-* functions.
+Also: generated test asserted the wrong value (damage 3.0), so it passed.
+
+=== PROCESS FAILURES (assistant side) ===
+- Never opened the generated ModItems.java; the wrong numbers were visible at once.
+- Reported done after check game passed. The checks only verify what the
+  generator wrote, so they cannot catch generator bugs.
+- First reply said sword "12 damage", inconsistent with the tooltip scale (diamond = 7).
+
+=== IMPROVEMENT IDEAS ===
+1. Echo resolved values in the summary line (level, uses, speed, damage, toughness,
+   enchant) so wrong values are visible immediately.
+2. Test the generator itself: one generation per option, compare to expected output.
+   Also let the user say intended numbers (e.g. new tools -Expect) so checks are
+   independent of generator logic.
+3. Reject or warn on unknown/unused options; never ignore silently.
+4. Add a scale option: -Like diamond -Scale 3. "Nx vanilla" is a common request.
+5. Add -Only sword (or similar). Generator forced pickaxe/axe/shovel/hoe on a
+   sword-only request.
+6. Document damage scale: tooltip damage = 1 + 3 + material bonus, so "3x" is
+   ambiguous. Diamond tooltip = 7; this run used bonus 17 -> 21 (3x total).
+   Armor protection above 20 total points exceeds the bar cap (nearly invulnerable).
+7. Speed up the loop: first check game took 136 s and hit the 120 s tool timeout.
+   Add a background/poll mode in agent.ps1, and make check quicker.
+8. Add a describe/inspect command printing real registered stats per item from the
+   built jar, so stats can be verified without launching the client.
+
+=== WHAT WORKED ===
+init, recipes (vanilla shapes from diamond_block), lang, placeholder textures,
+registration, durability, armor protection, and TASK.md flow all worked.
+
+=== FINAL STATE ===
+Fixed by hand in src/main/java/com/example/densediamond/ModItems.java:
+tool speed 24, damage bonus 17, axe damage 24, armor toughness 6; gametest
+assertions added. check game PASS (18 assertions). User confirmed in-game.

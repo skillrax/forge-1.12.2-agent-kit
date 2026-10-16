@@ -1,0 +1,112 @@
+KIT FEEDBACK - field test, kit 0.5.0-beta.2 (agentic-minecraft-kit), 2026-10-16
+================================================================================
+Test mod: "Gron" (modid gron). 2 items, shapeless ore-dict recipe, smelting,
+5 tools + 4 armor (diamond durability, iron stats), 9 tool/armor recipes, 1 game test.
+Result: check game PASS first try, no WARN, exported, user verified in runClient.
+Agent: Claude Opus 5.5 in Claude Code, PowerShell 5.1 + Git Bash on Windows 11.
+
+Note: the PC was not fully cold. ~/.gradle already held the Forge 1.12.2 cache
+(dated Oct 10), so first-run download/decompile was not exercised. Retest with
+an empty GRADLE_USER_HOME or a fresh user profile.
+
+--------------------------------------------------------------------------------
+A. BUGS / CORRECTNESS (fix first)
+--------------------------------------------------------------------------------
+A1. Armor generator: documented syntax fails in PowerShell.
+    GENERATORS.md shows `-Protection 3,8,6,3`. Unquoted, PowerShell passes an
+    array -> FAIL: Cannot convert value "2 6 5 2" to type "System.Int32".
+    Fix: declare the param as [int[]] (or join arrays), so quoted and unquoted
+    both work. Same check for any other comma-list params (-Count, -Xp, -Height?).
+
+A2. `new tools` hardcodes the axe at 7.0F / -3.0F whatever -Level is.
+    Vanilla (ItemAxe.ATTACK_DAMAGES / ATTACK_SPEEDS, ordinal wood,stone,iron,diamond,gold):
+      damage {6, 8, 8, 8, 6}   speed {-3.2, -3.2, -3.1, -3.0, -3.0}
+    Fix: derive from -Level (or a -Like preset, see C2), and/or add -AxeDamage / -AxeSpeed.
+
+A3. `new recipe` accepts a -Result/-Key item that is not registered. I created
+    armor recipes before the armor existed (after A1 failed); nothing warned.
+    Fix: validate references against this mod's registered names + minecraft:
+    ids at generate time (warn at least).
+
+A4. Broken recipes pass silently. Fix: `check server` should turn Forge
+    recipe-loading errors in the server log into ERROR lint lines.
+
+A5. PowerShell 5.1 `Set-Content -Encoding utf8` writes a BOM; javac then fails
+    on the .java file. Fix: `check` strips BOMs in src/ automatically (or gives a
+    clear hint), and AGENTS.md says: edit with the agent's Edit/Write tools or
+    [IO.File]::WriteAllText, never Set-Content/Out-File.
+
+--------------------------------------------------------------------------------
+B. `api` CANNOT REACH SOURCE THAT IS ALREADY ON DISK
+--------------------------------------------------------------------------------
+The pinned archive exists (.../forge/1.12.2-14.23.5.2859/stable/39-1.12/remapped-javadoc.jar)
+and tools/Read-MappedSource.ps1 reads it fine. But through `api`:
+
+B1. `api <Class>` with no member prints signatures only, never source
+    (agent.ps1 ~192-197 only fetches source on the Class.member path).
+    Fix: class lookup also prints the class head (fields + first ~25 lines).
+
+B2. `api -Find` only searches .kit/api-index.tsv (signatures). Private fields
+    and literals are missing: `-Find ATTACK_DAMAGES` and `-Find "-3.1F"` both
+    returned "nothing found". Fix: fall back to grepping the source jar, print
+    class:line for each hit.
+
+B3. Constructors can't be looked up. The index stores `<init>`; `api ItemAxe.ItemAxe`
+    fails the member lookup, and `api ItemTool.ItemTool` was treated as a class name.
+    Fix: accept `api ItemAxe.<init>` / `api ItemAxe.new`, show constructor bodies.
+
+B4. Make `api` output say where the source came from ("source: pinned
+    remapped-javadoc.jar") so agents know source exists. I didn't know
+    Read-MappedSource.ps1 existed, so I guessed from memory (happened to be right).
+
+--------------------------------------------------------------------------------
+C. TOKEN / ROUND-TRIP SAVERS
+--------------------------------------------------------------------------------
+C1. Generate vanilla-shape crafting recipes for tool and armor sets.
+    e.g. `new tools gron -Repair gron_ingot -Recipes` (same for armor).
+    Took 9 hand-written `new recipe` calls; the biggest chunk of agent output
+    and the most typo-prone.
+
+C2. Vanilla-material presets. "Diamond durability, iron strength" style
+    requests are common:
+      new tools gron -Like iron -Durability diamond
+      new armor gron -Like iron -Durability diamond
+    Also extend the reference table in GENERATORS.md with tool and armor
+    enchantability separately, axe values, for all 5 vanilla materials.
+    (I took iron armor enchantability 9 from memory.)
+
+C3. Test helpers in TestContext:
+      t.craft(ItemStack... grid) -> ItemStack   (no InventoryCrafting + anonymous Container)
+      t.smelt(ItemStack) -> ItemStack
+      t.assertToolStats(item, durability, level, speed, damage) / armor equivalent
+    Better: tools/armor/recipe/smelting generators append matching checks to an
+    auto-generated test, so generated content is covered for free.
+
+C4. Declarative spec + apply. One mod.json listing items, recipes, smelting,
+    tools, armor; `agent.ps1 apply` validates all references, then generates
+    idempotently. Gives one source of truth ("make it 1 raw Gron" = one-line
+    edit + re-apply) and cuts command-line tokens. At minimum: a batch mode
+    that stops on the first FAIL (in this test, 15 commands ran in one call
+    and kept going after the armor FAIL).
+
+C5. Shorter generator output. Every command listed each touched file (lang
+    once per item). One summary line, e.g. "created item raw_gron (model,
+    texture, lang)", with -Verbose for the list. ~70% less output.
+
+--------------------------------------------------------------------------------
+D. NICE TO HAVE
+--------------------------------------------------------------------------------
+D1. Shaped placeholder textures: recolored ingot / raw ore / tool / armor
+    silhouettes instead of flat squares. -Color already provides the hook.
+D2. `status` next-step should flag unfilled test scaffolds ("1 test scaffold
+    unfilled") so agents remember loop step 5.
+
+--------------------------------------------------------------------------------
+E. WORKED WELL - KEEP
+--------------------------------------------------------------------------------
+- status -> init -> generators needed only GENERATORS.md and TESTING.md.
+- The vanilla reference values in GENERATORS.md removed most of the guessing.
+- Generated code comments (armor slot order, material values) and automatic
+  repair-item wiring saved signature lookups.
+- check game output is short and clear (one PASS line per test + assertion count).
+- Lint in check server (translations/models/textures) gave confidence without the client.
