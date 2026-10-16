@@ -12,6 +12,6 @@ Result:
 - beta.13 (systemic): failed game tests print `area` (placed blocks with state, redstone received, inventory; entities); STUCK after 3 identical failures; AGENTS.md step 7: a partial report is a valid finish. Probe: the p1-local-b trap shows the whole power chain in one failure.
 - Evidence: Test-GuideSnippets, Test-AgentInterface (+circuit breaker), Test-TestingTools, Test-Packaging, Test-KitSamples PASS.
 
-Next action: p1-local-c passed on beta.13 (20 min, runClient OK). Run P2-P7 on beta.13 with the same model and settings; record STUCK/area use; Claude Code control only for prompts the local model fails.
+Next action: p1-local-c passed on beta.13 (20 min, runClient OK). Run P2-P7 on beta.13, same model and settings; record STUCK/area use; Claude Code control only for prompts the local model fails.
 
 Blocker: None. Not verified: graphical client: manual runClient check per release.
