@@ -30,12 +30,16 @@ import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.DamageSource;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.storage.loot.LootContext;
+import net.minecraft.world.storage.loot.LootTable;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
@@ -56,6 +60,7 @@ public final class TestContext {
     private final Set<String> names = new HashSet<>();
     private final Set<BlockPos> placed = new LinkedHashSet<>();
     private final Map<FakePlayer, List<String>> messages = new IdentityHashMap<>();
+    private final List<FakePlayer> targets = new ArrayList<>();
     private int cursor, assertionCount;
     private long ticks;
     private boolean running;
@@ -154,12 +159,28 @@ public final class TestContext {
     // ---- simulated player ---------------------------------------------------------------
 
     /** A survival FakePlayer standing at origin with a working (offline) network handler. */
-    public FakePlayer player(String name) {
+    public FakePlayer player(String name) { return newPlayer(name, false); }
+    /**
+     * A player that mob AI can target and hurt. player() is not in world.playerEntities, the only list
+     * World.getNearestAttackablePlayer searches, and FakePlayer ignores damage; this one is added to the world,
+     * takes damage, and is removed when the test ends. Still never ticks (see TESTING.md).
+     */
+    public FakePlayer targetPlayer(String name) {
+        FakePlayer player = newPlayer(name, true);
+        player.capabilities.disableDamage = false;
+        // EntityPlayerMP starts with 60 ticks of respawn invulnerability that only onUpdate counts down; FakePlayer never ticks.
+        ObfuscationReflectionHelper.setPrivateValue(EntityPlayerMP.class, player, 0, "field_147101_bU");
+        if (!world().spawnEntity(player)) throw new IllegalStateException("Could not add target player " + name + " (name already used?)");
+        targets.add(player);
+        return player;
+    }
+    private FakePlayer newPlayer(String name, boolean vulnerable) {
         List<String> received = new ArrayList<>();
         // Forge's FakePlayer drops chat and action-bar messages; these are recorded for messages(player).
         FakePlayer player = new FakePlayer(world(), new GameProfile(UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)), name)) {
             @Override public void sendMessage(ITextComponent component) { received.add(text(component)); }
             @Override public void sendStatusMessage(ITextComponent component, boolean actionBar) { received.add((actionBar ? "actionbar: " : "") + text(component)); }
+            @Override public boolean isEntityInvulnerable(DamageSource source) { return !vulnerable && super.isEntityInvulnerable(source); }
         };
         messages.put(player, received);
         new NetHandlerPlayServer(server, new NetworkManager(EnumPacketDirection.SERVERBOUND), player);
@@ -179,6 +200,21 @@ public final class TestContext {
     private static String text(ITextComponent component) {
         String text = component.getUnformattedText();
         return component instanceof TextComponentTranslation ? text + " [" + ((TextComponentTranslation) component).getKey() + "]" : text;
+    }
+    /** One roll of a loot table such as "modid:entities/name". Throws if the table does not exist. */
+    public List<ItemStack> loot(String table) { return loot(table, null); }
+    /** One roll with a looted entity in the context (tables with entity conditions). */
+    public List<ItemStack> loot(String table, Entity looted) {
+        LootTable loot = world().getLootTableManager().getLootTableFromLocation(new ResourceLocation(table));
+        if (loot == LootTable.EMPTY_LOOT_TABLE) throw new IllegalArgumentException("No loot table " + table + " (file: assets/<modid>/loot_tables/<path>.json)");
+        LootContext.Builder context = new LootContext.Builder(world());
+        if (looted != null) context.withLootedEntity(looted);
+        return loot.generateLootForPools(world().rand, context.build());
+    }
+    /** Removes target players; called by the harness when the test ends, passed or failed. */
+    void cleanup() {
+        for (FakePlayer player : targets) world().removeEntityDangerously(player);
+        targets.clear();
     }
     /** Right-click with the held item in the air (Item.onItemRightClick path). */
     public EnumActionResult useItem(EntityPlayerMP player, EnumHand hand) {
@@ -301,6 +337,7 @@ public final class TestContext {
             for (Entity entity : world.getEntitiesWithinAABB(Entity.class, new AxisAlignedBB(origin.add(0, -1, 0), origin.add(16, 16, 16)))) {
                 ResourceLocation key = EntityList.getKey(entity);
                 String name = entity instanceof EntityItem ? "item " + id(((EntityItem) entity).getItem())
+                        : entity instanceof EntityPlayer ? "player " + entity.getName()
                         : key == null ? entity.getClass().getSimpleName() : shortId(key.toString());
                 entities.merge(name, 1, Integer::sum);
             }

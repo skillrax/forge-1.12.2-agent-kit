@@ -10,6 +10,7 @@ import net.minecraft.block.BlockCrops;
 import net.minecraft.block.BlockHopper;
 import net.minecraft.block.BlockHorizontal;
 import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.entity.EntityLiving;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.projectile.EntitySmallFireball;
@@ -290,6 +291,35 @@ public final class SnippetTests {
                 t.require(wand.getTagCompound().getInteger("Heat") == 5, "FakePlayer ticked the item");
                 for (int i = 0; i < 2; i++) wand.getItem().onUpdate(wand, t.world(), p, 5, false);
                 t.require(wand.getTagCompound().getInteger("Heat") == 3, "heat " + wand.getTagCompound().getInteger("Heat"));
+            });
+        }
+    }
+    /** TESTING.md / entities.md: mobs cannot see t.player(); t.targetPlayer() is targeted and hurt. t.loot rolls a table. */
+    @GameTest("mob-targets-and-loot")
+    public static final class Targeting implements Scenario {
+        @Override public void plan(TestContext t) {
+            BlockPos spot = t.origin().add(8, 0, 8);
+            EntityLiving[] zombie = new EntityLiving[1];
+            FakePlayer[] target = new FakePlayer[1];
+            t.then("zombie next to a plain test player", () -> {
+                t.player("ignored").setPosition(spot.getX() + 2.5, spot.getY(), spot.getZ() + 0.5);
+                zombie[0] = (EntityLiving) t.spawn("rubymod:ruby_zombie", spot);
+            });
+            t.waitTicks(40);
+            t.check("plain-player-invisible-to-mobs", () -> zombie[0].getAttackTarget() == null, () -> "target " + zombie[0].getAttackTarget());
+            t.then("add a target player", () -> {
+                target[0] = t.targetPlayer("target");
+                target[0].setPosition(spot.getX() + 2.5, spot.getY(), spot.getZ() + 0.5);
+            });
+            t.waitUntil("zombie-targets-it", 100, () -> zombie[0].getAttackTarget() == target[0], () -> "target " + zombie[0].getAttackTarget());
+            t.waitUntil("zombie-hurts-it", 200, () -> target[0].getHealth() < 20, () -> "health " + target[0].getHealth());
+            t.then("loot table rolls 0-2 rubies", () -> {
+                int min = 99, max = -1;
+                for (int roll = 0; roll < 100; roll++) {
+                    int rubies = t.count(t.loot("rubymod:entities/ruby_zombie"), "rubymod:ruby");
+                    min = Math.min(min, rubies); max = Math.max(max, rubies);
+                }
+                t.require(min == 0 && max == 2, "rubies per roll " + min + ".." + max);
             });
         }
     }

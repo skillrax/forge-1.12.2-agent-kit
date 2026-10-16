@@ -87,12 +87,14 @@ public final class HarnessMod {
             }
             if (current.tick()) {
                 record(true, current.phase(), "ok", null);
+                current.cleanup();
                 current = null;
             }
         } catch (Throwable error) {
             Throwable cause = error;
             for (int depth = 0; depth < 8 && cause.getCause() != null; depth++) cause = cause.getCause();
             record(false, current == null ? "setup" : current.phase(), String.valueOf(cause.getMessage()), cause);
+            if (current != null) { try { current.cleanup(); } catch (Throwable ignored) { } }
             current = null;
         }
     }

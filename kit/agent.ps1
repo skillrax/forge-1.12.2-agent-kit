@@ -237,14 +237,14 @@ function Invoke-Api {
         if (-not $ctors.Count) { throw "$className has no public/protected constructor." }
         foreach ($m in $ctors) { 'new ' + $m[3] + $(if (($m[4] -replace 'client-only', '').Trim()) { '  {' + ($m[4] -replace 'client-only', '').Trim() + '}' } else { '' }) }
         ''
-        & $reader -Class $outerClass -Member $simple -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
+        & $reader -Class $outerClass -Member $simple -MaxLines $(if ($Full) { 150 } else { 40 }) -Text 2>$null
         return
     }
     $found = @(foreach ($owner in $chain) { if ($api.members.ContainsKey($owner)) { foreach ($m in $api.members[$owner]) { if ($m[2] -eq $member) { ,@($owner, $m) } } } })
     if (-not $found.Count) {
         if ($script:KitRenames.ContainsKey($member)) { throw "No member '$member' in 1.12.2 (stable_39); use $($script:KitRenames[$member])" }
         # Private members are not in the index but are in the source.
-        $private = & $reader -Class $outerClass -Member $member -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
+        $private = & $reader -Class $outerClass -Member $member -MaxLines $(if ($Full) { 150 } else { 40 }) -Text 2>$null
         if ($LASTEXITCODE -eq 0 -and $private) { "(not public/protected; source below)"; $private; return }
         $similar = Find-KitSimilarMembers $api $chain[0] $member $null
         throw ("No member '$member' on $className or its superclasses." + $(if ($similar.Count) { ' Did you mean: ' + ($similar -join ' | ') } else { '' }))
@@ -253,7 +253,7 @@ function Invoke-Api {
     # Source of the first declaring class, bounded.
     $owner = $found[0][0].Split('.')
     $ownerOuter = @(); foreach ($s in $owner) { $ownerOuter += $s; if ($s -cmatch '^[A-Z]') { break } }
-    $source = & $reader -Class ($ownerOuter -join '.') -Member $member -MaxLines $(if ($Full) { 80 } else { 25 }) -Text 2>$null
+    $source = & $reader -Class ($ownerOuter -join '.') -Member $member -MaxLines $(if ($Full) { 150 } else { 40 }) -Text 2>$null
     if ($LASTEXITCODE -eq 0 -and $source) { ''; $source }
 }
 

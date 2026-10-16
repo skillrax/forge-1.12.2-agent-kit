@@ -47,6 +47,8 @@ RenderingRegistry.registerEntityRenderingHandler(RubyZombie.class, RenderZombie:
 Notes:
 - Tracker values: mobs `64, 3, true`; projectiles `64, 10, true`; slow decorative entities `64, 20, false`.
 - AI: override `initEntityAI()` and add `tasks.addTask(priority, new EntityAIxxx(...))`, `targetTasks` for targets. Vanilla AI classes are in `net.minecraft.entity.ai`.
+- Movement comes cheapest from the vanilla class you extend: `EntityBlaze` hovers and is fire immune, `EntityGhast` flies (`EntityFlying` + its move helper), `EntityBat` flutters (ambient), `EntityVex` flies through blocks, `EntitySpider` climbs walls, `EntityGuardian`/`EntitySquid` swim. Its renderer can usually be reused (`RenderBlaze::new`).
+- Targeting players: `EntityAINearestAttackableTarget` asks `world.getNearestAttackablePlayer`, which searches only real players, then `EntityAITarget.isSuitableTarget`: alive, `canAttackClass`, not same team or owner, not a creative player (`capabilities.disableDamage`), visible if sight is checked, within home distance.
 - Saved fields: `writeEntityToNBT`/`readEntityFromNBT`. Values the client must see (size, variant): `EntityDataManager` with `DataParameter` registered in `entityInit()`.
 - Projectiles: extend `EntityThrowable` (override `onImpact`), render with `RenderSnowball` and an item.
 - Textures for custom renderers: `assets/mymod/textures/entity/<name>.png`.
@@ -74,4 +76,4 @@ Prefer vanilla `ContainerMerchant`/`GuiMerchant` through `IMerchant`. The mercha
 
 ## Test
 
-`t.spawn("mymod:ruby_zombie", pos)`, then check attributes. Loot table loads: `t.world().getLootTableManager().getLootTableFromLocation(RubyZombie.LOOT) != LootTable.EMPTY_LOOT_TABLE`. The test world is daytime: zombies and skeletons burn. Spawning in biomes and rendering need the client.
+`t.spawn("mymod:ruby_zombie", pos)`, then check attributes. Hostility: put a `t.targetPlayer(name)` nearby and `waitUntil` `getAttackTarget() == player` (a plain `t.player` is never targeted). Drops: `t.loot("mymod:entities/ruby_zombie")` per roll. The test world is daytime: zombies and skeletons burn. Spawning in biomes and rendering need the client.

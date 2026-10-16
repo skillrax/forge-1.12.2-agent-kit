@@ -13,7 +13,7 @@ param(
     [switch]$Text,
     [ValidateRange(1,100000)][int]$Line=1,
     [ValidateRange(1,20)][int]$MatchIndex=1,
-    [ValidateRange(1,80)][int]$MaxLines=30,
+    [ValidateRange(1,200)][int]$MaxLines=30,
     [string]$Archive
 )
 $ErrorActionPreference = 'Stop'
@@ -101,7 +101,7 @@ try {
     }
     if ($Line -gt $lines.Length) { throw 'Line exceeds class length.' }
     $end = [Math]::Min($lines.Length, ($Line+$MaxLines-1))
-    # A member read ends at the member's closing brace (within 80 lines): side effects often sit at the end of a body.
+    # A member read ends at the member's closing brace (within MaxLines): side effects often sit at the end of a body.
     function Get-MemberEnd([int]$Declaration, [int]$Limit) {
         $depth = 0; $opened = $false
         for ($n = $Declaration; $n -le [Math]::Min($lines.Length, $Limit); $n++) {
@@ -112,7 +112,7 @@ try {
         }
         return $null
     }
-    if ($Member) { $memberEnd = Get-MemberEnd $declarationLines[$MatchIndex-1] ($Line + 79); if ($memberEnd) { $end = $memberEnd } }
+    if ($Member) { $memberEnd = Get-MemberEnd $declarationLines[$MatchIndex-1] ($Line + $MaxLines - 1); if ($memberEnd) { $end = $memberEnd } }
     $snippet = for ($n=$Line; $n -le $end; $n++) {
         $value=$lines[$n-1]
         if ($value.Length -gt 240) { $value=$value.Substring(0,240) }
@@ -121,13 +121,13 @@ try {
     if ($Text) {
         'source: {0} lines {1}-{2} (pinned 1.12.2 mapped source)' -f $entryName, $Line, $end
         foreach ($row in $snippet) { '{0,5}| {1}' -f $row.number, $row.text }
-        # Text reads show the following overloads too while the 80-line budget lasts; the one with the side effect is often not the first.
+        # Text reads show the following overloads too while the MaxLines budget lasts; the one with the side effect is often not the first.
         $shown = $end - $Line + 1
         if ($Member) {
             foreach ($declaration in @($declarationLines | Select-Object -Skip $MatchIndex)) {
                 $from = [Math]::Max($end + 1, $declaration - 2)
-                $to = Get-MemberEnd $declaration ($from + 79)
-                if (-not $to -or ($shown + $to - $from + 1) -gt 80) { '      (overload at line ' + $declaration + ' not shown: tools/Read-MappedSource.ps1 -Class ' + $Class + ' -Member ' + $Member + ' -MatchIndex ' + ([array]::IndexOf($declarationLines, $declaration) + 1) + ' -Text)'; continue }
+                $to = Get-MemberEnd $declaration ($from + $MaxLines - 1)
+                if (-not $to -or ($shown + $to - $from + 1) -gt $MaxLines) { '      (overload at line ' + $declaration + ' not shown: tools/Read-MappedSource.ps1 -Class ' + $Class + ' -Member ' + $Member + ' -MatchIndex ' + ([array]::IndexOf($declarationLines, $declaration) + 1) + ' -Text)'; continue }
                 '  ...'
                 for ($n = $from; $n -le $to; $n++) { $value = $lines[$n-1]; if ($value.Length -gt 240) { $value = $value.Substring(0,240) }; '{0,5}| {1}' -f $n, $value }
                 $shown += $to - $from + 1; $end = $to

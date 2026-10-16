@@ -44,19 +44,22 @@ public class OreDropsTest implements Scenario {
 | `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities (the test server runs `spawn-animals=false`, so animals vanish on their next tick: use an armor stand or a mob) |
 | `craft("a", "", "b", ...)`, `smelt(id)` | crafting result of a row-major 3x3 grid ("" = empty), furnace result |
 | `drops(blockId, toolId)`, `count(stacks, id)` | place + mine a block with a tool in a free spot, return what dropped; count one item |
-| `player(name)` | survival FakePlayer at origin, facing south |
+| `player(name)` | survival FakePlayer at origin, facing south; mobs cannot see or hurt it |
+| `targetPlayer(name)` | a player mob AI targets and damages (in the world's player list; removed when the test ends). It never ticks, so after a hit `hurtResistantTime` stays up: set it to 0 to count several hits |
+| `loot(table)`, `loot(table, entity)` | one roll of a loot table (`"modid:entities/name"`); loop and `count` for ranges like "0-2" |
 | `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths |
 | `messages(p)` | chat and action-bar messages sent to `p`, oldest first (`"actionbar: "` prefix; translated ones end in `[key]`) |
 
-Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`.
+Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`. Full TestContext source: testing/harness/src/kit/gametest/TestContext.java (`api` reads only Minecraft/Forge).
 
 Things that bite:
+- Only the lambdas passed to `then`, `check`, `waitUntil` and `invariant` run on ticks. Other code in `plan()` runs once at tick 0, before any step: compute and assert inside the lambdas.
 - One behavior per `@GameTest`: each test gets its own cleared area, so setups cannot disturb each other, and `check game -Test id` reruns one. Steps inside one test share the area: keep separate setups 3+ blocks apart, and remember redstone carries (a comparator powers the block it faces away from, and that block powers its neighbors, such as a hopper).
 - The test area ticks like a loaded world: tiles, hoppers and redstone run. A hopper moves one item per 8 ticks; `enabled=false` in its state means it is receiving redstone power (the default is enabled) and it moves nothing.
 - A failed test also prints `area` lines: every block the test placed and any other block in its area (x,y,z from `t.origin()`), with its state, redstone it receives and inventory contents, then entity counts. Read them before adding instrumentation; make your own detail print counts the area lines do not show.
 - The same failure 3 checks in a row prints `STUCK`: isolate the behavior in its own test, then report (AGENTS.md step 7) instead of guessing on.
 - FakePlayer never ticks: item use timers, attack cooldown (hits do ~20% damage) and potion countdowns on it do not advance. Call `finishUsingItem` for food. Held-item behavior (`Item.onUpdate`, for anything "while in the inventory") never runs by itself: call `stack.getItem().onUpdate(stack, t.world(), p, slot, selected)` each tick from a `waitUntil` or `invariant`.
-- FakePlayer is not in the server's player list: command selectors and name lookups don't find it, and `player.openGui` does nothing. Test containers by constructing them directly.
+- `t.player` is not in the server's player list: command selectors, name lookups and mob targeting (`getNearestAttackablePlayer` searches only that list) never find it, and `player.openGui` does nothing. Use `targetPlayer` for hostile mobs; test containers by constructing them directly.
 - Random ticks run (crops grow, grass spreads, leaves decay), so "X did not happen" can fail by chance. Assert on state your code owns (a counter, an inventory) instead of on world noise.
 - The test world is always day: zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health.
 - Each run uses a new world, so save/load across restarts is not tested. A tile's `writeToNBT`/`readFromNBT` round trip can be checked directly.
