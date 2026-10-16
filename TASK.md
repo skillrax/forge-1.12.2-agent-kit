@@ -10,6 +10,6 @@ Result:
 - Evidence: Test-AgentInterface, Test-Packaging, Test-GuideSnippets, Test-KitSamples PASS.
 - Cold machine (empty Gradle cache) verified by the user on a laptop: dense-diamond test, 2026-10-16.
 
-Next action: user sets up a local-model frontend (OpenCode or similar on an OpenAI-compatible endpoint, 32k context) and runs held-out unseen mod prompts (mostly hard) from the packaged kit in fresh folders; record where it gets stuck, fix the general cause.
+Next action: user runs the held-out trials in qa/local-model (OpenCode, local model up to 27B, 64k context; P0 smoke first) from releases/0.5.0-beta.10; results in qa/local-model/results/; fix general causes only.
 
 Blocker: None. Not verified: graphical client (ghost preview, keybind screen, textures): manual runClient check per release.
