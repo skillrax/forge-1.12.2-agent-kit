@@ -36,6 +36,7 @@ $script:KitRenames = @{
     'addItemToInventory' = 'player.addItemStackToInventory(stack)'
     'getCompoundTag' = 'NBTTagList.getCompoundTagAt(int); getTagList(key, 10) reads a list of compounds'
     # Later-version names models reach for.
+    'hoveredSlot' = 'getSlotUnderMouse()'
     'getFortuneModifier' = 'EnchantmentHelper.getEnchantmentLevel(Enchantments.FORTUNE, stack)'
     'onBlockDestroyedByPlayer' = 'onPlayerDestroy(World, BlockPos, IBlockState)'
 }
@@ -67,6 +68,81 @@ function Get-KitShortName([string]$Name) {
     $parts = $Name.Split('.'); $i = 0
     while ($i -lt $parts.Length - 1 -and $parts[$i] -cmatch '^[a-z]') { $i++ }
     return ($parts[$i..($parts.Length - 1)] -join '.')
+}
+
+# Member names that exist only on the client (every owner is @SideOnly(CLIENT) or in a client-only class) -> one owner.
+function Get-KitClientOnlyNames([string]$Root) {
+    if ($script:KitClientOnly) { return $script:KitClientOnly }
+    $api = Get-KitApiIndex $Root
+    if (-not $api) { return $null }
+    $client = @{}; $common = @{}
+    foreach ($owner in $api.members.Keys) {
+        $classClient = $api.classes.ContainsKey($owner) -and $api.classes[$owner][4] -match 'client-only'
+        foreach ($m in $api.members[$owner]) {
+            if ($m[0] -ne 'M') { continue }
+            if ($classClient -or $m[4] -match 'client-only') { if (-not $client.ContainsKey($m[2])) { $client[$m[2]] = $owner } }
+            else { $common[$m[2]] = $true }
+        }
+    }
+    foreach ($name in @($common.Keys)) { $client.Remove($name) }
+    $script:KitClientOnly = $client
+    return $client
+}
+
+# Calls to client-only members from code a server runs (src/main outside client code, and all of src/gametest).
+# They compile, then throw NoSuchMethodError on a dedicated server and in every game test.
+function Get-KitClientOnlyCalls([string]$Root) {
+    $names = Get-KitClientOnlyNames $Root
+    if (-not $names) { return @() }
+    $api = Get-KitApiIndex $Root
+    $files = @(foreach ($dir in @('src/main/java', 'src/gametest/java')) {
+        $path = Join-Path $Root $dir
+        if ([IO.Directory]::Exists($path)) { [IO.Directory]::GetFiles($path, '*.java', [IO.SearchOption]::AllDirectories) }
+    })
+    $sources = @{}; foreach ($file in $files) { $sources[$file] = [IO.File]::ReadAllLines($file) }
+    # A name the mod declares itself is its own method, whatever vanilla has.
+    $declaration = [regex]'^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|protected|private|static|final|abstract|synchronized|default)\s+)*[\w$<>\[\],.? ]+?\s+(\w+)\s*\([^;]*$'
+    $declared = @{}
+    foreach ($lines in $sources.Values) { foreach ($line in $lines) { $m = $declaration.Match($line); if ($m.Success) { $declared[$m.Groups[1].Value] = $true } } }
+    $found = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($file in $files) {
+        $relative = $file.Substring($Root.Length).TrimStart('\', '/').Replace('\', '/')
+        $text = [string]::Join("`n", $sources[$file])
+        $firstType = [regex]::Match($text, '\b(?:class|interface|enum)\s+\w+')
+        $sideOnly = $text.IndexOf('@SideOnly(Side.CLIENT)')
+        $parent = [regex]::Match($text, '\bextends\s+([\w.]+)')
+        $clientParent = $parent.Success -and @(Resolve-KitClass $api $parent.Groups[1].Value | Where-Object { $api.classes[$_][4] -match 'client-only' }).Count
+        $clientFile = $relative -match '/client/' -or $clientParent -or [regex]::IsMatch($text, 'EventBusSubscriber\([^)]*Side\.CLIENT') -or
+            ($sideOnly -ge 0 -and $firstType.Success -and $sideOnly -lt $firstType.Index)
+        $test = $relative -like 'src/gametest/*'
+        if ($clientFile -and -not $test) { continue }
+        $depth = 0; $clientDepth = -1; $pending = $false; $opening = $false
+        for ($i = 0; $i -lt $sources[$file].Length; $i++) {
+            $code = $sources[$file][$i]
+            if ($code.TrimStart().StartsWith('*') -or $code.TrimStart().StartsWith('/*')) { continue }
+            $code = $code -replace '"(?:\\.|[^"\\])*"', '""' -replace "'(?:\\.|[^'\\])+'", "''" -replace '//.*$', ''
+            $annotationOnly = $code -match '^\s*@\w+(\([^)]*\))?\s*$'
+            # Client-only regions: @SideOnly(CLIENT) members, and tile sync callbacks that only the client calls.
+            if (-not $test -and ($code -match '@SideOnly\(\s*Side\.CLIENT\s*\)' -or $code -match '\b(?:onDataPacket|handleUpdateTag)\s*\(\s*\w')) { $pending = $true }
+            if ($pending -and -not $annotationOnly -and $clientDepth -lt 0) { $clientDepth = $depth; $pending = $false; $opening = $true }
+            $inClient = $clientDepth -ge 0
+            if (-not $inClient) {
+                foreach ($m in [regex]::Matches($code, '\.\s*(\w+)\s*\(')) {
+                    $name = $m.Groups[1].Value
+                    if ($names.ContainsKey($name) -and -not $declared.ContainsKey($name)) {
+                        $found.Add(('{0} {1}:{2}: {3}.{4}() is client-only (@SideOnly(Side.CLIENT)): a dedicated server and every game test throw NoSuchMethodError here. Call it only from client code (a @SideOnly(Side.CLIENT) method or class, or a client event subscriber), or use a server-side alternative' -f $(if ($test) { 'ERROR' } else { 'WARN' }), $relative, ($i + 1), (Get-KitShortName $names[$name]), $name))
+                    }
+                }
+            }
+            $depth += ([regex]::Matches($code, '\{')).Count - ([regex]::Matches($code, '\}')).Count
+            if ($clientDepth -ge 0) {
+                if ($opening -and $code.Contains('{')) { $opening = $false }
+                elseif ($opening -and $code.Contains(';')) { $opening = $false; $depth = $clientDepth }
+                if (-not $opening -and $depth -le $clientDepth) { $clientDepth = -1 }
+            }
+        }
+    }
+    return $found
 }
 
 # Full class names matching a full, simple or Outer.Inner name; top-level and net.minecraft classes first.
@@ -156,6 +232,10 @@ function Get-KitCompileHint {
             return "no class $name in Minecraft/Forge 1.12.2; search: agent.ps1 api -Find <word>"
         }
         if ($owner -and $owner -notmatch '^(com\.example|java\.)') {
+            # Later versions have Items.COBBLESTONE etc.; in 1.12.2 a block's item comes from the block.
+            if (@(Resolve-KitClass $api $owner) -contains 'net.minecraft.init.Items' -and $kind -eq 'variable' -and @($api.members['net.minecraft.init.Blocks'] | Where-Object { $_[2] -ceq $name }).Count) {
+                return "Items has no block items in 1.12.2: use Item.getItemFromBlock(Blocks.$name), or new ItemStack(Blocks.$name)"
+            }
             $similar = Find-KitSimilarMembers $api $owner $name $(if ($kind -eq 'method') { 'M' } else { $null })
             if ($similar.Count) { return 'did you mean ' + ($similar -join ' | ') }
             return "no $kind '$name' on $owner; list members: agent.ps1 api $($owner -replace '^.*\.', '')"

@@ -35,13 +35,15 @@ if ($reports.Count) {
     $t0 = Get-RunTime $reports[0].runId; $t1 = Get-RunTime $reports[-1].runId
     "checks: $($reports.Count) between $($t0.ToLocalTime().ToString('HH:mm')) and $($t1.ToLocalTime().ToString('HH:mm')) ($([int]($t1 - $t0).TotalMinutes) min)"
     "  sequence (upper = PASS; e environment, b build, s server, g game): $sequence"
-    $stuck = @($reports | Where-Object { $_.repeatedFailures -ge 3 })
+    $stuck = @($reports | Where-Object { $_.repeatedFailures -ge 3 -or $_.testFailures -ge 5 })
     if ($stuck.Count) { "  STUCK printed $($stuck.Count)x, first after check $([array]::IndexOf($reports, $stuck[0]) + 1)" } else { '  STUCK: never' }
     $failedTests = @($reports | ForEach-Object { foreach ($t in @($_.harness.tests)) { if ($t -and $t.status -ne 'PASS') { $t } } })
     $withArea = @($failedTests | Where-Object { @($_.area).Count }).Count
     if ($failedTests.Count) {
         "  failed game tests: $($failedTests.Count) ($withArea with area lines); most repeated:"
-        $failedTests | Group-Object { "$($_.id) at $($_.phase)" } | Sort-Object Count -Descending | Select-Object -First 5 | ForEach-Object { "    x$($_.Count) $($_.Name): $((@($_.Group)[-1].message -replace '\s+', ' ').Substring(0, [Math]::Min(120, (@($_.Group)[-1].message -replace '\s+', ' ').Length)))" }
+        # Grouped by test, step and message: one step can fail for several different reasons.
+        $failedTests | ForEach-Object { $m = [string]$_.message -replace '\s+', ' '; $_ | Add-Member -NotePropertyName shortMessage -NotePropertyValue $m.Substring(0, [Math]::Min(120, $m.Length)) -Force; $_ } |
+            Group-Object { "$($_.id) at $($_.phase): $($_.shortMessage)" } | Sort-Object Count -Descending | Select-Object -First 5 | ForEach-Object { "    x$($_.Count) $($_.Name)" }
     }
     $compile = @($reports | Where-Object { $_.status -ne 'PASS' -and $_.profile -eq 'build' } | ForEach-Object { @($_.problems)[0] } | Where-Object { $_ })
     if ($compile.Count) { "  build failures: $($compile.Count); first problems: " + ((@($compile | Select-Object -First 4 | ForEach-Object { ($_ -replace '^.*?/([^/]+\.java)', '$1').Substring(0, [Math]::Min(90, ($_ -replace '^.*?/([^/]+\.java)', '$1').Length)) })) -join ' | ') }

@@ -16,8 +16,8 @@ Generators: `new recipe` (shaped/shapeless JSON) and `new smelting`. Formats, fo
 ```
 
 - Files: `assets/<modid>/recipes/<name>.json`; the file name is the recipe id. Not `data/` (that is 1.13+).
-- `"data"` = metadata (wool colors, dyes); omit for normal items. Results can carry `"nbt": "{...}"` as a string.
-- Ore dictionary ingredients match any registered `ingotIron`, `gemDiamond`, `logWood`... Register your own in init: `OreDictionary.registerOre("gemRuby", ModItems.RUBY)`.
+- `"data"` = metadata; items with subtypes (wool, dye, planks, stone, stained glass) need it (32767 = any), or the file fails to load with "Missing data". Omit it for normal items. Results can carry `"nbt": "{...}"` as a string.
+- Ore dictionary ingredients match any registered `ingotIron`, `gemDiamond`, `logWood`, `wool`... (vanilla names: `agent.ps1 api -Find registerOre`; `check server` reports an ingredient that matches nothing). Register your own in init: `OreDictionary.registerOre("gemRuby", ModItems.RUBY)`.
 - Group recipes in the recipe book with `"group": "mymod:tools"`.
 - A broken recipe file does not stop the game (Forge logs it and the recipe is missing); `check server` turns it into an ERROR naming the file and reason.
 

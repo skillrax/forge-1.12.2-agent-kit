@@ -28,7 +28,13 @@ Same for y and z (`camera = mc.getRenderViewEntity()`), then `pushMatrix`, `tran
 
 ## Particles
 
-Spawn from `TickEvent.ClientTickEvent` (phase END), never from `render`; skip when paused, respect particle settings, only near a loaded active tile. Bound the rate (example: one every 4 ticks within 24 blocks, 24-tick life). A custom `Particle` updates `prevPosX/Y/Z` before moving and dies at `particleMaxAge`.
+Spawn from `TickEvent.ClientTickEvent` (phase END), never from `render`; skip when paused, respect particle settings, only near a loaded active tile. Bound the rate (example: one every 4 ticks within 24 blocks, 24-tick life). A custom `Particle` updates `prevPosX/Y/Z` before moving and dies at `particleMaxAge`. `setParticleTextureIndex(i)` picks cell `i` of the 16x16 grid in `textures/particle/particles.png` (row * 16 + column); many cells are tiny or blank, so copy the index a vanilla particle uses (`agent.ps1 api ParticleNote` shows 64) instead of guessing.
+
+## Colour handlers (tinting)
+
+- `IBlockColor`/`IItemColor` (registered in `ColorHandlerEvent.Block`/`.Item`, client side) only tint model faces that set `"tintindex"`. `block/cube_all` has none (a tinted full cube can use parent `block/leaves`, or its own elements with `"tintindex": 0`); `item/generated` layers tint with their layer number (`layer0` = 0). Break particles always use tint 0, so coloured particles on an untinted block mean the model lacks `tintindex`.
+- The tint multiplies the texture: draw tinted parts near white.
+- Colour from a tile: sync it (`getUpdateTag`/`getUpdatePacket`, server `world.notifyBlockUpdate(pos, state, state, 3)`), then redraw on the client: `world.markBlockRangeForRenderUpdate(pos, pos)` in `onDataPacket`/`handleUpdateTag`. Calling it on the server does nothing for clients.
 
 ## Complex static models (OBJ/FBX/glTF art)
 

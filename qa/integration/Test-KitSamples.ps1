@@ -34,6 +34,7 @@ try {
         @('init', 'rubymod', 'Ruby Mod'),
         @('new', 'item', 'ruby'),
         @('new', 'ore', 'ruby_ore', '-Drops', 'ruby', '-Count', '1-2', '-Xp', '3-7', '-Level', '2', '-Height', '5-32'),
+        @('new', 'ore', 'ruby_nether_ore', '-Drops', 'ruby', '-Dimension', '-1', '-Height', '10-100'),
         @('new', 'block', 'ruby_block', '-Material', 'IRON', '-Hardness', '5', '-Level', '2'),
         @('new', 'food', 'ruby_apple', '-Hunger', '6', '-Saturation', '1.2', '-AlwaysEdible', '-Effect', 'regeneration:100:1'),
         @('new', 'tools', 'ruby', '-Only', 'all', '-Level', '2', '-Durability', '1200', '-Speed', '8', '-Damage', '3', '-Repair', 'ruby', '-Recipes'),

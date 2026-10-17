@@ -599,8 +599,8 @@ public class ModWorldGen implements IWorldGenerator {
             Block host = dimension == -1 ? Blocks.NETHERRACK : dimension == 1 ? Blocks.END_STONE : Blocks.STONE;
             WorldGenMinable vein = new WorldGenMinable(ore.block.getDefaultState(), ore.size, BlockMatcher.forBlock(host));
             for (int i = 0; i < ore.veins; i++) {
-                // +8 keeps veins inside already-generated neighbours (avoids cascading chunk generation).
-                BlockPos pos = new BlockPos(chunkX * 16 + 8 + random.nextInt(16), ore.minY + random.nextInt(ore.maxY - ore.minY + 1), chunkZ * 16 + 8 + random.nextInt(16));
+                // Chunk corner, no +8: WorldGenMinable adds 8 itself, which keeps the vein inside the chunks already generated.
+                BlockPos pos = new BlockPos(chunkX * 16 + random.nextInt(16), ore.minY + random.nextInt(ore.maxY - ore.minY + 1), chunkZ * 16 + random.nextInt(16));
                 vein.generate(world, random, pos);
             }
         }
@@ -734,7 +734,7 @@ function Build-Armor {
     $slots = @{ helmet = 'HEAD'; chestplate = 'CHEST'; leggings = 'LEGS'; boots = 'FEET' }
     # ArmorMaterial reductions are indexed boots, leggings, chestplate, helmet.
     Add-AtMarker $project.items 'items' (@(
-        "/** Armor material: durability factor $factor, protection helmet/chest/legs/boots $($values -join ','), toughness $tough, enchantability $ench. Texture: textures/models/armor/${Name}_layer_1/2.png */",
+        "/** Armor material: durability factor $factor, protection helmet/chest/legs/boots $($values -join ','), toughness $tough, enchantability $ench (the array below is boots, legs, chest, helmet). Texture: textures/models/armor/${Name}_layer_1/2.png */",
         "public static final ItemArmor.ArmorMaterial $mat = EnumHelper.addArmorMaterial(`"$Name`", $($project.mainClass).MODID + `":$Name`", $factor, new int[] {$($values[3]), $($values[2]), $($values[1]), $($values[0])}, $ench, SoundEvents.ITEM_ARMOR_EQUIP_$($base.sound), $(F $tough));") +
         @($pieces | ForEach-Object { "public static final Item ${const}_$(ConvertTo-Constant $_) = item(`"${Name}_$_`", new ItemArmor($mat, 0, EntityEquipmentSlot.$($slots[$_])));" }))
     foreach ($piece in $pieces) { New-ItemAssets "${Name}_$piece" ("$title " + (ConvertTo-Title $piece)) $piece 'item/generated' $Name }

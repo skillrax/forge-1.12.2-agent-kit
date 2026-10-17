@@ -93,7 +93,10 @@ public final class HarnessMod {
         } catch (Throwable error) {
             Throwable cause = error;
             for (int depth = 0; depth < 8 && cause.getCause() != null; depth++) cause = cause.getCause();
-            record(false, current == null ? "setup" : current.phase(), String.valueOf(cause.getMessage()), cause);
+            // Assertions carry their own text; other exceptions need their type (an NPE has no message at all).
+            String message = cause instanceof AssertionError && cause.getMessage() != null ? cause.getMessage()
+                    : cause.getClass().getName() + (cause.getMessage() == null ? "" : ": " + cause.getMessage());
+            record(false, current == null ? "setup" : current.phase(), message, cause);
             if (current != null) { try { current.cleanup(); } catch (Throwable ignored) { } }
             current = null;
         }

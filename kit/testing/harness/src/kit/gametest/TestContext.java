@@ -123,6 +123,7 @@ public final class TestContext {
         if (!breakBlock(miner, pos)) throw new AssertionError("could not break " + blockId + " with " + toolId);
         List<ItemStack> result = new ArrayList<>();
         for (EntityItem drop : world().getEntitiesWithinAABB(EntityItem.class, new AxisAlignedBB(pos).grow(1.5))) {
+            if (drop.isDead) continue;   // collected by an earlier drops() call in the same tick (neighboring spot)
             result.add(drop.getItem().copy());
             drop.setDead();
         }
@@ -181,6 +182,8 @@ public final class TestContext {
             @Override public void sendMessage(ITextComponent component) { received.add(text(component)); }
             @Override public void sendStatusMessage(ITextComponent component, boolean actionBar) { received.add((actionBar ? "actionbar: " : "") + text(component)); }
             @Override public boolean isEntityInvulnerable(DamageSource source) { return !vulnerable && super.isEntityInvulnerable(source); }
+            // FakePlayer returns false here, and EntityPlayerMP.attackEntityFrom then drops all damage from a player (thrown projectiles too).
+            @Override public boolean canAttackPlayer(EntityPlayer other) { return vulnerable || super.canAttackPlayer(other); }
         };
         messages.put(player, received);
         new NetHandlerPlayServer(server, new NetworkManager(EnumPacketDirection.SERVERBOUND), player);

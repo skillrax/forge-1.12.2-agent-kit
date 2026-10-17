@@ -24,6 +24,11 @@ try {
     foreach ($file in @('agent.ps1', 'build.gradle', 'TASK.md')) { Copy-Item -LiteralPath (Join-Path $kit $file) -Destination $fixture }
     foreach ($file in @('Diagnostics.ps1', 'Test-DevEnvironment.ps1')) { Copy-Item -LiteralPath (Join-Path $kit "testing/$file") -Destination (Join-Path $fixture 'testing') }
     foreach ($file in @('Initialize-Mod.ps1', 'New-Content.ps1', 'Export-Release.ps1')) { Copy-Item -LiteralPath (Join-Path $kit "tools/$file") -Destination (Join-Path $fixture 'tools') }
+    # The API index drives compiler hints and the client-only check.
+    # It is generated (agent.ps1 check environment in kit/); without it those groups are skipped and say so.
+    $index = Join-Path $kit '.kit/api-index.tsv'
+    $hasIndex = [IO.File]::Exists($index)
+    if ($hasIndex) { New-Item -ItemType Directory -Force -Path (Join-Path $fixture '.kit') | Out-Null; Copy-Item -LiteralPath $index -Destination (Join-Path $fixture '.kit') }
     # Fake Gradle: FAKE_MODE=compile-error prints javac output (with the duplicate copy Gradle produces).
     Set-Content -LiteralPath (Join-Path $fixture 'gradlew.bat') -Encoding ASCII -Value "@echo off`r`npowershell -NoProfile -File `"%~dp0fake.ps1`" %*`r`nexit /b %errorlevel%"
     Set-Content -LiteralPath (Join-Path $fixture 'fake.ps1') -Encoding UTF8 -Value @'
@@ -41,6 +46,26 @@ if ($env:FAKE_MODE -eq 'compile-error') {
     '1 error'
     '> Task :compileJava FAILED'
     exit 1
+}
+if ($env:FAKE_MODE -eq 'block-item') {
+    $file = Join-Path $root 'src\main\java\com\example\demo\DemoMod.java'
+    "${file}:9: error: cannot find symbol"
+    '    static Item Y = Items.STONEBRICK;'
+    '                         ^'
+    '  symbol:   variable STONEBRICK'
+    '  location: class Items'
+    '1 error'
+    exit 1
+}
+if ($env:FAKE_MODE -eq 'test-fail') {
+    # A game run whose test b fails at the step named in FAKE_PHASE.
+    $out = ($args | Where-Object { $_ -like '-PkitCheckOut=*' } | Select-Object -First 1) -replace '^-PkitCheckOut=', ''
+    'Done (1.0s)! For help, type "help"'
+    $report = @{ registered = @{ items = 1 }; lint = @(); tests = @(@{ id = 'b'; status = 'FAIL'; phase = $env:FAKE_PHASE; message = 'm' }) }
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $out) | Out-Null
+    [IO.File]::WriteAllText($out, ($report | ConvertTo-Json -Depth 5))
+    'KIT_HARNESS_DONE'
+    exit 0
 }
 if ($env:FAKE_MODE -eq 'network-once' -and -not (Test-Path (Join-Path $root 'network-failed-once'))) {
     New-Item -ItemType File (Join-Path $root 'network-failed-once') | Out-Null
@@ -91,6 +116,8 @@ exit 0
     $lang = Read-Text "$assets/lang/en_us.lang"
     foreach ($key in @('item.demo.gem.name=Gem', 'tile.demo.gem_ore.name=Gem Ore', 'item.demo.gem_pickaxe.name=Gem Pickaxe', 'item.demo.gem_chestplate.name=Gem Chestplate', 'tile.demo.gem_box.name=Gem Box')) { Assert ($lang.Contains($key)) "lang $key" }
     foreach ($file in @("$assets/textures/items/gem.png", "$assets/textures/blocks/gem_ore.png", "$assets/textures/models/armor/gem_layer_1.png", "$assets/blockstates/gem_block.json", 'src/gametest/java/com/example/demo/GemOreDropsTest.java')) { Assert (Test-Path -LiteralPath (Join-Path $fixture $file)) "missing $file" }
+    $own = if ($hasIndex) { Invoke-Agent @('api', 'GemBoxTile') 1 } else { "'GemBoxTile' is your mod's class: read src/main/java/com/example/demo/GemBoxTile.java" }
+    Assert ($own -match "'GemBoxTile' is your mod's class: read src/main/java/com/example/demo/GemBoxTile\.java") "api on own class: $own"
     $dup = Invoke-Agent @('new', 'item', 'gem') 1
     Assert ($dup -match 'already declared') 'duplicate rejected'
     $passed.Add('generators: item block ore food tools armor recipe smelting tile mob test, duplicate refusal')
@@ -163,6 +190,30 @@ exit 0
     $env:FAKE_MODE = 'ok'
     $passed.Add('compact and JSON check output, network retry')
 
+    # Client-only members compile but throw NoSuchMethodError on a server: an ERROR in game tests, a WARN in common code,
+    # nothing inside @SideOnly(CLIENT) members or onDataPacket (only the client calls it).
+    if ($hasIndex) {
+    $testFile = Join-Path $fixture 'src/gametest/java/com/example/demo/ColorTest.java'
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $testFile) | Out-Null
+    [IO.File]::WriteAllText($testFile, "package com.example.demo;`nclass ColorTest { int c = net.minecraft.item.EnumDyeColor.RED.getColorValue(); }`n")
+    $clientTest = Invoke-Agent @('check') 1
+    Assert ($clientTest -match '(?m)^ERROR src/gametest/java/com/example/demo/ColorTest\.java:2: EnumDyeColor\.getColorValue\(\) is client-only') "client-only call in a test: $clientTest"
+    Remove-Item -LiteralPath $testFile
+    $tileFile = Join-Path $fixture "$java/SyncTile.java"
+    [IO.File]::WriteAllText($tileFile, (@(
+        'package com.example.demo;', 'import net.minecraftforge.fml.relauncher.Side;', 'import net.minecraftforge.fml.relauncher.SideOnly;',
+        'public class SyncTile extends net.minecraft.tileentity.TileEntity {', '    @Override',
+        '    public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.SPacketUpdateTileEntity pkt) {',
+        '        readFromNBT(pkt.getNbtCompound());', '    }', '    @SideOnly(Side.CLIENT)',
+        '    public int tint() { return net.minecraft.item.EnumDyeColor.RED.getColorValue(); }',
+        '    public int serverTint() {', '        return net.minecraft.item.EnumDyeColor.RED.getColorValue();', '    }', '}') -join "`n"))
+    $clientMain = Invoke-Agent @('check')
+    $warnings = @($clientMain -split "`n" | Where-Object { $_ -match 'client-only' })
+    Assert ($warnings.Count -eq 1 -and $warnings[0] -match "^WARN $([regex]::Escape($java))/SyncTile\.java:12: EnumDyeColor\.getColorValue\(\)") "client-only call in common code: $clientMain"
+    Remove-Item -LiteralPath $tileFile
+    $passed.Add('client-only calls: test ERROR, common WARN, client regions skipped')
+    } else { $passed.Add('SKIPPED client-only calls and block-item hint (no kit/.kit/api-index.tsv: run kit/agent.ps1 check environment)') }
+
     $env:FAKE_MODE = 'compile-error'
     $failure = Invoke-Agent @('check') 1
     $lines = $failure -split "`n"
@@ -173,6 +224,13 @@ exit 0
     Assert ($failure -match 'src/main/java/com/example/demo/DemoMod\.java') 'relative path'
     Assert ((Invoke-Agent @('errors') 0) -match 'hint: 1\.12\.2 uses setTranslationKey') 'errors reprint'
     Assert ((Invoke-Agent @('status')) -match 'next: Fix the last failure') 'status after failure'
+    if ($hasIndex) {
+        $env:FAKE_MODE = 'block-item'
+        $blockItem = Invoke-Agent @('check') 1
+        Assert ($blockItem -match 'hint: Items has no block items in 1\.12\.2: use Item\.getItemFromBlock\(Blocks\.STONEBRICK\)') "block item hint: $blockItem"
+    }
+    $env:FAKE_MODE = 'compile-error'
+    Invoke-Agent @('check') 1 | Out-Null
     $passed.Add('compile diagnostics, hints, errors, status')
 
     # Same failure three checks in a row (errors reprints do not count): STUCK; a PASS resets the streak.
@@ -183,7 +241,13 @@ exit 0
     $env:FAKE_MODE = 'ok'
     Invoke-Agent @('check') | Out-Null
     Assert (-not (Test-Path (Join-Path $fixture 'reports/testing-tools/streak.json'))) 'streak reset on PASS'
-    $passed.Add('circuit breaker after 3 identical failures')
+    # One test failing at a different step each time: STUCK at the fifth check in a row.
+    $env:FAKE_MODE = 'test-fail'
+    foreach ($n in 1..5) { $env:FAKE_PHASE = "setup $n"; $game = Invoke-Agent @('check', 'game') 1; if ($n -eq 4) { Assert ($game -notmatch 'STUCK') "early STUCK: $game" } }
+    Assert ($game -match 'STUCK: test b failed 5 checks in a row') "test circuit breaker: $game"
+    $env:FAKE_MODE = 'ok'
+    Invoke-Agent @('check') | Out-Null
+    $passed.Add('circuit breaker after 3 identical failures or 5 failures of one test')
 
     $export = Invoke-Agent @('export') 1
     Assert ($export -match 'check server') "export gate: $export"
@@ -194,4 +258,4 @@ exit 0
 } catch {
     "FAIL: $($_.Exception.Message)`npassed: $($passed -join '; ')`nfixture: $fixture"
     exit 1
-} finally { Remove-Item Env:FAKE_MODE -ErrorAction SilentlyContinue }
+} finally { Remove-Item Env:FAKE_MODE, Env:FAKE_PHASE -ErrorAction SilentlyContinue }

@@ -2,14 +2,14 @@
 
 ## Ores
 
-`./agent.ps1 new ore ...` creates ModWorldGen (an `IWorldGenerator` registered in preInit) and adds `ore(block, dimension, veins, size, minY, maxY)`. Veins are offset +8 blocks into the chunk so generation stays inside already generated neighbors (prevents runaway chunk generation). Only new chunks get ores.
+`./agent.ps1 new ore ...` creates ModWorldGen (an `IWorldGenerator` registered in preInit) and adds `ore(block, dimension, veins, size, minY, maxY)`. Only new chunks get ores.
 
-Other features in the same generator: any `WorldGenerator` (`WorldGenMinable`, `WorldGenTrees`, your own) called with a position at `chunkX * 16 + 8 + random.nextInt(16)`. Biome checks: `world.getBiome(pos)`, `BiomeDictionary.hasType(biome, BiomeDictionary.Type.HOT)`.
+Population of chunk (x, z) may touch only blocks in chunks x..x+1, z..z+1; anything further loads a new chunk ("causing cascading worldgen lag" in the log). So call features at `chunkX * 16 + 8 + random.nextInt(16)` (trees, your own structures), except `WorldGenMinable`, which adds the 8 itself: give it `chunkX * 16 + random.nextInt(16)`. Biome checks: `world.getBiome(pos)`, `BiomeDictionary.hasType(biome, BiomeDictionary.Type.HOT)`.
 
 ## Placing a structure safely
 
 - Decide the rule first: which blocks count as ground, what may be replaced, slope and headroom. Check every footprint and support cell before changing anything; reject the spot otherwise (no partial structures).
-- `world.getHeight(x, z)` counts leaves as height. Scan down to real ground instead.
+- `world.getHeight(x, z)` counts leaves as height. Scan down to real ground instead. `isReplaceable` is true for water and lava: reject liquids explicitly where the structure must stand on land.
 - Templates: save with a vanilla structure block in a dev world, put the `.nbt` file in `assets/<modid>/structures/<name>.nbt`, load with `world.getSaveHandler().getStructureTemplateManager().getTemplate(server, new ResourceLocation(MODID, name))` and place with `template.addBlocksToWorld(world, pos, new PlacementSettings())` (server only, during generation or later).
 - Generate shared features only from their origin chunk, so they are not regenerated over player edits.
 

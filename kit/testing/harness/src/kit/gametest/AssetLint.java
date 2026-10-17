@@ -69,6 +69,7 @@ final class AssetLint {
                 () -> langKey(ench.getRegistryName().getNamespace(), ench.getName(), "enchantment " + ench.getRegistryName()));
         for (net.minecraft.potion.Potion potion : ForgeRegistries.POTIONS) if (mine(potion)) guard("effect " + potion.getRegistryName(),
                 () -> langKey(potion.getRegistryName().getNamespace(), potion.getName(), "effect " + potion.getRegistryName()));
+        for (net.minecraft.item.crafting.IRecipe recipe : ForgeRegistries.RECIPES) if (mine(recipe)) guard("recipe " + recipe.getRegistryName(), () -> recipe(recipe));
 
         JsonObject report = new JsonObject();
         JsonArray mods = new JsonArray();
@@ -145,6 +146,18 @@ final class AssetLint {
             if (!inventory) warn(subject, "missing " + itemModel + " and the blockstate has no \"inventory\" variant (item shows as missing texture); add the item model with parent \"" + id.getNamespace() + ":block/" + id.getPath() + "\"");
         } else {
             warn(subject, "missing " + itemModel + " (item shows as missing texture)");
+        }
+    }
+
+    /** A recipe that loads but can never match, such as one naming an ore dictionary entry that does not exist. */
+    private void recipe(net.minecraft.item.crafting.IRecipe recipe) {
+        int slot = 0;
+        for (net.minecraft.item.crafting.Ingredient ingredient : recipe.getIngredients()) {
+            slot++;
+            if (ingredient == net.minecraft.item.crafting.Ingredient.EMPTY || ingredient.getMatchingStacks().length > 0) continue;
+            String what = ingredient instanceof net.minecraftforge.oredict.OreIngredient
+                    ? "an ore dictionary name with no entries (vanilla names: agent.ps1 api -Find registerOre)" : "no item";
+            error("recipe " + recipe.getRegistryName(), "ingredient " + slot + " matches " + what + "; the recipe can never be crafted");
         }
     }
 

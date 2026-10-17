@@ -41,6 +41,31 @@ public final class GeneratorTests {
         }
     }
 
+    /**
+     * Populating chunk (x, z) may touch chunks x..x+1, z..z+1 only; anything further cascades. Needs real terrain
+     * (placing ore relights neighbours), so this runs the Nether ore in the Nether.
+     */
+    @GameTest("ruby-ore-no-cascade")
+    public static final class OreNoCascade implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("generate nether ore far from spawn", () -> {
+                net.minecraft.world.WorldServer nether = t.server().getWorld(-1);
+                net.minecraft.world.gen.ChunkProviderServer chunks = nether.getChunkProvider();
+                ModWorldGen gen = new ModWorldGen();
+                for (int n = 0; n < 3; n++) {
+                    int cx = 2000 + n * 8, cz = 2000;
+                    for (int dx = 0; dx <= 1; dx++) for (int dz = 0; dz <= 1; dz++) nether.getChunk(cx + dx, cz + dz);
+                    java.util.List<String> before = new java.util.ArrayList<>();
+                    for (int x = cx - 1; x <= cx + 2; x++) for (int z = cz - 1; z <= cz + 2; z++) if (chunks.isChunkGeneratedAt(x, z)) before.add(x + "," + z);
+                    for (int seed = 0; seed < 200; seed++) gen.generate(new java.util.Random(n * 1000 + seed), cx, cz, nether, null, null);
+                    for (int x = cx - 1; x <= cx + 2; x++) for (int z = cz - 1; z <= cz + 2; z++) {
+                        t.require(before.contains(x + "," + z) || !chunks.isChunkGeneratedAt(x, z), "ore for chunk " + cx + "," + cz + " loaded chunk " + x + "," + z);
+                    }
+                }
+            });
+        }
+    }
+
     @GameTest("ruby-apple-effect")
     public static final class Apple implements Scenario {
         @Override public void plan(TestContext t) {

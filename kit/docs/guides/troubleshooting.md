@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Fix the first problem a check prints and rerun the same check. The same failure three times prints `STUCK`: isolate it, then report (AGENTS.md step 7). `./agent.ps1 errors -Full` shows the log tail.
+Fix the first problem a check prints and rerun the same check. The same failure three times (or one test failing five times) prints `STUCK`: isolate it, then report (AGENTS.md step 7). `./agent.ps1 errors -Full` shows the log tail.
 
 | Symptom | Cause / fix |
 |---|---|

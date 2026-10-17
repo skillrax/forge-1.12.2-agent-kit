@@ -6,6 +6,7 @@ Use Forge `IItemHandler` (`CapabilityItemHandler.ITEM_HANDLER_CAPABILITY`). For 
 
 - Expose handlers only on intended faces; read a neighbor through its **opposite** face. Input views allow insert only, output views extract only. `ItemStackHandler` gives limits, simulation and NBT.
 - Never lose items: simulate, then commit only what the receiver accepts.
+- Vanilla hoppers pull from the block above through its DOWN face and push into the block they face through the opposite face (a hopper above your machine inserts via UP; one below extracts via DOWN): one item per 8 ticks, none while powered.
 
 ```java
 ItemStack offered = buffer.extractItem(slot, rate, true);                       // simulate

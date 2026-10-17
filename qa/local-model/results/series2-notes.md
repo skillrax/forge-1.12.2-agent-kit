@@ -19,6 +19,14 @@ Trials in `beta23-prompt-set-2/S<n>`; summaries from Read-Trial, outcomes from t
 
 Outcome: 6 work, 2 partly or after one user round trip (S5, S6), 1 fail (S3, old setup plus harness bug). Every user-found defect was client-side (tint, particles, armor texture, GUI look, effect flicker) or in generated worldgen; no `check game` PASS hid a server-logic bug.
 
+## Applied in kit 0.5.0-beta.24
+All 12 below plus the one-line single-sighting facts. Corrections found while applying:
+- Fix 1: the +8 bug does not cascade in a flat world (no stone, nothing placed); the cascade comes from placing ore at the far edge (relighting loads chunk +2). Measured with the samples' ore over 576 real chunks: 530 warnings with +8, 0 without. Forge names the first mod class on the stack, so its attribution is reliable here. Regression test: `ruby-ore-no-cascade` (Nether ore, Nether terrain) fails on the old offset.
+- Fix 3: main-code findings are WARN (code under `if (world.isRemote)` is valid), test-code findings ERROR; screens/particles extending client classes and `onDataPacket`/`handleUpdateTag` are skipped. No false positives on the S1-S7 mods.
+- Fix 10: STUCK key unchanged (S6's three "different" errors shared one test message); added STUCK at 5 failures of one test.
+- New harness bug found by the samples: `t.drops()` counted items already collected by an earlier call in the same tick (spots 2 apart, 1.5 search radius); dead items are now skipped.
+- Not done: asset lint for tinted models without tintindex (the server cannot see colour handlers); the rendering fact covers it.
+
 ## Candidate fixes (verified against pinned 1.12.2 source; ranked)
 1. **Kit bug, `new ore` (S7, verified):** the generator and worldgen.md line 7 place `WorldGenMinable` at `chunkX * 16 + 8 + nextInt(16)`, but `WorldGenMinable.generate` adds 8 itself (lines 34-37), so veins reach chunk+2 and cascade (55 warnings in S7's log). Vanilla `BiomeDecorator.genStandardOre1` passes the chunk corner. Fix: no +8 for `WorldGenMinable` in the generator and the guide (other features still +8); a fixture that runs the generated ore generator on a new chunk and fails on "loaded a new chunk".
 2. **Harness bug, `targetPlayer` (S3, verified):** cannot take damage whose true source is a player (`FakePlayer.canAttackPlayer` returns false; `EntityPlayerMP.attackEntityFrom` checks it). Fix: override `canAttackPlayer` (the S3 model's one-line patch); fixture with a player-thrown projectile hitting a target player.

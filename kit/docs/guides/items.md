@@ -76,6 +76,10 @@ public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStac
 }
 ```
 
+## Coloured armor
+
+`ItemArmor`'s `hasColor/getColor/setColor` and the vanilla dye recipe work only for `ArmorMaterial.LEATHER`: for your own material override those three (NBT `display.color`) and add your own dye `IRecipe` (guides/recipes.md). Once `getColor` returns a colour, the worn layer also binds `textures/models/armor/<material>_layer_1_overlay.png` (and `_layer_2_`): provide them (transparent is fine), or the head renders as a missing texture.
+
 ## Test
 
 `useItem(p, hand)` then check NBT, durability and spawned entities; `finishUsingItem` for food; chat feedback with `t.messages(p)`. Held-item behavior (`onUpdate`) never runs on a FakePlayer: call it yourself each tick (docs/TESTING.md). The hand bobbing and tooltips need the client.

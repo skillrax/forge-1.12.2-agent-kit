@@ -2,8 +2,8 @@
 
 | Check | Proves | Time |
 |---|---|---|
-| `check` (= build) | compiles; jar has an @Mod, Java 8 bytecode, valid JSON, versions in sync; unit tests pass if any | ~10 s |
-| `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants, enchantments and effects their translation; tile entities registered | ~25 s |
+| `check` (= build) | compiles; jar has an @Mod, Java 8 bytecode, valid JSON, versions in sync; unit tests pass if any; calls to client-only members (ERROR in game tests, WARN in common code) | ~10 s |
+| `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants, enchantments and effects their translation; tile entities registered; recipes whose ingredients match nothing | ~25 s |
 | `check game [-Test a,b]` | server + your `@GameTest` scenarios | ~25 s + test time |
 | `check unit` | JUnit 4 tests in src/test/java (plain Java logic only; no Minecraft registries) | ~10 s |
 | `check environment` | toolchain and Minecraft API compile | ~10 s |
@@ -36,18 +36,18 @@ public class OreDropsTest implements Scenario {
 | TestContext | Use |
 |---|---|
 | `then(label, () -> {...})` | run code as the next step; use `require(cond, msg)` inside |
-| `check(name, () -> cond, () -> detail)` | named assertion step (names: lowercase-with-dashes, unique) |
+| `check(name, () -> cond, () -> detail)` | named assertion step (names of `check`, `waitUntil`, `invariant`: lowercase-with-dashes, unique; `then` labels are free text) |
 | `waitTicks(n)`, `waitUntil(name, maxTicks, cond, detail)` | let the world run |
 | `invariant(name, cond, detail)` | must hold every tick from here on |
-| `origin()`, `world()`, `server()`, `ticks()` | fixture area, WorldServer, server, elapsed ticks |
+| `origin()`, `world()`, `server()`, `ticks()` | fixture area (16x16 stone floor at y -1; origin is the air block above its corner), WorldServer, server, elapsed ticks |
 | `place(pos, "modid:block")`, `place(pos, state)`, `state(pos)`, `tile(pos, Class)`, `inventory(pos)` | blocks and tile entities |
 | `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities (the test server runs `spawn-animals=false`, so animals vanish on their next tick: use an armor stand or a mob) |
 | `craft("a", "", "b", ...)`, `smelt(id)` | crafting result of a row-major 3x3 grid ("" = empty), furnace result |
 | `drops(blockId, toolId)`, `count(stacks, id)` | place + mine a block with a tool in a free spot, return what dropped; count one item |
 | `player(name)` | survival FakePlayer at origin, facing south; mobs cannot see or hurt it |
-| `targetPlayer(name)` | a player mob AI targets and damages (in the world's player list; removed when the test ends). It never ticks, so after a hit `hurtResistantTime` stays up: set it to 0 to count several hits |
+| `targetPlayer(name)` | a player that mob AI targets and that takes damage from mobs, players and their projectiles (in the world's player list; removed when the test ends). It never ticks, so after a hit `hurtResistantTime` stays up: set it to 0 to count several hits |
 | `loot(table)`, `loot(table, entity)` | one roll of a loot table (`"modid:entities/name"`); loop and `count` for ranges like "0-2" |
-| `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths. `useOnBlock` with an empty hand returns PASS even when `onBlockActivated` ran (vanilla): assert on the effect, not the result |
+| `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths. `useOnBlock` is a real right-click: it returns PASS whenever the hand is empty afterwards (empty hand, or your `onBlockActivated` used up the last item), and when `onBlockActivated` returns false the held item's own use runs, so a held block item is placed against the target. Assert on the effect, and hold a non-placeable item (a stick) to test "nothing happens" |
 | `messages(p)` | chat and action-bar messages sent to `p`, oldest first (`"actionbar: "` prefix; translated ones end in `[key]`) |
 
 Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`. Signatures and bodies: `agent.ps1 api TestContext[.member]` (no need to read the whole file).
@@ -57,7 +57,7 @@ Things that bite:
 - One behavior per `@GameTest`: each test gets its own cleared area, so setups cannot disturb each other, and `check game -Test id` reruns one. Steps inside one test share the area: keep separate setups 3+ blocks apart, and remember redstone carries (a comparator powers the block it faces away from, and that block powers its neighbors, such as a hopper).
 - The test area ticks like a loaded world: tiles, hoppers and redstone run. A hopper moves one item per 8 ticks; `enabled=false` in its state means it is receiving redstone power (the default is enabled) and it moves nothing.
 - A failed test also prints `area` lines: every block the test placed and any other block in its area (x,y,z from `t.origin()`), with its state, redstone it receives and inventory contents, then entity counts. Read them before adding instrumentation; make your own detail print counts the area lines do not show.
-- The same failure 3 checks in a row prints `STUCK`: isolate the behavior in its own test, then report (AGENTS.md step 7) instead of guessing on.
+- The same failure 3 checks in a row, or one test failing 5 checks in a row, prints `STUCK`: isolate the behavior in its own test, then report (AGENTS.md step 7) instead of guessing on.
 - FakePlayer never ticks: item use timers, attack cooldown (hits do ~20% damage) and potion countdowns on it do not advance. Call `finishUsingItem` for food. Held-item behavior (`Item.onUpdate`, for anything "while in the inventory") never runs by itself: call `stack.getItem().onUpdate(stack, t.world(), p, slot, selected)` each tick from a `waitUntil` or `invariant`.
 - `t.player` is not in the server's player list: command selectors, name lookups and mob targeting (`getNearestAttackablePlayer` searches only that list) never find it, and `player.openGui` does nothing. Use `targetPlayer` for hostile mobs; test containers by constructing them directly.
 - Random ticks run (crops grow, grass spreads, leaves decay), so "X did not happen" can fail by chance. Assert on state your code owns (a counter, an inventory) instead of on world noise.

@@ -95,6 +95,7 @@ function Get-Problems($Result) {
     }
     if ($compile.Count -gt 8) { $lines.Add(('... {0} more compiler errors; fix these first' -f ($compile.Count - 8))) }
     if (-not $compile.Count) { foreach ($l in (Get-KitLogProblems $log)) { $lines.Add($l) } }
+    foreach ($call in @($Result.clientOnlyCalls)) { if ($call) { $lines.Add($call) } }
     if ($Result.harness) {
         foreach ($issue in @($Result.harness.lint)) { $lines.Add(('{0} {1}: {2}' -f $issue.level, $issue.subject, $issue.message)) }
         foreach ($t in @($Result.harness.tests)) {
@@ -133,7 +134,11 @@ function Update-FailureStreak($Result) {
     $previous = $null
     if ([IO.File]::Exists($path)) { try { $previous = [IO.File]::ReadAllText($path) | ConvertFrom-Json } catch { $previous = $null } }
     $count = if ($previous -and $previous.key -eq $key) { [int]$previous.count + 1 } else { 1 }
-    [IO.File]::WriteAllText($path, (@{ key = $key; count = $count } | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+    # A test that keeps failing at changing steps is stuck too (each new setup changes the key above).
+    $test = @(@($Result.harness.tests) | Where-Object { $_ -and $_.status -ne 'PASS' } | ForEach-Object { $_.id }) | Select-Object -First 1
+    $testCount = if (-not $test) { 0 } elseif ($previous -and $previous.test -eq $test) { [int]$previous.testCount + 1 } else { 1 }
+    [IO.File]::WriteAllText($path, (@{ key = $key; count = $count; test = $test; testCount = $testCount } | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+    $Result | Add-Member -NotePropertyName testFailures -NotePropertyValue $testCount -Force
     return $count
 }
 
@@ -159,6 +164,9 @@ function Format-Check($Result) {
         $key = Get-FailureKey $Result
         if ($key -like 'test *') { $out += ('STUCK: {0} failed the same way {1} checks in a row. Stop changing code to guess. Read the area lines; move this behavior into its own @GameTest with only its own setup and rerun it with -Test; if it still fails, finish with a partial report (AGENTS.md).' -f $key, $Result.repeatedFailures) }
         else { $out += ('STUCK: the same problem {0} checks in a row: {1}. Look up the exact signature (agent.ps1 api Class.member) or write it another way; if it still fails, finish with a partial report (AGENTS.md).' -f $Result.repeatedFailures, $key) }
+    } elseif ($Result.testFailures -ge 5) {
+        $test = @(@($Result.harness.tests) | Where-Object { $_ -and $_.status -ne 'PASS' }) | Select-Object -First 1
+        $out += ('STUCK: test {0} failed {1} checks in a row. Stop changing the setup. Reduce it to the one behavior that fails, compare the area lines with what you expected, look up that behavior (agent.ps1 api); if it still fails, finish with a partial report (AGENTS.md).' -f $test.id, $Result.testFailures)
     }
     if ($Result.status -ne 'PASS') { $out += ('log: ' + (Get-Relative $Result.log) + '  (run ' + $Result.runId + ')') }
     return ($out -join "`n")
@@ -211,6 +219,8 @@ function Invoke-Api {
     }
     $candidates = @(Resolve-KitClass $api $className)
     if (-not $candidates.Count) {
+        $own = @(foreach ($dir in @('src/main/java', 'src/gametest/java')) { $p = Join-Path $root $dir; if ([IO.Directory]::Exists($p)) { [IO.Directory]::GetFiles($p, ($className -replace '^.*\.', '') + '.java', [IO.SearchOption]::AllDirectories) } })
+        if ($own.Count) { throw ("'$className' is your mod's class: read " + (($own | ForEach-Object { $_.Substring($root.Length + 1).Replace('\', '/') }) -join ', ') + ' (api covers Minecraft and Forge only).') }
         $near = @($api.bySimple.Keys | Where-Object { $_ -like ('*' + $className + '*') } | Select-Object -First 8)
         throw ("No class '$className' in 1.12.2." + $(if ($near.Count) { ' Similar: ' + ($near -join ', ') } else { ' Try: agent.ps1 api -Find <word>' }))
     }
@@ -389,6 +399,16 @@ try {
             [Console]::Error.WriteLine('Network download failed; retrying once. ' + $result.message)
             }
             $result | Add-Member -NotePropertyName projectRoot -NotePropertyValue $root
+            # Client-only calls compile but throw NoSuchMethodError on a server: report them once the build compiles.
+            if ($selected -in @('build', 'server', 'game') -and $result.gradleExitCode -eq 0 -or $result.harness) {
+                $clientCalls = @(Get-KitClientOnlyCalls $root)
+                if ($clientCalls.Count) {
+                    $result | Add-Member -NotePropertyName clientOnlyCalls -NotePropertyValue $clientCalls
+                    if ($result.status -eq 'PASS' -and @($clientCalls | Where-Object { $_ -like 'ERROR *' }).Count) {
+                        $result.status = 'FAIL'; $result.exitCode = 1; $exitCode = 1; $result.message = 'Game tests call client-only members.'
+                    }
+                }
+            }
             $result | Add-Member -NotePropertyName runId -NotePropertyValue ([IO.Path]::GetFileNameWithoutExtension($result.report))
             $result | Add-Member -NotePropertyName problems -NotePropertyValue @(Get-Problems $result)
             $result | Add-Member -NotePropertyName repeatedFailures -NotePropertyValue (Update-FailureStreak $result)

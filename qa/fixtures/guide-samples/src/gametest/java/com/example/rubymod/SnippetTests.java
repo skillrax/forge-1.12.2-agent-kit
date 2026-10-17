@@ -294,6 +294,20 @@ public final class SnippetTests {
             });
         }
     }
+    /** TESTING.md: t.targetPlayer() takes damage whose true source is a player (thrown projectiles, arrows). */
+    @GameTest("target-player-hurt-by-player")
+    public static final class TargetHurtByPlayer implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("a player's thrown projectile hurts the target player", () -> {
+                FakePlayer target = t.targetPlayer("target");
+                FakePlayer thrower = t.player("thrower");
+                net.minecraft.entity.projectile.EntitySnowball ball = new net.minecraft.entity.projectile.EntitySnowball(t.world(), thrower);
+                t.require(target.attackEntityFrom(net.minecraft.util.DamageSource.causeThrownDamage(ball, thrower), 2.0F), "player-sourced damage ignored");
+                t.require(target.getHealth() == 18.0F, "health " + target.getHealth());
+            });
+        }
+    }
+
     /** TESTING.md / entities.md: mobs cannot see t.player(); t.targetPlayer() is targeted and hurt. t.loot rolls a table. */
     @GameTest("mob-targets-and-loot")
     public static final class Targeting implements Scenario {
