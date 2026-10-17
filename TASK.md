@@ -12,6 +12,6 @@ Result (trials in qa/local-model/results; feedback claims verified against 1.12.
 - P5 pads (29 min) partly: needed the partner's chunk loaded, likely from the guides' never-load-chunks advice. beta.18: far-partner rule, empty-hand useOnBlock PASS, other dimensions testable, api TestContext.
 - Evidence: Test-GuideSnippets, Test-AgentInterface, Test-TestingTools, Test-MappedSource, Test-Packaging PASS; Test-KitSamples last passed on beta.17 (no harness change since).
 
-Next action: record P5b (user asked the model to fix chunk loading); then P6-P7 on beta.18. Deferred: client-only lint.
+Next action: P6-P7 on beta.18 (P5b fixed chunk loading with tickets on beta.17; recorded). Deferred: client-only lint.
 
 Blocker: None. Not verified: graphical client: manual runClient check per release.

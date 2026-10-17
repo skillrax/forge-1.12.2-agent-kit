@@ -16,5 +16,6 @@ Edited pinned build files: no   Wrote game tests: yes   Report honest: yes
 ## General fix (would it help a different mod?)
 - kit 0.5.0-beta.18: tile-entities guide "Far partners": one-off player actions may load the partner (`server.getWorld(dim)`, `getTileEntity`); store position + dimension; tickets only for unattended work. TESTING.md: empty-hand useOnBlock returns PASS; other dimensions exist and load on demand. `agent.ps1 api TestContext[.member]` lists harness signatures (34 lines instead of 392) and reads members from testing/harness/src.
 
-## P5b (fix on request)
-- pending
+## P5b (fix on request, still kit beta.17)
+- Fixed: linking and teleport now work with the partner pad unloaded (user, runClient).
+- Approach: ForgeChunkManager tickets (the model noted a per-mod ticket cap; its figure of 128 is unverified). Works, but keeps chunks loaded permanently; loading the partner on demand is the lighter fix that beta.18's far-partner rule now names. Baseline for the rule: a run on beta.18 should store position + dimension and load on demand.
