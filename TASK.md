@@ -1,6 +1,6 @@
 # Current maintainer task
 
-Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.21).
+Objective: Make the kit efficient and reliable for AI mod authoring, down to small local models (branch claude/kit-refactor, kit 0.5.0-beta.22).
 
 Direction (user, 2026-10-16): the kit must let an AI build mods it has never seen. Turn each field test into general facts, checks or hints where an AI gets stuck, never into a feature or guide for that one mod. Generators stay small, for standard content only.
 
@@ -12,6 +12,6 @@ Result (trials in qa/local-model/results; feedback claims verified against 1.12.
 - beta.19-21: usage log + Read-Trial (no watching needed); long api reads show start, end and Forge lines; look up behavior first; net.minecraft.init fact; enchantment/effect lang lint.
 - Evidence: Test-GuideSnippets, Test-AgentInterface, Test-TestingTools, Test-MappedSource, Test-Packaging PASS; Test-KitSamples PASS (beta.21).
 
-Next action: series 1 done. Next: new held-out prompts, ideally a second model family, unattended + Read-Trial; consider trimming AGENTS.md (3.5 KB, budget ~2.5 KB). Deferred: client-only lint.
+Next action: series 1 done. Next: new held-out prompts, ideally a second model family, unattended + Read-Trial; AGENTS.md trimmed to 2.9 KB in beta.22 (all trial-critical rules kept). Deferred: client-only lint.
 
 Blocker: None. Not verified: graphical client: manual runClient check per release.
