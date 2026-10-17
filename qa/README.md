@@ -11,7 +11,7 @@ Run what the change affects (docs/DEVELOPMENT.md). From the repository root:
 | Setup/Java/launcher | `qa/unit/Test-*Setup.ps1`, `Test-*JavaEnvironment.ps1`, `Test-WingetLauncher.ps1`, `Test-SetupLauncher.ps1` | setup scripts |
 | Mapped source | `qa/unit/Test-MappedSource.ps1` | source reader |
 | Packaging | `qa/unit/Test-Packaging.ps1`; candidate: `qa/integration/Test-KitZip.ps1 -Manifest <path>` | allowlist and ZIP |
-| Local-model trials | `qa/local-model/README.md`: held-out PROMPTS.md, results/ | unseen mods built from the packaged kit by a local model (OpenCode), with a Claude Code control run (manual) |
+| Local-model trials | `qa/local-model/README.md`: held-out PROMPTS.md, Read-Trial.ps1 (unattended run summary), results/ | unseen mods built from the packaged kit by a local model (OpenCode), with a Claude Code control run (manual) |
 | Installed-artifact harness | `qa/integration/Test-InstalledHarness.ps1`, `Test-InstalledDiscovery.ps1`, `Test-InstalledWorkflow.ps1` | optional installed-server path |
 
 Fixtures:

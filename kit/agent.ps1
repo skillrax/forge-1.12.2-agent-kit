@@ -332,6 +332,8 @@ function Split-KitCommandLine([string]$Line) {
 
 $exitCode = 0
 $lock = $null
+$logStart = [DateTime]::UtcNow
+$result = $null
 try {
     switch ($Action) {
         'check' {
@@ -490,5 +492,18 @@ try {
     else { 'FAIL: ' + $_.Exception.Message; if ($env:KIT_DEBUG) { $_.ScriptStackTrace } }
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
+    # Usage log: one JSON line per call, so a long unattended run can be reviewed afterwards
+    # (qa tooling or a person reads reports/agent-log.jsonl; check details are in the run's report).
+    try {
+        $named = @($PSBoundParameters.Keys | Where-Object { $_ -notin @('Action', 'Target', 'Rest') } | ForEach-Object { $v = $PSBoundParameters[$_]; if ($v -is [switch] -or $v -is [bool]) { "-$_" } else { "-$_ $v" } })
+        $entry = [ordered]@{
+            time = $logStart.ToString('o'); seconds = [Math]::Round(([DateTime]::UtcNow - $logStart).TotalSeconds, 1)
+            action = $Action; target = $Target; args = (@(@($Rest | Where-Object { $null -ne $_ } | ForEach-Object { if ($_ -is [array]) { $_ -join ',' } else { "$_" } }) + $named) -join ' ')
+            exit = [int]$exitCode
+        }
+        if ($result -and $result.runId) { $entry.runId = $result.runId; $entry.status = $result.status; $entry.repeatedFailures = $result.repeatedFailures }
+        New-Item -ItemType Directory -Force -Path (Join-Path $root 'reports') | Out-Null
+        [IO.File]::AppendAllText((Join-Path $root 'reports/agent-log.jsonl'), ($entry | ConvertTo-Json -Compress) + "`n", (New-Object Text.UTF8Encoding($false)))
+    } catch { }
 }
 exit $exitCode

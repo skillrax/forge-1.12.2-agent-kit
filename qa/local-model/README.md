@@ -29,10 +29,23 @@ Measures whether a small local model can build mods it has never seen with the p
 
 1. Extract the ZIP into a new folder **outside this repository** (e.g. `Documents\kit-trials\p0-local`), so the agent cannot find maintainer files, fixtures or these prompts. Every trial starts from a fresh copy; keep the path short (Windows 260-character limit).
 2. Open that folder in the agent app (`opencode` there). It reads the kit's AGENTS.md. Before the prompt, note the context already used: frontend prompt, tools and AGENTS.md are overhead the kit can only partly shrink.
-3. Paste the prompt from PROMPTS.md verbatim. Do not help. If it asks a question, answer as a non-expert user would, in one line. If it is stuck (same error 3 times, or looping), give one nudge and record it as an intervention.
+3. Paste the prompt from PROMPTS.md verbatim. You do not need to watch: every `agent.ps1` call is logged in the trial folder (`reports/agent-log.jsonl`, kit 0.5.0-beta.19+). If it asks a question, answer as a non-expert user would, in one line. If it is stuck (no progress for a long time), give one nudge and record it as an intervention.
 4. When it says it is done: run `./agent.ps1 status` and `./agent.ps1 check game` yourself, then `gradlew.bat runClient` and try the feature once.
-5. Last message to the agent: "Write kit-feedback.md: where the kit's docs or tools slowed you down or misled you, and what you guessed." Copy it into the result.
-6. Write `qa/local-model/results/<id>.md` (template below). Keep the trial folder until the cause is fixed.
+5. Ask for feedback (the neutral prompt below) and save the answer next to the trial folder.
+6. `powershell -NoProfile -File qa/local-model/Read-Trial.ps1 -Path <trial folder>` summarizes the run without anyone having watched it: time, every check in order (PASS/FAIL), STUCK, failed tests and whether `area` lines came with them, compile errors, every `api` lookup, generators, kit files the agent changed (pinned build files flagged; init/version edits recognized), the mod's size, export and TASK.md. Older kits: check reports only.
+7. Write `qa/local-model/results/<id>.md` (template below) from the summary, the feedback and the client check. Keep the trial folder until the cause is fixed. Everything not done through `agent.ps1` (which docs it read, direct edits) is only in the frontend's session transcript, if it can export one.
+
+Feedback prompt:
+
+```text
+That works, thanks. This was a test of the kit itself, which I'm still developing. Please give honest feedback on the kit, not on the mod. Don't change any files.
+1. Where did you spend the most time or tokens, and why? Point to specific moments: commands, errors, files you read.
+2. Where did you guess or rely on memory instead of the kit? Which of those guesses turned out wrong?
+3. Was anything in the kit's docs or tool output missing, unclear, or wrong for this task? Quote the line if you can.
+4. Which of your problems came from the kit, and which from your own reasoning? Say which is which.
+5. What worked well and should stay as it is?
+Rank the problems by what they cost you. For each one, suggest the smallest change to the kit that would have prevented it.
+```
 
 ## Control run
 
