@@ -200,6 +200,15 @@ function Invoke-Api {
     if ($Target -cmatch '^(.+)\.([a-z_$][\w$]*|<init>)$') { $className = $Matches[1]; $member = $Matches[2] }
     elseif ($Target -cmatch '^(.+)\.([A-Z][\w$]*)$' -and ($Matches[1] -replace '^.*\.', '') -ceq $Matches[2]) { $className = $Matches[1]; $member = '<init>' }   # ItemAxe.ItemAxe
     if ($member -eq 'new') { $member = '<init>' }
+    # The kit's own test harness (TestContext, Scenario, GameTest) is read from testing/harness/src.
+    if ($className -cmatch '^(kit\.gametest\.)?(TestContext|Scenario|GameTest)$') {
+        $harnessClass = 'kit.gametest.' + $Matches[2]; $harnessSrc = Join-Path $root 'testing/harness/src'
+        if ($member) { & $reader -Class $harnessClass -Member $member -MaxLines $(if ($Full) { 150 } else { 40 }) -Text -Archive $harnessSrc 2>$null; return }
+        $found = (& $reader -Class $harnessClass -Declarations -MaxLines 200 -Archive $harnessSrc 2>$null) | ConvertFrom-Json
+        $harnessClass + ' (kit harness; table: docs/TESTING.md)'
+        foreach ($d in @($found.declarations)) { if ($d.text -match '^\s*public\b') { '  ' + ($d.text.Trim() -replace '\s*\{.*$', '') } }
+        return
+    }
     $candidates = @(Resolve-KitClass $api $className)
     if (-not $candidates.Count) {
         $near = @($api.bySimple.Keys | Where-Object { $_ -like ('*' + $className + '*') } | Select-Object -First 8)

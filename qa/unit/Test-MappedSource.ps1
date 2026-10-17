@@ -61,6 +61,12 @@ try {
     if($LASTEXITCODE -ne 0 -or $body[0] -notmatch 'lines 2-6'){throw "Read did not end at the closing brace: $body"}
     $both=& $shell -NoProfile -File $helper -Class example.Food -Member feed -Text -Archive $archive
     if($LASTEXITCODE -ne 0 -or ($both -join "`n") -notmatch 'feed\(int amount\)'){throw "Text read did not show the second overload: $both"}
-    [ordered]@{status='PASS'; cases=@('bounded excerpt','240-character lines','Unicode','overload selection','missing class/member','annotated field/method','bounded declaration discovery/no calls','conflicting selectors','grep across sources','nested type head','interface member','read ends at closing brace','text read shows overloads'); fixture=$fixture; scope='synthetic source-reader fixture'} | ConvertTo-Json -Compress
+    # A source folder instead of an archive (agent.ps1 api TestContext reads testing/harness/src).
+    $folder=Join-Path $fixture 'src'
+    New-Item -ItemType Directory -Force -Path (Join-Path $folder 'example') | Out-Null
+    [IO.File]::WriteAllText((Join-Path $folder 'example/Feeder.java'), (@('package example;','public interface Feeder {','    int slots();','}') -join "`n"))
+    $fromFolder=& $shell -NoProfile -File $helper -Class example.Feeder -Member slots -Text -Archive $folder
+    if($LASTEXITCODE -ne 0 -or ($fromFolder -join "`n") -notmatch 'int slots\(\);' -or ($fromFolder -join "`n") -notmatch 'kit harness source'){throw "Folder read incorrect: $fromFolder"}
+    [ordered]@{status='PASS'; cases=@('source folder','bounded excerpt','240-character lines','Unicode','overload selection','missing class/member','annotated field/method','bounded declaration discovery/no calls','conflicting selectors','grep across sources','nested type head','interface member','read ends at closing brace','text read shows overloads'); fixture=$fixture; scope='synthetic source-reader fixture'} | ConvertTo-Json -Compress
     exit 0
 } catch { @{status='FAIL';message=$_.Exception.Message;fixture=$fixture} | ConvertTo-Json -Compress; exit 1 }

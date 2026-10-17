@@ -33,6 +33,13 @@ try {
         $cacheRoot = if ($env:GRADLE_USER_HOME) { $env:GRADLE_USER_HOME } else { Join-Path $env:USERPROFILE '.gradle' }
         $Archive = Join-Path $cacheRoot 'caches/minecraftforge/forgegradle/mavenizer/caches/forge/net/minecraftforge/forge/1.12.2-14.23.5.2859/stable/39-1.12/remapped-javadoc.jar'
     }
+    if ([IO.Directory]::Exists($Archive)) {
+        # A source folder instead of the archive: the kit's own harness classes (agent.ps1 api TestContext).
+        if ($Grep) { throw 'Grep searches the Minecraft/Forge source archive only.' }
+        $entryName = $Class.Replace('.', '/') + '.java'
+        if (-not [IO.File]::Exists((Join-Path $Archive $entryName))) { throw "Class source absent: $entryName" }
+        $lines = [IO.File]::ReadAllLines((Join-Path $Archive $entryName))
+    } else {
     if (-not [IO.File]::Exists($Archive)) { throw 'Mapped source archive missing. Run agent.ps1 check environment first.' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [IO.Compression.ZipFile]::OpenRead($Archive)
@@ -70,6 +77,7 @@ try {
         $lines = Read-Entry $zip $entryName
         if (-not $lines) { throw "Class source absent: $entryName" }
     } finally { $zip.Dispose() }
+    }
     # Conservative declaration discovery, not a Java parser. Never return bodies or calls.
     $discovered = @()
     for ($i=0; $i -lt $lines.Length; $i++) {
@@ -119,7 +127,7 @@ try {
         @{ number=$n; text=$value }
     }
     if ($Text) {
-        'source: {0} lines {1}-{2} (pinned 1.12.2 mapped source)' -f $entryName, $Line, $end
+        'source: {0} lines {1}-{2} ({3})' -f $entryName, $Line, $end, $(if ([IO.Directory]::Exists($Archive)) { 'kit harness source' } else { 'pinned 1.12.2 mapped source' })
         foreach ($row in $snippet) { '{0,5}| {1}' -f $row.number, $row.text }
         # Text reads show the following overloads too while the MaxLines budget lasts; the one with the side effect is often not the first.
         $shown = $end - $Line + 1

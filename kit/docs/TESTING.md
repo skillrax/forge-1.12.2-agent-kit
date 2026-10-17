@@ -47,10 +47,10 @@ public class OreDropsTest implements Scenario {
 | `player(name)` | survival FakePlayer at origin, facing south; mobs cannot see or hurt it |
 | `targetPlayer(name)` | a player mob AI targets and damages (in the world's player list; removed when the test ends). It never ticks, so after a hit `hurtResistantTime` stays up: set it to 0 to count several hits |
 | `loot(table)`, `loot(table, entity)` | one roll of a loot table (`"modid:entities/name"`); loop and `count` for ranges like "0-2" |
-| `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths |
+| `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths. `useOnBlock` with an empty hand returns PASS even when `onBlockActivated` ran (vanilla): assert on the effect, not the result |
 | `messages(p)` | chat and action-bar messages sent to `p`, oldest first (`"actionbar: "` prefix; translated ones end in `[key]`) |
 
-Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`. Full TestContext source: testing/harness/src/kit/gametest/TestContext.java (`api` reads only Minecraft/Forge).
+Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)`. Signatures and bodies: `agent.ps1 api TestContext[.member]` (no need to read the whole file).
 
 Things that bite:
 - Only the lambdas passed to `then`, `check`, `waitUntil` and `invariant` run on ticks. Other code in `plan()` runs once at tick 0, before any step: compute and assert inside the lambdas.
@@ -62,5 +62,6 @@ Things that bite:
 - `t.player` is not in the server's player list: command selectors, name lookups and mob targeting (`getNearestAttackablePlayer` searches only that list) never find it, and `player.openGui` does nothing. Use `targetPlayer` for hostile mobs; test containers by constructing them directly.
 - Random ticks run (crops grow, grass spreads, leaves decay), so "X did not happen" can fail by chance. Assert on state your code owns (a counter, an inventory) instead of on world noise.
 - The test world is always day: zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health.
+- Other dimensions exist: `t.server().getWorld(-1)` (Nether) and `getWorld(1)` (End) load on demand, and `entity.changeDimension(dim)` works, so cross-dimension behavior can be tested.
 - Each run uses a new world, so save/load across restarts is not tested. A tile's `writeToNBT`/`readFromNBT` round trip can be checked directly.
 - Keep test classes in src/gametest; they can use everything in src/main.
