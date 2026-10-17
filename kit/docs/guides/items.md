@@ -78,4 +78,4 @@ public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStac
 
 ## Test
 
-`useItem(p, hand)` then check NBT, durability and spawned entities; `finishUsingItem` for food. The hand bobbing and tooltips need the client.
+`useItem(p, hand)` then check NBT, durability and spawned entities; `finishUsingItem` for food; chat feedback with `t.messages(p)`. Held-item behavior (`onUpdate`) never runs on a FakePlayer: call it yourself each tick (docs/TESTING.md). The hand bobbing and tooltips need the client.

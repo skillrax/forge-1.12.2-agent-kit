@@ -76,4 +76,4 @@ Prefer vanilla `ContainerMerchant`/`GuiMerchant` through `IMerchant`. The mercha
 
 ## Test
 
-`t.spawn("mymod:ruby_zombie", pos)`, then check attributes. Hostility: put a `t.targetPlayer(name)` nearby and `waitUntil` `getAttackTarget() == player` (a plain `t.player` is never targeted). Drops: `t.loot("mymod:entities/ruby_zombie")` per roll. The test world is daytime: zombies and skeletons burn. Spawning in biomes and rendering need the client.
+`new mob` already writes checks for stats, egg, drop range and spawn biomes. For custom behavior: `t.spawn("mymod:ruby_zombie", pos)`, then check attributes. Hostility: put a `t.targetPlayer(name)` nearby and `waitUntil` `getAttackTarget() == player` (a plain `t.player` is never targeted). Drops: `t.loot("mymod:entities/ruby_zombie")` per roll. The test world is daytime: zombies and skeletons burn. Natural spawning in the world and rendering need the client.

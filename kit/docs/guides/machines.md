@@ -30,7 +30,7 @@ Face roles in the example: 0 disabled, 1 main input, 2 secondary input, 3 main o
 
 ## Chunk safety and dirty marking
 
-Matters for anything that reads neighbors or other chunks (pipes, cables, machines at chunk edges):
+Matters for code that runs every tick and reads neighbors or other chunks (pipes, cables, machines at chunk edges). A one-off action a player triggers may load what it needs instead: guides/tile-entities.md, "Far partners".
 
 - Check `world.isBlockLoaded(pos)` before `world.getTileEntity(pos)` on another block. Re-get neighbor tiles/capabilities each time; never cache them across ticks.
 - In 1.12.2, `World.getTileEntity` goes through `ChunkProviderServer.getLoadedChunk`, which **cancels a pending unload** (`unloadQueued`). Networks that must not keep chunks alive should index `getLoadedChunks()` and read existing tile maps instead: `examples/rf-network/.../LoadedView.java`.

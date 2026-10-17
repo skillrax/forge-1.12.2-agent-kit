@@ -3,7 +3,7 @@
 | Check | Proves | Time |
 |---|---|---|
 | `check` (= build) | compiles; jar has an @Mod, Java 8 bytecode, valid JSON, versions in sync; unit tests pass if any | ~10 s |
-| `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants; tile entities registered | ~25 s |
+| `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants, enchantments and effects their translation; tile entities registered | ~25 s |
 | `check game [-Test a,b]` | server + your `@GameTest` scenarios | ~25 s + test time |
 | `check unit` | JUnit 4 tests in src/test/java (plain Java logic only; no Minecraft registries) | ~10 s |
 | `check environment` | toolchain and Minecraft API compile | ~10 s |
@@ -14,7 +14,7 @@ Nothing here can see the screen. GUI layout, model appearance and animations nee
 
 ## Game tests
 
-Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food stats); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (its placeholder check fails until you replace it). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor at y=3.
+Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food/mob stats, mob eggs, drops and spawns); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (its placeholder check fails until you replace it). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor at y=3.
 
 ```java
 @GameTest("ore-drops-ruby")
@@ -64,4 +64,3 @@ Things that bite:
 - The test world is always day: zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health.
 - Other dimensions exist: `t.server().getWorld(-1)` (Nether) and `getWorld(1)` (End) load on demand, and `entity.changeDimension(dim)` works, so cross-dimension behavior can be tested.
 - Each run uses a new world, so save/load across restarts is not tested. A tile's `writeToNBT`/`readFromNBT` round trip can be checked directly.
-- Keep test classes in src/gametest; they can use everything in src/main.

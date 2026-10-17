@@ -70,7 +70,7 @@ A water/lava source = 1000 mB. Simulate tank acceptance before removing the sour
 
 ## Loaded world
 
-Same rules as guides/machines.md: only act in loaded, not-queued chunks; don't force-load targets; neighbor updates and lighting can read further away.
+Same rules as guides/machines.md for automatic actions (breakers, placers, anything on a timer): only act in loaded, not-queued chunks; don't force-load targets; neighbor updates and lighting can read further away. A one-off player action on a far target may load it (guides/tile-entities.md, "Far partners").
 
 ## Test
 

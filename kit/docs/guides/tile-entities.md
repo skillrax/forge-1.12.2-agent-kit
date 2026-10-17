@@ -24,8 +24,7 @@ public final ItemStackHandler fuel = new ItemStackHandler(1) {
     @Override protected void onContentsChanged(int slot) { markDirty(); }
 };
 ```
-- **Comparator output**: override `hasComparatorInputOverride`/`getComparatorInputOverride` on the Block (guides/blocks.md); the tile's `markDirty()` makes comparators re-read it.
-- **Comparator / markDirty cost**: `TileEntity.markDirty()` also updates comparators, which looks at neighbor blocks. For machines without comparator output in chunk-boundary-sensitive code see guides/machines.md.
+- **Comparators**: output is on the Block (`hasComparatorInputOverride`/`getComparatorInputOverride`, guides/blocks.md); the tile's `markDirty()` makes comparators re-read it. That update probes neighbors, so chunk-edge machines without comparator output can skip it (guides/machines.md).
 
 ## Capabilities in one place
 

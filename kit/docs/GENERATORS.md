@@ -12,9 +12,9 @@
 
 Generators insert code above those `// kit:` markers; keep the markers. Hand-written code next to generated code is fine.
 
-**Scope.** Generators make standard vanilla-shaped content and nothing else. Make only what the user asked for: "armor and a sword" is `new armor x -Only all ...` plus `new tools x -Only sword ...`; `-Only` is required so nothing unasked is made. Custom content starts from a generator too: `new tile` gives a block with a tile entity (NBT save, client sync, optional inventory capability and ticking, drops contents, registration, models, lang, texture), `new mob` a vanilla-based mob with its own stats, drops, egg and spawns, `new item`/`new block` a registered item or block with assets. Then write the behavior in those classes from the matching guide. Do not stretch generator options to fake behavior they do not model.
+**Scope.** Generators make standard vanilla-shaped content, and only what was asked: "armor and a sword" is `new armor x -Only all ...` plus `new tools x -Only sword ...` (`-Only` is required). Custom content starts from `new tile`, `new mob`, `new item` or `new block`, and its behavior is written by hand in the generated classes (AGENTS.md step 3); never stretch generator options to fake behavior they do not model.
 
-`./agent.ps1 new <kind> <name> [options]`. Names are lowercase registry paths (`ruby_ore`). Item references are `name` (this mod), `modid:name` or `minecraft:name`; unknown names are rejected (create the item first, fix the spelling, or `-Force`). Every kind writes lang entries (`-Display "Text"` overrides the title-cased name) and placeholder textures shaped like the item, one color per material (`-Color ff0000` overrides). Output is one summary line (`-List` lists every file); tools and armor add a `stats:` line with the values actually written. An option that does not belong to the kind is an error, never ignored.
+`./agent.ps1 new <kind> <name> [options]`. Names are lowercase registry paths (`ruby_ore`). Item references are `name` (this mod), `modid:name` or `minecraft:name`; unknown names are rejected (create the item first, fix the spelling, or `-Force`). Every kind writes lang entries (`-Display "Text"` overrides the title-cased name) and placeholder textures shaped like the item, one color per material (`-Color ff0000` overrides). Output is one summary line (`-List` lists every file); tools, armor and mobs add a `stats:` line with the values actually written. An option that does not belong to the kind is an error, never ignored.
 
 | Kind | Options (defaults) | Creates |
 |---|---|---|
@@ -52,7 +52,7 @@ Sword tooltip damage = 4 + `-Damage` (diamond: 7); axe tooltip = 1 + `-AxeDamage
 
 "N times diamond" is ambiguous (tooltip damage or bonus? protection past the cap?). Pick one reading, write the resulting numbers and the reason in TASK.md, then pass them explicitly: 3x diamond sword tooltip 21 = `-Damage 17`. Compare the `stats:` line with TASK.md before checking: generated checks assert what the generator wrote, so they cannot catch a wrong number.
 
-**Generated checks.** Every generator (except tile/test) appends assertions to `src/gametest/.../GeneratedContentTest.java`: recipes craft their result, smelting smelts, ores drop the right items, tool/armor/food stats match. `./agent.ps1 check game` runs them; edit them like any test.
+**Generated checks.** Every generator (except tile/test) appends assertions to `src/gametest/.../GeneratedContentTest.java`: recipes craft their result, smelting smelts, ores drop the right items, tool/armor/food/mob stats match, mobs have their egg, drop range and spawn biomes. `./agent.ps1 check game` runs them; edit them like any test.
 
 **Batch.** Put one command per line in a text file (`#` comments, quotes for values with spaces) and run `./agent.ps1 batch plan.txt`. It stops at the first failure and says which line.
 
