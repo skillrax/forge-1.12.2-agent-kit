@@ -127,8 +127,24 @@ try {
         @{ number=$n; text=$value }
     }
     if ($Text) {
-        'source: {0} lines {1}-{2} ({3})' -f $entryName, $Line, $end, $(if ([IO.Directory]::Exists($Archive)) { 'kit harness source' } else { 'pinned 1.12.2 mapped source' })
-        foreach ($row in $snippet) { '{0,5}| {1}' -f $row.number, $row.text }
+        $label = if ([IO.Directory]::Exists($Archive)) { 'kit harness source' } else { 'pinned 1.12.2 mapped source' }
+        $fullEnd = if ($Member -and -not $memberEnd) { Get-MemberEnd $declarationLines[$MatchIndex-1] ($Line + 3000) } else { $null }
+        if ($fullEnd) {
+            # Longer than the budget: show its start and its end. Forge patches and side effects are often appended at the end.
+            $headEnd = $Line + [int]($MaxLines * 0.6) - 1
+            $tailStart = $fullEnd - ($MaxLines - ($headEnd - $Line + 1)) + 1
+            'source: {0} lines {1}-{2}, {3} lines: start and end shown ({4})' -f $entryName, $Line, $fullEnd, ($fullEnd - $Line + 1), $label
+            foreach ($row in @($snippet | Where-Object { $_.number -le $headEnd })) { '{0,5}| {1}' -f $row.number, $row.text }
+            '      ... lines {0}-{1} skipped (all of it: agent.ps1 api ... -Full, or tools/Read-MappedSource.ps1 -Class {2} -Line {0} -MaxLines 200 -Text)' -f ($headEnd + 1), ($tailStart - 1), $Class
+            # Forge's patches name Forge (ForgeData, ForgeHooks, net.minecraftforge...): show them from the skipped part.
+            $forgeLines = @($(for ($n = $headEnd + 1; $n -lt $tailStart; $n++) { if ($lines[$n-1] -match '(?i)forge') { $n } }) | Select-Object -First 8)
+            if ($forgeLines.Count) { '      Forge lines in the skipped part:'; foreach ($n in $forgeLines) { $value = $lines[$n-1]; if ($value.Length -gt 240) { $value = $value.Substring(0,240) }; '{0,5}| {1}' -f $n, $value } ; '      ...' }
+            for ($n = $tailStart; $n -le $fullEnd; $n++) { $value = $lines[$n-1]; if ($value.Length -gt 240) { $value = $value.Substring(0,240) }; '{0,5}| {1}' -f $n, $value }
+            $end = $fullEnd; $memberEnd = $fullEnd
+        } else {
+            'source: {0} lines {1}-{2} ({3})' -f $entryName, $Line, $end, $label
+            foreach ($row in $snippet) { '{0,5}| {1}' -f $row.number, $row.text }
+        }
         # Text reads show the following overloads too while the MaxLines budget lasts; the one with the side effect is often not the first.
         $shown = $end - $Line + 1
         if ($Member) {

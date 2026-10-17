@@ -67,6 +67,11 @@ try {
     [IO.File]::WriteAllText((Join-Path $folder 'example/Feeder.java'), (@('package example;','public interface Feeder {','    int slots();','}') -join "`n"))
     $fromFolder=& $shell -NoProfile -File $helper -Class example.Feeder -Member slots -Text -Archive $folder
     if($LASTEXITCODE -ne 0 -or ($fromFolder -join "`n") -notmatch 'int slots\(\);' -or ($fromFolder -join "`n") -notmatch 'kit harness source'){throw "Folder read incorrect: $fromFolder"}
-    [ordered]@{status='PASS'; cases=@('source folder','bounded excerpt','240-character lines','Unicode','overload selection','missing class/member','annotated field/method','bounded declaration discovery/no calls','conflicting selectors','grep across sources','nested type head','interface member','read ends at closing brace','text read shows overloads'); fixture=$fixture; scope='synthetic source-reader fixture'} | ConvertTo-Json -Compress
+    # A method longer than the budget shows its start, its end and Forge lines from the middle.
+    $body=@('package example;','public class Long {','    public void save() {') + @(1..30 | ForEach-Object { "        step$_();" }) + @('        tag.setTag("ForgeData", data);') + @(31..60 | ForEach-Object { "        step$_();" }) + @('        last();','    }','}')
+    [IO.File]::WriteAllText((Join-Path $folder 'example/Long.java'), ($body -join "`n"))
+    $long=(& $shell -NoProfile -File $helper -Class example.Long -Member save -MaxLines 20 -Text -Archive $folder) -join "`n"
+    if($LASTEXITCODE -ne 0 -or $long -notmatch 'start and end shown' -or $long -notmatch 'ForgeData' -or $long -notmatch 'last\(\);' -or $long -match 'step40\(\)'){throw "Long method read incorrect: $long"}
+    [ordered]@{status='PASS'; cases=@('source folder','long method start, end and Forge lines','bounded excerpt','240-character lines','Unicode','overload selection','missing class/member','annotated field/method','bounded declaration discovery/no calls','conflicting selectors','grep across sources','nested type head','interface member','read ends at closing brace','text read shows overloads'); fixture=$fixture; scope='synthetic source-reader fixture'} | ConvertTo-Json -Compress
     exit 0
 } catch { @{status='FAIL';message=$_.Exception.Message;fixture=$fixture} | ConvertTo-Json -Compress; exit 1 }
