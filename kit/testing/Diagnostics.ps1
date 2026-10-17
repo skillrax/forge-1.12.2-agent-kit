@@ -35,6 +35,9 @@ $script:KitRenames = @{
     'appendItem' = 'NBTTagList.appendTag(NBTBase)'
     'addItemToInventory' = 'player.addItemStackToInventory(stack)'
     'getCompoundTag' = 'NBTTagList.getCompoundTagAt(int); getTagList(key, 10) reads a list of compounds'
+    # Later-version names models reach for.
+    'getFortuneModifier' = 'EnchantmentHelper.getEnchantmentLevel(Enchantments.FORTUNE, stack)'
+    'onBlockDestroyedByPlayer' = 'onPlayerDestroy(World, BlockPos, IBlockState)'
 }
 
 function Get-KitApiIndex {
@@ -211,7 +214,7 @@ function Get-KitCompileErrors {
         for ($j = $i + 1; $j -lt [Math]::Min($Lines.Length, $i + 10); $j++) {
             $next = $Lines[$j]
             if ($next -match '\.java:\d+: (error|warning):' -or $next -match '^\d+ errors?$') { break }
-            if ($next -match '^\s*\w+(\[[^\]]*\])+\s*$' -or $next -match '^> |^Note: ' -or -not $next.Trim()) { continue }   # interleaved Gradle noise
+            if ($next -match '^\s*\w+(\[[^\]]*\])+\s*$' -or $next -match '^> |^Note: |^For more on this|^Deprecated Gradle|^You can use |^\* |^BUILD |^FAILURE' -or -not $next.Trim()) { continue }   # interleaved Gradle noise
             if ($next -match '^\s*\^\s*$') { continue }
             if ($next.Trim() -match '^(symbol|location|required|found|reason):') { $details += ($next.Trim() -replace '\s+', ' '); continue }
             if (-not $code -and -not $details.Count) { $code = $next.Trim() }

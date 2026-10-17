@@ -64,6 +64,11 @@ final class AssetLint {
         for (EntityEntry entry : ForgeRegistries.ENTITIES) if (mine(entry)) guard("entity " + entry.getRegistryName(),
                 () -> langKey(entry.getRegistryName().getNamespace(), "entity." + entry.getName() + ".name", "entity " + entry.getRegistryName()));
         for (SoundEvent sound : ForgeRegistries.SOUND_EVENTS) if (mine(sound)) guard("sound " + sound.getRegistryName(), () -> sound(sound));
+        // Enchantment and effect names are translated from getName() itself (enchantment.<name>, effect.<name>).
+        for (net.minecraft.enchantment.Enchantment ench : ForgeRegistries.ENCHANTMENTS) if (mine(ench)) guard("enchantment " + ench.getRegistryName(),
+                () -> langKey(ench.getRegistryName().getNamespace(), ench.getName(), "enchantment " + ench.getRegistryName()));
+        for (net.minecraft.potion.Potion potion : ForgeRegistries.POTIONS) if (mine(potion)) guard("effect " + potion.getRegistryName(),
+                () -> langKey(potion.getRegistryName().getNamespace(), potion.getName(), "effect " + potion.getRegistryName()));
 
         JsonObject report = new JsonObject();
         JsonArray mods = new JsonArray();

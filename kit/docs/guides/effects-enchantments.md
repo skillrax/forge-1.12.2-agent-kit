@@ -38,10 +38,10 @@ public final class ModEnchantments {
 ```
 
 - The enchantment's effect is an event: `LivingHurtEvent` + `EnchantmentHelper.getMaxEnchantmentLevel(RUBY_EDGE, attacker)` (guides/events.md). For tools: `EnchantmentHelper.getEnchantmentLevel(ench, stack)`.
-- `EnumEnchantmentType`: WEAPON, DIGGER, ARMOR, ARMOR_HEAD/CHEST/LEGS/FEET, BOW, FISHING_ROD, BREAKABLE, ALL. Treasure-only: override `isTreasureEnchantment()`. Incompatible with another: `canApplyTogether`.
+- `EnumEnchantmentType`: WEAPON, DIGGER, ARMOR, ARMOR_HEAD/CHEST/LEGS/FEET, BOW, FISHING_ROD, BREAKABLE, ALL. Treasure-only: override `isTreasureEnchantment()`. Incompatible with another: `canApplyTogether`. Narrower than the type (pickaxes only, not all DIGGER tools): override `canApply(ItemStack)` (anvils, commands) and `canApplyAtEnchantingTable(ItemStack)` (table, loot); re-check the held item in your event handler too. Read the level with `EnchantmentHelper.getEnchantmentLevel(MY_ENCHANTMENT, stack)`; Fortune is `Enchantments.FORTUNE`.
 - Effect icons: keep `hasStatusIcon()` true and override `@SideOnly(Side.CLIENT) renderInventoryEffect(...)`/`renderHUDEffect(...)` to draw your own 18x18 texture; otherwise return false as above.
 - Brewable potions need a `PotionType` (registered in `RegistryEvent.Register<PotionType>`) and `PotionHelper.addMix(PotionTypes.AWKWARD, Items.X, MY_TYPE)`.
 
 ## Test
 
-Add the effect to a mob that doesn't burn in daylight (`minecraft:cow`), `waitTicks`, check health. Enchantment: hit two equal mobs with and without the enchanted item and compare.
+Add the effect to a mob that doesn't burn in daylight (`minecraft:cow`), `waitTicks`, check health. Enchantment: hit two equal mobs with and without the enchanted item and compare; a mining enchantment: give a FakePlayer the enchanted tool (`stack.addEnchantment(...)`), `breakBlock`, then count blocks and drops. Restricted items: `canApply` true for the allowed item, false for another.

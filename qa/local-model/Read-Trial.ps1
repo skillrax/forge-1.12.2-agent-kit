@@ -46,7 +46,7 @@ if ($reports.Count) {
     $compile = @($reports | Where-Object { $_.status -ne 'PASS' -and $_.profile -eq 'build' } | ForEach-Object { @($_.problems)[0] } | Where-Object { $_ })
     if ($compile.Count) { "  build failures: $($compile.Count); first problems: " + ((@($compile | Select-Object -First 4 | ForEach-Object { ($_ -replace '^.*?/([^/]+\.java)', '$1').Substring(0, [Math]::Min(90, ($_ -replace '^.*?/([^/]+\.java)', '$1').Length)) })) -join ' | ') }
     $final = @{}; foreach ($r in $reports) { $final[[string]$r.profile] = $r.status }
-    '  last result per profile: ' + ((@($final.Keys | Sort-Object | ForEach-Object { "$_ $($final[$_])" })) -join ', ')
+    "  last check: $($reports[-1].profile) $($reports[-1].status) (server and game checks include the build)"
 } else { 'checks: none run' }
 
 # Kit files changed or removed against the release manifest (pinned build files, tools, docs).
