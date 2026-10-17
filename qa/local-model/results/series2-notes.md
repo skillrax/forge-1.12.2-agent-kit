@@ -1,5 +1,7 @@
 # Series 2 running notes (kit 0.5.0-beta.23, no kit changes until the series ends)
 
+Setup: OpenCode CLI (context 65k, output 32k) -> Strata (G:\AI\Strata, run-iq3_xxs.bat, strata-iq3_xxs.json): Qwen3.8-Flash-Next GSQ-RCO IQ3_XXS, max context 65536, KV int8, speculative decoding --spec 4 --spec-min-p 0.70, experimental speed-projection control vector (scale 1.0, layers 4-44), fit_max_tokens true; sampling temp 0.6 for S0-S2, 0.7 from S3 (top_p 0.95, top_k 20, min_p 0.05). The control vector and lossy speculative acceptance may affect reasoning; if thinking loops persist, one run without the vector separates model setup from kit.
+
 Trials in `beta23-prompt-set-2/S<n>`; summaries from Read-Trial. Candidate fixes collect here and are applied in one batch after S7b, only if general (seen twice, or plainly a kit bug verified in source).
 
 | Trial | Outcome | Time (checks span) | Checks | STUCK | Kit files changed | Notes |
