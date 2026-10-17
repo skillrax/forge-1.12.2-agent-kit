@@ -14,7 +14,7 @@ The kit's job: let an AI agent, including small local models, turn a user's desc
 
 ## Rules for recipient docs
 
-- AGENTS.md stays under ~2.5 KB; guides under ~6 KB each; one topic per guide; INDEX.md one line per guide.
+- AGENTS.md stays under ~3 KB (every line earned by a trial; move detail to the docs it belongs to before adding); guides under ~6 KB each; one topic per guide; INDEX.md one line per guide.
 - A ```java block in kit/docs is either in qa/fixtures/guide-samples (compiled; behavior covered by a game test where behavior is the point) or it is cut. `qa/unit/Test-GuideSnippets.ps1` enforces this (`MyMod`/`mymod` = `RubymodMod`/`rubymod`; other names must match the fixture). A fragment not worth a fixture becomes prose with inline names. Check method names with `agent.ps1 api` before writing them.
 - State behavior and pitfalls, not proof history. Proof details stay in qa/fixtures and docs/CAPABILITIES.md.
 - New common mistakes go into tooling first: `$KitRenames` in kit/testing/Diagnostics.ps1 (compiler hints), AssetLint (server check) or a generator.
