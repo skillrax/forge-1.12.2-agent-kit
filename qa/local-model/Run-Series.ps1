@@ -15,7 +15,9 @@ param(
     [string]$Variant = 'high',
     [int]$Context = 131072,
     [int]$Output = 32768,
-    [ValidateRange(5, 600)][int]$MinutesPerStep = 120,
+    [ValidateRange(5, 600)][int]$TrialMinutes = 90,     # all work turns of one trial together (feedback has its own)
+    [ValidateRange(5, 120)][int]$IdleMinutes = 20,      # no agent.ps1 call and no changed file for this long: stop
+    [ValidateRange(2, 60)][int]$FeedbackMinutes = 15,
     [ValidateRange(0, 3)][int]$Nudges = 1,
     [string]$Out,
     [string]$Zip
@@ -62,8 +64,24 @@ if ($Agent -eq 'opencode') {
     $env:OPENCODE_CONFIG_CONTENT = (@{ provider = @{ local = @{ models = @{ $modelId = @{ limit = @{ context = $Context; output = $Output } } } } } } | ConvertTo-Json -Depth 8 -Compress)
 }
 
-# One agent turn; returns @{ session; text; timedOut }.
-function Invoke-AgentTurn([string]$Dir, [string]$Message, [string]$Session, [string]$Log) {
+# Last sign of work in a trial folder: the kit's call log or any file the agent wrote (build output and reports excluded).
+function Get-LastActivity([string]$Dir) {
+    $last = [DateTime]::MinValue
+    $log = Join-Path $Dir 'reports/agent-log.jsonl'
+    if ([IO.File]::Exists($log)) { $last = [IO.File]::GetLastWriteTimeUtc($log) }
+    foreach ($sub in @('src', 'TASK.md', 'plan.txt')) {
+        $path = Join-Path $Dir $sub
+        if ([IO.File]::Exists($path)) { $t = [IO.File]::GetLastWriteTimeUtc($path); if ($t -gt $last) { $last = $t } }
+        elseif ([IO.Directory]::Exists($path)) {
+            foreach ($f in [IO.Directory]::EnumerateFiles($path, '*', [IO.SearchOption]::AllDirectories)) { $t = [IO.File]::GetLastWriteTimeUtc($f); if ($t -gt $last) { $last = $t } }
+        }
+    }
+    return $last
+}
+
+# One agent turn until it ends, the deadline passes or the trial shows no activity for IdleMinutes.
+# Returns @{ session; text; stopped = '' | 'time budget' | 'no progress' }.
+function Invoke-AgentTurn([string]$Dir, [string]$Message, [string]$Session, [string]$Log, [DateTime]$Deadline) {
     $start = New-Object Diagnostics.ProcessStartInfo
     # OpenCode takes its project folder from PWD (which Git Bash exports), not from the working directory: set both.
     $start.EnvironmentVariables['PWD'] = $Dir
@@ -79,11 +97,19 @@ function Invoke-AgentTurn([string]$Dir, [string]$Message, [string]$Session, [str
     }
     $p = [Diagnostics.Process]::Start($start)
     $stdout = $p.StandardOutput.ReadToEndAsync(); $stderr = $p.StandardError.ReadToEndAsync()
-    $timedOut = -not $p.WaitForExit($MinutesPerStep * 60000)
-    if ($timedOut) { & taskkill.exe /PID $p.Id /T /F *> $null; $p.WaitForExit() }
+    $stopped = ''
+    $turnStart = [DateTime]::UtcNow
+    while (-not $p.WaitForExit(30000)) {
+        $now = [DateTime]::UtcNow
+        $active = Get-LastActivity $Dir
+        if ($active -lt $turnStart) { $active = $turnStart }
+        if ($now -gt $Deadline.ToUniversalTime()) { $stopped = 'time budget' }
+        elseif (($now - $active).TotalMinutes -gt $IdleMinutes) { $stopped = 'no progress' }
+        if ($stopped) { & taskkill.exe /PID $p.Id /T /F *> $null; $p.WaitForExit(); break }
+    }
     $raw = $stdout.Result
     [IO.File]::AppendAllText($Log, $raw + "`n", (New-Object Text.UTF8Encoding($false)))
-    $result = @{ session = $Session; text = ''; timedOut = $timedOut }
+    $result = @{ session = $Session; text = ''; stopped = $stopped }
     if ($Agent -eq 'opencode') {
         foreach ($line in ($raw -split "`n")) {
             if (-not $line.Trim().StartsWith('{')) { continue }
@@ -107,7 +133,7 @@ if ($Agent -eq 'opencode') {
     # Pre-flight: a one-word turn from a scratch folder must be recorded in that folder, or nothing runs.
     $probe = Join-Path $root '.probe'
     New-Item -ItemType Directory -Force -Path $probe | Out-Null
-    $answer = Invoke-AgentTurn $probe 'Reply with the single word OK.' $null (Join-Path $probe 'probe.jsonl')
+    $answer = Invoke-AgentTurn $probe 'Reply with the single word OK.' $null (Join-Path $probe 'probe.jsonl') ([DateTime]::Now.AddMinutes(10))
     $where = (& python -I (Join-Path $PSScriptRoot 'Read-OpenCode.py') --session-dir $answer.session x) -join ''
     if (-not $answer.session -or [IO.Path]::GetFullPath($where.Trim()) -ne [IO.Path]::GetFullPath($probe)) { throw "Pre-flight: OpenCode worked in '$where', not in $probe. Nothing was run." }
     Write-Host "pre-flight ok: OpenCode works in the trial folder"
@@ -115,7 +141,7 @@ if ($Agent -eq 'opencode') {
 
 $summary = Join-Path $root 'summary.md'
 if (-not [IO.File]::Exists($summary)) {
-    [IO.File]::WriteAllText($summary, "# $series, $Agent ($Model), kit $version, context $Context`n`n| Trial | check game | Agent min | Nudges | Questions | Timed out | Folder |`n|---|---|---|---|---|---|---|`n", (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($summary, "# $series, $Agent ($Model), kit $version, context $Context`n`n| Trial | check game | Agent min | Nudges | Questions | Stopped | Folder |`n|---|---|---|---|---|---|---|`n", (New-Object Text.UTF8Encoding($false)))
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($id in $Ids) {
@@ -130,30 +156,36 @@ foreach ($id in $Ids) {
         $log = Join-Path $root "$name.agent.jsonl"
         $repoBefore = (& git -C $repo status --porcelain) -join "`n"
         $watch = [Diagnostics.Stopwatch]::StartNew()
-        $questions = 0; $nudged = 0; $timedOut = $false
+        $questions = 0; $nudged = 0
+        $deadline = [DateTime]::Now.AddMinutes($TrialMinutes)
         Write-Host "   prompt sent ($Agent $Model)"
-        $turn = Invoke-AgentTurn $dir $all[$id] $null $log
-        $timedOut = $turn.timedOut
+        $turn = Invoke-AgentTurn $dir $all[$id] $null $log $deadline
         if ($Agent -eq 'opencode') {
             # Never let a trial agent work in another folder (the repo holds the held-out prompts).
             $where = (& python -I (Join-Path $PSScriptRoot 'Read-OpenCode.py') --session-dir $turn.session x) -join ''
             if ([IO.Path]::GetFullPath($where.Trim()) -ne [IO.Path]::GetFullPath($dir)) { throw "Trial $name ran in '$where', not in its trial folder: series stopped. Check that folder for changes." }
         }
-        while (-not $timedOut) {
+        while (-not $turn.stopped) {
             # A question gets the standard answer; a run without a passing game check gets one nudge.
-            if ($turn.text.TrimEnd().EndsWith('?') -and $questions -lt 2) { $questions++; $turn = Invoke-AgentTurn $dir $answerText $turn.session $log; $timedOut = $turn.timedOut; continue }
-            if ($nudged -lt $Nudges -and (Invoke-Kit $dir @('check', 'game')).exit -ne 0) { $nudged++; $turn = Invoke-AgentTurn $dir $nudgeText $turn.session $log; $timedOut = $turn.timedOut; continue }
+            if ($turn.text.TrimEnd().EndsWith('?') -and $questions -lt 2) { $questions++; $turn = Invoke-AgentTurn $dir $answerText $turn.session $log $deadline; continue }
+            if ($nudged -lt $Nudges -and (Invoke-Kit $dir @('check', 'game')).exit -ne 0) { $nudged++; $turn = Invoke-AgentTurn $dir $nudgeText $turn.session $log $deadline; continue }
             break
         }
         if (((& git -C $repo status --porcelain) -join "`n") -ne $repoBefore) { throw "Trial $name changed files in the repository (git status differs): series stopped." }
         $minutes = [int]$watch.Elapsed.TotalMinutes
-        if ($turn.session -and -not $timedOut) { Write-Host '   feedback'; Invoke-AgentTurn $dir $feedback $turn.session $log | Out-Null }
+        if ($turn.stopped) { Write-Host "   stopped: $($turn.stopped)" }
+        if ($turn.session) {
+            # A stopped run still gives feedback: where it went round in circles is the most useful part.
+            $ask = if ($turn.stopped) { "The run was stopped ($($turn.stopped) after $([int]$watch.Elapsed.TotalMinutes) minutes). Leave the mod as it is.`n" + $feedback } else { $feedback }
+            Write-Host '   feedback'
+            Invoke-AgentTurn $dir $ask $turn.session $log ([DateTime]::Now.AddMinutes($FeedbackMinutes)) | Out-Null
+        }
         Write-Host '   independent check game'
         $check = Invoke-Kit $dir @('check', 'game')
         $verdict = (($check.text -split "`n") | Select-Object -First 1)
         $trial = & powershell -NoProfile -File (Join-Path $PSScriptRoot 'Read-Trial.ps1') -Path $dir 2>&1
         [IO.File]::WriteAllText((Join-Path $root "$name.trial.txt"), "check game: $verdict`n`n" + ($trial -join "`n") + "`n", (New-Object Text.UTF8Encoding($false)))
-        $row = "| $name | $verdict | $minutes | $nudged | $questions | $(if ($timedOut) { 'yes' } else { 'no' }) | $name |`n"
+        $row = "| $name | $verdict | $minutes | $nudged | $questions | $(if ($turn.stopped) { $turn.stopped } else { 'no' }) | $name |`n"
         [IO.File]::AppendAllText($summary, $row, (New-Object Text.UTF8Encoding($false)))
         Write-Host "   $verdict ($minutes min)"
     }
