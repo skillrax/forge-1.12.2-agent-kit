@@ -90,6 +90,7 @@ def log_span(trial):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('trial')
+    parser.add_argument('--session-dir', help='print the project folder OpenCode recorded for this session id and exit')
     parser.add_argument('--db', default=os.path.join(os.path.expanduser('~'), '.local', 'share', 'opencode', 'opencode.db'))
     args = parser.parse_args()
     if not os.path.isfile(args.db):
@@ -103,6 +104,10 @@ def main():
                 shutil.copyfile(args.db + suffix, os.path.join(tmp, 'opencode.db' + suffix))
         db = sqlite3.connect(os.path.join(tmp, 'opencode.db'))
         try:
+            if args.session_dir:
+                found = db.execute('select directory from session_v2 where id = ?', (args.session_dir,)).fetchone()
+                print(found[0] if found else '')
+                return 0
             rows = db.execute('select id, directory, time_created from session_v2 order by time_created').fetchall()
             sessions = [(sid, d) for sid, d, _ in rows if norm(d) == trial]
             if not sessions:

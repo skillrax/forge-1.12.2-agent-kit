@@ -25,7 +25,15 @@ Measures whether a small local model can build mods it has never seen with the p
 
 - The kit ZIP for the current version: `packaging/Build-KitZip.ps1` (writes releases/<version>/).
 
-## Per trial
+## Unattended series (Run-Series.ps1)
+
+`powershell -NoProfile -File qa/local-model/Run-Series.ps1 -Prompts qa/local-model/PROMPTS-3.md [-Ids S0,S1] [-Runs 2]` runs prompts without anyone watching: for each trial it extracts the current kit ZIP into `..\kit-trials\<series>-<agent>-<version>\<id>-r<n>` (outside the repo), sends the prompt with `opencode run --standalone --auto` (model `local/qwen3.8-flash-next-iq3_xxs#high`, context from `-Context`, default 131072, set per run through `OPENCODE_CONFIG_CONTENT`; the global config is untouched), answers a question with "decide, note it in TASK.md" (at most 2), nudges once if `check game` does not pass, asks the feedback prompt into `feedback.md`, runs its own `check game` and Read-Trial (`<id>-r<n>.trial.txt`), and adds a row to `summary.md`. The agent's raw output is in `<id>-r<n>.agent.jsonl`. Existing trial folders are skipped, so a stopped series resumes.
+- 64k regression pass: `-Context 65536`.
+- Control run with Claude Code: `-Agent claude -Model sonnet` (runs `claude -p --permission-mode bypassPermissions` in the trial folder; uses the Claude plan).
+- What stays manual: the runClient look for trials that pass, and grading with the prompt file's Grade lines.
+- OpenCode takes its project folder from the `PWD` environment variable (Git Bash exports it), not from the process's working directory; an agent started from a shell in the repo once worked in the repo itself, read maintainer files and edited TASK.md. The runner sets `PWD` per trial, runs a pre-flight turn in a scratch folder and stops if OpenCode records any other folder, and checks every trial's session folder.
+
+## Per trial (manual)
 
 1. Extract the ZIP into a new folder **outside this repository** (e.g. `Documents\kit-trials\p0-local`), so the agent cannot find maintainer files, fixtures or these prompts. Every trial starts from a fresh copy; keep the path short (Windows 260-character limit).
 2. Open that folder in the agent app (`opencode` there). It reads the kit's AGENTS.md. Before the prompt, note the context already used: frontend prompt, tools and AGENTS.md are overhead the kit can only partly shrink.
