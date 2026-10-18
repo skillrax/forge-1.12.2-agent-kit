@@ -55,9 +55,9 @@ Run each prompt the local model fails once more with a frontier agent (Claude Co
 
 Use this for every trial unless a result file says otherwise:
 - Strata `strata-iq3_xxs.json`: Qwen3.8-Flash-Next IQ3_XXS, `--max-context 65536 --kv int8 --vram-reserve-mib 1536`, MTP `--spec 4 --spec-min-p 0.70`; sampling temperature 0.6, top_p 0.95, top_k 20, min_p 0.05; no `reasoning_effort` in the config.
-- OpenCode `opencode.json`: context 65536, output 32768; `compaction`: `auto` true, `prune` true, `keep.tokens` 12000, `buffer` 10000. Reasoning effort `high` (the model variant chosen in OpenCode).
+- OpenCode 2.0.32 `opencode.json`: `"model": "local/qwen3.8-flash-next-iq3_xxs"` (provider/model; a bare id is skipped with a warning in OpenCode's log); context 65536, output 32768; `compaction`: `auto` true, `keep.tokens` 12000, `buffer` 10000. Reasoning effort `high` (the model variant chosen in OpenCode). OpenCode 2.x drops `compaction.prune` and `tail_turns` ("omitted unsupported legacy setting" in `~/.local/share/opencode/log/opencode.log`): check that log for config diagnostics after any config change.
 
-It was within the noise of the old baseline (identical settings vary about 2x in time), follows the model's own sampling guidance, and was the setup of the only run where the model asked about unspecified gameplay. Change it only with 3+ runs per arm.
+(Runs 5-7 had `prune: true`, which this OpenCode ignored.) It was within the noise of the old baseline (identical settings vary about 2x in time), follows the model's own sampling guidance, and was the setup of the only run where the model asked about unspecified gameplay. Change it only with 3+ runs per arm.
 
 ## Setup or kit? (A/B on the model setup)
 

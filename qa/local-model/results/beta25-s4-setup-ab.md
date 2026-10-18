@@ -1,6 +1,6 @@
 # Setup A/B on S4 (cauldron soaking), kit 0.5.0-beta.25, 2026-10-18
 
-Trials in `beta25-S4-optimization-reruns/` (folders renamed after the runs; Read-OpenCode matches them by time). Strata with `--vram-reserve-mib 1536` throughout. "after" = output tokens after the first `check game`.
+Trials in `beta25-S4-optimization-reruns/` (folders renamed after the runs; Read-OpenCode matches them by time). Strata with `--vram-reserve-mib 1536` throughout. OpenCode was 2.0.30-2.0.32, which ignores `compaction.prune` (its log: "omitted unsupported legacy setting"), so "prune" below had no effect. "after" = output tokens after the first `check game`.
 
 | Run | Settings | Outcome (user) | Min | Output | Thinking | Before 1st game | After | Game checks |
 |---|---|---|---|---|---|---|---|---|
