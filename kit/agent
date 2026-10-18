@@ -1,0 +1,3 @@
+#!/bin/sh
+# Bash entry point (Git Bash, an agent's Bash tool): the kit's tools are PowerShell, so ./agent.ps1 cannot run here.
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(dirname "$0")/agent.ps1" "$@"

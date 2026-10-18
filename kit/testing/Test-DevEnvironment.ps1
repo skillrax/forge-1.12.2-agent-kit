@@ -56,7 +56,7 @@ try {
             New-Item -ItemType Directory -Force -Path $serverDir | Out-Null
             Set-Content -LiteralPath (Join-Path $serverDir 'eula.txt') -Value 'eula=true' -Encoding ASCII
             Set-Content -LiteralPath (Join-Path $serverDir 'server.properties') -Encoding ASCII -Value @(
-                'server-ip=127.0.0.1', 'server-port=0', 'level-type=FLAT', 'generate-structures=false', 'spawn-monsters=false', 'spawn-animals=false'
+                'server-ip=127.0.0.1', 'server-port=0', 'level-type=FLAT', 'generate-structures=false', 'spawn-monsters=false', 'spawn-animals=true'
             )
             $harnessPath = Join-Path $serverDir 'kit-check.json'
             $gameTests = if ($Profile -eq 'game') { ' "-PkitGameTests=' + $Test + '"' } else { '' }

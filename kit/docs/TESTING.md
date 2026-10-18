@@ -41,10 +41,10 @@ public class OreDropsTest implements Scenario {
 | `invariant(name, cond, detail)` | must hold every tick from here on |
 | `origin()`, `world()`, `server()`, `ticks()` | fixture area (16x16 stone floor at y -1; origin is the air block above its corner), WorldServer, server, elapsed ticks |
 | `place(pos, "modid:block")`, `place(pos, state)`, `state(pos)`, `tile(pos, Class)`, `inventory(pos)` | blocks and tile entities |
-| `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities (the test server runs `spawn-animals=false`, so animals vanish on their next tick: use an armor stand or a mob) |
+| `item(id)`, `block(id)`, `stack(id, count)`, `spawn("modid:entity", pos)` | registry lookups (`id@meta`, `ore:name` work in `stack`), entities (nothing spawns by itself: no natural spawning in the flat test world, so animals you spawn stay) |
 | `craft("a", "", "b", ...)`, `smelt(id)` | crafting result of a row-major 3x3 grid: all 9 cells ("" = empty), or only the ingredients of a shapeless recipe; furnace result |
 | `drops(blockId, toolId)`, `count(stacks, id)` | place + mine a block with a tool in a free spot, return what dropped; count one item |
-| `player(name)` | survival FakePlayer at origin, facing south (same name = same UUID); mobs cannot see or hurt it |
+| `player(name)` | survival FakePlayer at origin, facing south; the same name returns the same player for the whole test; mobs cannot see or hurt it |
 | `targetPlayer(name)` | a player that mob AI targets and that takes damage from mobs, players and their projectiles (in the world's player list; removed when the test ends). It never ticks, so after a hit `hurtResistantTime` stays up: set it to 0 to count several hits |
 | `loot(table)`, `loot(table, entity)` | one roll of a loot table (`"modid:entities/name"`); loop and `count` for ranges like "0-2" |
 | `useItem(p, hand)`, `finishUsingItem(p, hand)`, `useOnBlock(p, pos, face, hand)`, `breakBlock(p, pos)`, `attack(p, entity)` | real interaction code paths. `useOnBlock` is a real right-click: it returns PASS whenever the hand is empty afterwards (empty hand, or your `onBlockActivated` used up the last item), and when `onBlockActivated` returns false the held item's own use runs, so a held block item is placed against the target. Assert on the effect, and hold a non-placeable item (a stick) to test "nothing happens" |

@@ -11,6 +11,7 @@
     "Setup.cmd",
     "TASK.md",
     "THIRD-PARTY-NOTICES.md",
+    "agent",
     "agent.ps1",
     "build.gradle",
     "docs/DEPENDENCIES.md",

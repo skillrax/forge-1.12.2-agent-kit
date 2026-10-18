@@ -60,6 +60,9 @@ public final class TestContext {
     private final Set<String> names = new HashSet<>();
     private final Set<BlockPos> placed = new LinkedHashSet<>();
     private final Map<FakePlayer, List<String>> messages = new IdentityHashMap<>();
+    // One player per name for the whole test, so state set in one step (held item, sneaking) is there in the next.
+    private final Map<String, FakePlayer> players = new HashMap<>();
+    private final Map<String, FakePlayer> targetPlayers = new HashMap<>();
     private final List<FakePlayer> targets = new ArrayList<>();
     private int cursor, assertionCount;
     private long ticks;
@@ -165,19 +168,22 @@ public final class TestContext {
     // ---- simulated player ---------------------------------------------------------------
 
     /** A survival FakePlayer standing at origin with a working (offline) network handler. */
-    public FakePlayer player(String name) { return newPlayer(name, false); }
+    public FakePlayer player(String name) { return players.computeIfAbsent(name, n -> newPlayer(n, false)); }
     /**
      * A player that mob AI can target and hurt. player() is not in world.playerEntities, the only list
      * World.getNearestAttackablePlayer searches, and FakePlayer ignores damage; this one is added to the world,
      * takes damage, and is removed when the test ends. Still never ticks (see TESTING.md).
      */
     public FakePlayer targetPlayer(String name) {
+        FakePlayer known = targetPlayers.get(name);
+        if (known != null) return known;
         FakePlayer player = newPlayer(name, true);
         player.capabilities.disableDamage = false;
         // EntityPlayerMP starts with 60 ticks of respawn invulnerability that only onUpdate counts down; FakePlayer never ticks.
         ObfuscationReflectionHelper.setPrivateValue(EntityPlayerMP.class, player, 0, "field_147101_bU");
         if (!world().spawnEntity(player)) throw new IllegalStateException("Could not add target player " + name + " (name already used?)");
         targets.add(player);
+        targetPlayers.put(name, player);
         return player;
     }
     private FakePlayer newPlayer(String name, boolean vulnerable) {

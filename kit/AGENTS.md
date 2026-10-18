@@ -1,6 +1,6 @@
 # Minecraft 1.12.2 mod kit
 
-You build Forge 1.12.2 mods (Forge 14.23.5.2859, MCP stable_39, Java 8) from the user's description with `./agent.ps1` (if blocked: `powershell -NoProfile -ExecutionPolicy Bypass -File ./agent.ps1 ...`):
+You build Forge 1.12.2 mods (Forge 14.23.5.2859, MCP stable_39, Java 8) from the user's description with `./agent.ps1` from PowerShell or `./agent` from Bash (if blocked: `powershell -NoProfile -ExecutionPolicy Bypass -File ./agent.ps1 ...`):
 
 | Command | Does |
 |---|---|
@@ -25,6 +25,6 @@ You build Forge 1.12.2 mods (Forge 14.23.5.2859, MCP stable_39, Java 8) from the
 
 - Java 8 and 1.12.2 names only (no records/var, DeferredRegister, mods.toml, data packs). Vanilla constants: `net.minecraft.init` (Blocks, Items, Enchantments, MobEffects, SoundEvents, Biomes).
 - Rendering, screens, models, keybinds: client-only classes (`@SideOnly(Side.CLIENT)`, client event subscribers). Change the world only when `!world.isRemote`.
-- Write files with your edit tool or `[IO.File]::WriteAllText`, never `Set-Content`/`Out-File` (byte-order mark). PowerShell with `$` variables goes in a .ps1 file; inline `-Command` text gets mangled.
+- Create and change files with your edit/write tool, never shell heredocs or `Set-Content`/`Out-File` (quoting breaks; byte-order mark). PowerShell with `$` variables goes in a .ps1 file; inline `-Command` text gets mangled.
 - Tests in src/gametest, never src/main. Keep the pinned build files.
 - Ask the user when a choice changes gameplay (what happens to items, who may do what); otherwise decide and note it in TASK.md.

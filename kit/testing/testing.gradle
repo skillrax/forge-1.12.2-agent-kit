@@ -297,6 +297,8 @@ tasks.register('kitApiIndex') {
     }
 }
 tasks.named('verifyEnvironment') { dependsOn tasks.named('kitApiIndex') }
+// The index must exist before the first compile: compiler hints and the client-only check read it.
+tasks.named('compileJava') { dependsOn tasks.named('kitApiIndex') }
 
 // Keep automated smoke-test game files separate from manual runs.
 minecraft.runs.named('server') {

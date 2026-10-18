@@ -111,6 +111,10 @@ exit 0
     Assert ($items -match 'new int\[\] \{3, 6, 8, 3\}') 'armor order boots,legs,chest,helmet'
     Assert ($blocks -match 'new OreBlock\(3\.0F, 1, \(\) -> ModItems\.GEM, 1, 3, 3, 7\)') "ore declaration: $blocks"
     Assert ($blocks -match 'GameRegistry\.registerTileEntity\(GemBoxTile\.class') 'tile registration'
+    Invoke-Agent @('new', 'tile', 'gem_marker') | Out-Null
+    $marker = Read-Text "$java/GemMarkerTile.java"
+    Assert ($marker -match 'shouldRefresh' -and $marker -notmatch 'ticks' -and (Read-Text "$java/GemMarkerBlock.java") -notmatch 'sendStatusMessage') "plain tile: no sample counter, keeps itself on state change: $marker"
+    Assert ((Read-Text "$java/GemBoxTile.java") -match 'public int ticks;.*kit sample') 'ticking tile keeps the sample counter'
     Assert ($main -match 'registerWorldGenerator' -and $main -match 'GameRegistry\.addSmelting\(new ItemStack\(Item\.getItemFromBlock\(ModBlocks\.GEM_ORE\)\)' -and $main -match 'GEM_TOOLS\.setRepairItem') 'main class insertions'
     Assert ((Read-Text "$java/ModWorldGen.java") -match 'ore\(ModBlocks\.GEM_ORE, 0, 8, 8, 5, 30\);') 'worldgen entry'
     Assert ((Read-Text "$assets/recipes/gem_block.json") -match '"#": \{ "item": "demo:gem" \}') 'recipe json'

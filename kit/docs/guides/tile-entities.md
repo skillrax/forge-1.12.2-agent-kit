@@ -6,6 +6,7 @@ Start with `./agent.ps1 new tile <name> [-Ticking] [-Inventory n]`. It writes `<
 
 - **Register** every tile class once: `GameRegistry.registerTileEntity(MyTile.class, new ResourceLocation(MODID, "name"))` (generated at `// kit:tiles`). Unregistered tiles crash on save; the server lint reports them as ERROR.
 - **Constructor** must be public and take no arguments (the game recreates tiles from NBT).
+- **Block state changes**: Forge replaces a mod tile (and loses its data) whenever its block's state changes, even a `lit` or `facing` property. Override `shouldRefresh(world, pos, oldState, newState)` to `return oldState.getBlock() != newState.getBlock();` (`new tile` does).
 - **Save**: write every field in `writeToNBT` (call `super` first) and read it in `readFromNBT`. Call `markDirty()` after changing saved state, or the chunk may not save it.
 - **Tick**: implement `net.minecraft.util.ITickable` (`update()` runs on both sides every tick, only while the chunk is loaded; docs/FORGE-1.12.md "What ticks"). Return early on the client unless you animate. A tile without `ITickable` never ticks: react in block callbacks or schedule a block tick instead.
 - **Lifecycle**: `onLoad` once when added to the world (neighbors may not exist yet; defer neighbor lookups to the first `update`); `onChunkUnload` when its chunk unloads; `invalidate` when removed. Leave networks and caches in both of the last two. `world` and `pos` are not set in the constructor.

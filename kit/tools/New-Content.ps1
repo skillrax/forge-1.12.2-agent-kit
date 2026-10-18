@@ -826,6 +826,10 @@ function Build-Tile {
     $tickImports = if ($Ticking) { "import net.minecraft.util.ITickable;`n" } else { '' }
     $invImports = if ($hasInv) { "import net.minecraft.util.EnumFacing;`nimport net.minecraftforge.common.capabilities.Capability;`nimport net.minecraftforge.items.CapabilityItemHandler;`nimport net.minecraftforge.items.ItemStackHandler;`n" } else { '' }
     $implements = if ($Ticking) { ' implements ITickable' } else { '' }
+    # A sample saved counter only for ticking tiles (update() uses it); replace it with real state.
+    $ticksField = if ($Ticking) { "    public int ticks;   // kit sample: replace with your saved state`n" } else { '' }
+    $ticksNbt = if ($Ticking) { "        tag.setInteger(`"ticks`", ticks);`n" } else { '' }
+    $ticksRead = if ($Ticking) { "        ticks = tag.getInteger(`"ticks`");`n" } else { '' }
     $invField = if ($hasInv) { @"
 
     /** $Inventory slots, exposed to hoppers/pipes on every side. */
@@ -867,26 +871,31 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 $tickImports$invImports
 /** Block entity for $Name. Saved state: writeToNBT/readFromNBT. Client copy: getUpdateTag/onDataPacket + sync(). */
 public class ${pascal}Tile extends TileEntity$implements {
-    public int ticks;
-$invField
+$ticksField$invField
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound tag) {
         super.writeToNBT(tag);
-        tag.setInteger("ticks", ticks);
-$invNbt
+$ticksNbt$invNbt
         return tag;
     }
 
     @Override
     public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
-        ticks = tag.getInteger("ticks");
-$invRead
+$ticksRead$invRead
     }
 $tick$invCaps
+    /** Keep this tile when only the block's state changes (facing, lit, formed): Forge otherwise replaces it and its data. */
+    @Override
+    public boolean shouldRefresh(World world, BlockPos pos, IBlockState oldState, IBlockState newState) {
+        return oldState.getBlock() != newState.getBlock();
+    }
+
     /** Sends this tile's NBT to clients watching it. */
     public void sync() {
         if (world != null && !world.isRemote) {
@@ -951,7 +960,7 @@ public class ${pascal}Block extends BasicBlock {
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (!world.isRemote) {
             TileEntity tile = world.getTileEntity(pos);
-            if (tile instanceof ${pascal}Tile) player.sendStatusMessage(new TextComponentString("ticks: " + ((${pascal}Tile) tile).ticks), true);
+            // TODO what a right-click does (open a GUI: guides/gui.md); returning true on both sides consumes the click.
         }
         return true;
     }

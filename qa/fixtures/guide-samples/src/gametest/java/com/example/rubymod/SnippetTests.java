@@ -294,6 +294,21 @@ public final class SnippetTests {
             });
         }
     }
+    /** TESTING.md: player(name) is one player per test; animals a test spawns stay (no natural spawning, spawn-animals on). */
+    @GameTest("test-world-players-and-animals")
+    public static final class PlayersAndAnimals implements Scenario {
+        @Override public void plan(TestContext t) {
+            EntityLiving[] cow = new EntityLiving[1];
+            t.then("same name, same player; spawn a cow", () -> {
+                t.player("alex").setHeldItem(EnumHand.MAIN_HAND, new ItemStack(Items.STICK));
+                cow[0] = (EntityLiving) t.spawn("minecraft:cow", t.origin().add(4, 0, 4));
+            });
+            t.check("player-kept", () -> t.player("alex").getHeldItemMainhand().getItem() == Items.STICK, () -> "held " + t.player("alex").getHeldItemMainhand());
+            t.waitTicks(40);
+            t.check("cow-still-alive", () -> !cow[0].isDead && cow[0].world.loadedEntityList.contains(cow[0]), () -> "cow dead=" + cow[0].isDead);
+        }
+    }
+
     /** events.md: a cancelled RightClickBlock returns its cancellation result (SUCCESS stops the off hand and item use). */
     @GameTest("right-click-cancel-result")
     public static final class RightClickCancel implements Scenario {
