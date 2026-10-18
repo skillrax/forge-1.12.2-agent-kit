@@ -10,7 +10,7 @@ Result (trials in qa/local-model/results; feedback claims verified against 1.12.
 - beta.24 from series 2: ore cascade fix, targetPlayer damage, drops() fix, recipe lint, client-only call check, STUCK per test, tint/useOnBlock/effect facts (git a4d8e45).
 - beta.24 reruns (results/beta24-reruns.md): S3 slingshot and S5 linked chest now work (one and two user round trips).
 - beta.25 from the reruns: FLAKY after fail-pass-fail at one step; area dump shows mob hp/burning/hurt cooldown; t.craft rejects a short grid with blanks; recipe generator requires @meta for vanilla items with variants; WARN for spawnEntity without isRemote in both-sides hooks (0 false positives on all trial mods); version refuses downgrades; export message names `version`; test-world and lang-key facts.
-- Setup A/B on S4 (results/beta25-s4-setup-ab.md): identical settings vary ~2x; standard setup fixed in qa/local-model/README.md. beta.26: right-click event facts and example (SUCCESS result), clearer step-in-step error, test expectations from the request.
+- Setup A/B on S4 (results/beta25-s4-setup-ab.md): identical settings vary ~2x; standard setup fixed in qa/local-model/README.md. beta.26: right-click event facts, step error, test expectations.
 - Evidence: Test-AgentInterface (12 groups), Test-TestingTools, Test-GuideSnippets, Test-Packaging, Test-KitSamples, Test-KitZip PASS; ZIP releases/0.5.0-beta.26.
 
 Next action: a fresh held-out trial series (series 3) on beta.26 with the standard setup.
