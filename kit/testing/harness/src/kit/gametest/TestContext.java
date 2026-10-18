@@ -288,7 +288,7 @@ public final class TestContext {
     // ---- harness internals --------------------------------------------------------------
 
     private void add(Step step) {
-        if (running) throw new IllegalStateException("Declare steps in plan(), not while steps run");
+        if (running) throw new IllegalStateException("A step added another step: then/check/waitUntil/invariant (and helpers that call them) belong in plan(), not inside a step's lambda. Inside a lambda use require(...) or plain code.");
         if (steps.size() >= 256) throw new IllegalStateException("At most 256 steps per scenario");
         steps.add(step);
     }

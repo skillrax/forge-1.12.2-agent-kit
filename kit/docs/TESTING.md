@@ -54,6 +54,7 @@ Default budget is 1200 ticks per test: `@GameTest(value = "id", maxTicks = 6000)
 
 Things that bite:
 - Only the lambdas passed to `then`, `check`, `waitUntil` and `invariant` run on ticks. Other code in `plan()` runs once at tick 0, before any step: compute and assert inside the lambdas. Steps run back to back in the same tick until a `waitTicks`/`waitUntil`: something spawned in one `then` has not moved yet in the next `check`.
+- Expected values come from the request and TASK.md, not from your code: a test that copies the implementation's ids or numbers passes on the same mistake. Look up vanilla ids (`agent.ps1 api -Find mossy`) before writing them into either.
 - The test server never translates: assert on translation keys (`messages` ends translated text in `[key]`), not on English text.
 - A bow-style release: `stack.getItem().onPlayerStoppedUsing(stack, t.world(), p, stack.getMaxItemUseDuration() - chargeTicks)`.
 - One behavior per `@GameTest`: each test gets its own cleared area, so setups cannot disturb each other, and `check game -Test id` reruns one. Steps inside one test share the area: keep separate setups 3+ blocks apart, and remember redstone carries (a comparator powers the block it faces away from, and that block powers its neighbors, such as a hopper).

@@ -51,6 +51,14 @@ Rank the problems by what they cost you. For each one, suggest the smallest chan
 
 Run each prompt the local model fails once more with a frontier agent (Claude Code) in another fresh copy of the same ZIP, same procedure. Both fail at the same point: the kit is the cause, fix it. Only the local model fails: mostly a model limit; fix the kit only if a fact, check or hint would plausibly have prevented it. Suffix result ids with the agent: `p3-local`, `p3-claude`.
 
+## Standard setup (from 2026-10-18, runs 6/7 of results/beta25-s4-setup-ab.md)
+
+Use this for every trial unless a result file says otherwise:
+- Strata `strata-iq3_xxs.json`: Qwen3.8-Flash-Next IQ3_XXS, `--max-context 65536 --kv int8 --vram-reserve-mib 1536`, MTP `--spec 4 --spec-min-p 0.70`; sampling temperature 0.6, top_p 0.95, top_k 20, min_p 0.05; no `reasoning_effort` in the config.
+- OpenCode `opencode.json`: context 65536, output 32768; `compaction`: `auto` true, `prune` true, `keep.tokens` 12000, `buffer` 10000. Reasoning effort `high` (the model variant chosen in OpenCode).
+
+It was within the noise of the old baseline (identical settings vary about 2x in time), follows the model's own sampling guidance, and was the setup of the only run where the model asked about unspecified gameplay. Change it only with 3+ runs per arm.
+
 ## Setup or kit? (A/B on the model setup)
 
 Measured on the series 2 trials and reruns (kit beta.23-24; Strata, Qwen3.8-Flash-Next IQ3_XXS, OpenCode with 64k context):

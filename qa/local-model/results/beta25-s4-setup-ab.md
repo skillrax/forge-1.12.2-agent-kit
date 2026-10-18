@@ -27,5 +27,8 @@ Trials in `beta25-S4-optimization-reruns/` (folders renamed after the runs; Read
 2. "Declare steps in plan()" message: say what to do (helpers that add steps are called from `plan()`, never inside a `then`/`check`/`waitUntil` lambda).
 3. Tests check the request, not the code: write expected values from TASK.md (vanilla ids looked up with `api -Find`), not copied from the implementation. One sighting (run 3); a sentence in TESTING.md at most.
 
+## Applied in kit 0.5.0-beta.26
+All three. The events.md example now sets `setCancellationResult(SUCCESS)`; game test `right-click-cancel-result` fails with "returned PASS" on the old example. The step-in-step error names the fix. TESTING.md: expected values from the request, vanilla ids looked up.
+
 ## Setup decision
 Stop single-run setup A/B: the noise is larger than any effect seen. Keep the run 6/7 setup (effort high, Qwen thinking samplers, prune, keep 12000) as the standard; it is within the noise of the baseline and follows the model's guidance. Spend trial time on kit dead ends like candidate 1, which cause the 2x swings.

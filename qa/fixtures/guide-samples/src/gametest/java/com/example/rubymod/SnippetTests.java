@@ -294,6 +294,23 @@ public final class SnippetTests {
             });
         }
     }
+    /** events.md: a cancelled RightClickBlock returns its cancellation result (SUCCESS stops the off hand and item use). */
+    @GameTest("right-click-cancel-result")
+    public static final class RightClickCancel implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("sneak-click a ruby block holding a stick", () -> {
+                BlockPos pos = t.origin().add(2, 0, 2);
+                t.place(pos, "rubymod:ruby_block");
+                FakePlayer p = t.player("sneaker");
+                p.setSneaking(true);
+                p.setHeldItem(EnumHand.MAIN_HAND, new ItemStack(Items.STICK));
+                EnumActionResult result = t.useOnBlock(p, pos, EnumFacing.UP, EnumHand.MAIN_HAND);
+                t.require(result == EnumActionResult.SUCCESS, "cancelled click returned " + result);
+                t.require(t.messages(p).size() == 1 && t.messages(p).get(0).endsWith("[message.rubymod.shiny]"), "messages " + t.messages(p));
+            });
+        }
+    }
+
     /** TESTING.md: craft takes all 9 cells, or only the ingredients of a shapeless recipe; a short grid with blanks is an error. */
     @GameTest("craft-grid-rule")
     public static final class CraftGrid implements Scenario {

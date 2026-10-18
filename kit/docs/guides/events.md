@@ -27,6 +27,7 @@ public final class ModEvents {
         if (player.isSneaking() && event.getWorld().getBlockState(event.getPos()).getBlock() == ModBlocks.RUBY_BLOCK) {
             if (!event.getWorld().isRemote) player.sendStatusMessage(new TextComponentTranslation("message.mymod.shiny"), true);
             event.setCanceled(true);                                    // stop the normal interaction
+            event.setCancellationResult(EnumActionResult.SUCCESS);      // else the client goes on to the off hand and the item's own use
         }
     }
 }
@@ -37,7 +38,7 @@ public final class ModEvents {
 | `entity.living.LivingHurtEvent`, `LivingDamageEvent`, `LivingAttackEvent` | change or cancel damage |
 | `entity.living.LivingDeathEvent`, `LivingDropsEvent`, `LivingExperienceDropEvent` | death, mob drops |
 | `entity.living.LivingEvent.LivingUpdateEvent` | every entity tick (keep it cheap) |
-| `entity.player.PlayerInteractEvent.RightClickBlock / RightClickItem / LeftClickBlock / EntityInteract` | clicks (both sides) |
+| `entity.player.PlayerInteractEvent.RightClickBlock / RightClickItem / LeftClickBlock / EntityInteract` | clicks (both sides; see below) |
 | `entity.player.PlayerEvent.BreakSpeed`, `HarvestCheck`, `ItemCraftedEvent` (fml...gameevent.PlayerEvent), `PlayerLoggedInEvent` | mining speed, crafting, login |
 | `world.BlockEvent.BreakEvent`, `PlaceEvent`, `HarvestDropsEvent` | break/place permission, drops |
 | `entity.EntityJoinWorldEvent`, `entity.living.LivingSpawnEvent.CheckSpawn` | spawning |
@@ -46,6 +47,12 @@ public final class ModEvents {
 | client only: `RenderGameOverlayEvent`, `GuiScreenEvent`, `InputEvent.KeyInputEvent`, `TickEvent.ClientTickEvent` | put in ClientEvents |
 
 Rules: handler methods must be `public static` in a `@Mod.EventBusSubscriber` class; the event type decides what fires. Many events fire on both sides: check `world.isRemote`. Cancel only `@Cancelable` events. Find others: `./agent.ps1 api -Find Event` or `api LivingHurtEvent`.
+
+Right-click on a block (`RightClickBlock`), as vanilla runs it:
+- The client fires it first, then the server (a cancelled client event still sends the click, so the server fires its own).
+- It fires per hand, main hand first. A cancelled event returns its cancellation result, PASS by default, and PASS makes the client go on to the off hand and then the held item's own use (`RightClickItem`, `onItemRightClick`). Cancel with `setCancellationResult(EnumActionResult.SUCCESS)`: the arm swings and nothing else runs.
+- Cancel on both sides (or the client predicts the vanilla action, such as placing the held block); change the world only on the server. Without cancelling, a sneaking player holding an item skips `onBlockActivated` and uses the item.
+- `t.useOnBlock(p, pos, face, hand)` runs only the server half, for the hand you give; the client half (off hand, arm swing) shows in `runClient`.
 
 ## Config
 

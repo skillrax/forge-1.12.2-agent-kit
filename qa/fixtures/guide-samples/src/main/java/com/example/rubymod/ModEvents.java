@@ -5,6 +5,7 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
@@ -38,6 +39,7 @@ public final class ModEvents {
         if (player.isSneaking() && event.getWorld().getBlockState(event.getPos()).getBlock() == ModBlocks.RUBY_BLOCK) {
             if (!event.getWorld().isRemote) player.sendStatusMessage(new TextComponentTranslation("message.rubymod.shiny"), true);
             event.setCanceled(true);
+            event.setCancellationResult(EnumActionResult.SUCCESS);
         }
     }
 
