@@ -8,6 +8,7 @@ Usage: python -I qa/local-model/Read-OpenCode.py <trial folder> [--db <opencode.
 The database is copied to a temporary folder and opened read-only; only session tables are read.
 """
 import argparse
+import datetime
 import json
 import os
 import shutil
@@ -71,6 +72,21 @@ def report(label, s):
     print('  tool errors: %s' % errors)
 
 
+def log_span(trial):
+    path = os.path.join(trial, 'reports', 'agent-log.jsonl')
+    if not os.path.isfile(path):
+        return None
+    times = []
+    with open(path, encoding='utf-8-sig') as f:
+        for line in f:
+            try:
+                stamp = json.loads(line)['time'].replace('Z', '+00:00')
+                times.append(datetime.datetime.fromisoformat(stamp).timestamp() * 1000)
+            except (ValueError, KeyError):
+                pass
+    return (min(times), max(times)) if times else None
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('trial')
@@ -87,7 +103,15 @@ def main():
                 shutil.copyfile(args.db + suffix, os.path.join(tmp, 'opencode.db' + suffix))
         db = sqlite3.connect(os.path.join(tmp, 'opencode.db'))
         try:
-            sessions = [(sid, d) for sid, d in db.execute('select id, directory from session_v2 order by time_created') if norm(d) == trial]
+            rows = db.execute('select id, directory, time_created from session_v2 order by time_created').fetchall()
+            sessions = [(sid, d) for sid, d, _ in rows if norm(d) == trial]
+            if not sessions:
+                # A renamed folder: take the sessions that started during the trial's own agent.ps1 log.
+                span = log_span(args.trial)
+                if span:
+                    sessions = [(sid, d) for sid, d, t in rows if span[0] - 3 * 60000 <= t <= span[1]]
+                    if sessions:
+                        print('opencode: folder renamed; matched by time to %s' % ', '.join(sorted(set(os.path.basename(d) for _, d in sessions))))
             if not sessions:
                 print('opencode: no session for %s' % args.trial)
                 return 0
