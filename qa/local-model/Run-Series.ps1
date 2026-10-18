@@ -128,6 +128,7 @@ foreach ($id in $Ids) {
         Move-Item -LiteralPath (Get-ChildItem -LiteralPath $tmp -Directory | Select-Object -First 1).FullName -Destination $dir
         Remove-Item -LiteralPath $tmp -Recurse -Force
         $log = Join-Path $root "$name.agent.jsonl"
+        $repoBefore = (& git -C $repo status --porcelain) -join "`n"
         $watch = [Diagnostics.Stopwatch]::StartNew()
         $questions = 0; $nudged = 0; $timedOut = $false
         Write-Host "   prompt sent ($Agent $Model)"
@@ -144,6 +145,7 @@ foreach ($id in $Ids) {
             if ($nudged -lt $Nudges -and (Invoke-Kit $dir @('check', 'game')).exit -ne 0) { $nudged++; $turn = Invoke-AgentTurn $dir $nudgeText $turn.session $log; $timedOut = $turn.timedOut; continue }
             break
         }
+        if (((& git -C $repo status --porcelain) -join "`n") -ne $repoBefore) { throw "Trial $name changed files in the repository (git status differs): series stopped." }
         $minutes = [int]$watch.Elapsed.TotalMinutes
         if ($turn.session -and -not $timedOut) { Write-Host '   feedback'; Invoke-AgentTurn $dir $feedback $turn.session $log | Out-Null }
         Write-Host '   independent check game'
