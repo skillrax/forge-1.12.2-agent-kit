@@ -32,7 +32,7 @@ try {
     $hash = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash
     if ([IO.File]::Exists($destination)) {
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq $hash) { $note = 'already exported (identical)' }
-        else { throw "releases/$name already exists with different contents. Bump the version (build.gradle version, @Mod version, mcmod.info), rerun check server, then export." }
+        else { throw "releases/$name already exists with different contents. Bump the version (agent.ps1 version <next>, which updates build.gradle, @Mod and mcmod.info), rerun check game or check server, then export." }
     } else {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
         Copy-Item -LiteralPath $jar -Destination $destination

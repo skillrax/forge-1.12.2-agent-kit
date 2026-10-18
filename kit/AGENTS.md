@@ -9,7 +9,7 @@ You build Forge 1.12.2 mods (Forge 14.23.5.2859, MCP stable_39, Java 8) from the
 | `new <kind> <name> [options]` | item block ore food tools armor recipe smelting tile mob test: docs/GENERATORS.md |
 | `check [server\|game [-Test id]]` | compile ~10 s; + asset lint; + game tests (docs/TESTING.md) |
 | `api <Class>[.member\|.new]`, `api -Find <text>` | signatures and source of any Minecraft/Forge class |
-| `batch <file>`, `version <x.y.z>`, `export` | run lines in order; bump version; copy the checked jar to releases/ |
+| `batch <file>`, `version <x.y.z>`, `export` | run lines in order; bump version; copy the checked jar to releases/ (once per version) |
 
 ## Loop
 
@@ -27,4 +27,4 @@ You build Forge 1.12.2 mods (Forge 14.23.5.2859, MCP stable_39, Java 8) from the
 - Rendering, screens, models, keybinds: client-only classes (`@SideOnly(Side.CLIENT)`, client event subscribers). Change the world only when `!world.isRemote`.
 - Write files with your edit tool or `[IO.File]::WriteAllText`, never `Set-Content`/`Out-File` (byte-order mark). PowerShell with `$` variables goes in a .ps1 file; inline `-Command` text gets mangled.
 - Tests in src/gametest, never src/main. Keep the pinned build files.
-- Ask the user only when a choice changes gameplay; otherwise decide and note it in TASK.md.
+- Ask the user when a choice changes gameplay (what happens to items, who may do what); otherwise decide and note it in TASK.md.

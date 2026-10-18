@@ -395,8 +395,23 @@ function New-BlockAssets([string]$BlockName, [string]$Title, [string]$Style) {
 }
 
 # "ruby", "minecraft:dye@4", "ore:ingotIron" -> recipe ingredient JSON
+# Vanilla items with variants (Item.registerItems: ItemMultiTexture, ItemCloth, ItemSlab, ItemDye...): a recipe JSON
+# without "data" fails to load with "Missing data for item".
+$script:vanillaVariants = @('stone', 'dirt', 'planks', 'sapling', 'sand', 'log', 'log2', 'leaves', 'leaves2', 'sponge', 'sandstone', 'tallgrass',
+    'wool', 'yellow_flower', 'red_flower', 'stone_slab', 'stone_slab2', 'purpur_slab', 'wooden_slab', 'monster_egg', 'stonebrick', 'cobblestone_wall',
+    'anvil', 'quartz_block', 'stained_hardened_clay', 'carpet', 'double_plant', 'stained_glass', 'stained_glass_pane', 'prismarine', 'red_sandstone',
+    'concrete', 'concrete_powder', 'coal', 'golden_apple', 'fish', 'cooked_fish', 'dye', 'bed', 'skull', 'banner')
+function Assert-RecipeData([string]$Ref, [string]$What) {
+    if ($Ref -match '@\d+$' -or $Ref -match '^ore:') { return }
+    $id = ConvertTo-ItemId $Ref
+    if ($id -match '^minecraft:(.+)$' -and $script:vanillaVariants -contains $Matches[1]) {
+        $any = if ($What -eq 'Result') { '' } else { ", $id@32767 (any variant)" }
+        throw "$What '$id' has variants, so a recipe must name one: $id@0 (the first)$any, or an ore name such as ore:plankWood / ore:wool / ore:logWood (agent.ps1 api -Find registerOre)."
+    }
+}
 function ConvertTo-Ingredient([string]$Ref) {
     if ($Ref -match '^ore:([A-Za-z0-9_]+)$') { return '{ "type": "forge:ore_dict", "ore": "' + $Matches[1] + '" }' }
+    Assert-RecipeData $Ref 'Ingredient'
     $id = ConvertTo-ItemId $Ref
     if ($Ref -match '@(\d+)$') { return '{ "item": "' + $id + '", "data": ' + $Matches[1] + ' }' }
     return '{ "item": "' + $id + '" }'
@@ -413,6 +428,8 @@ function ConvertTo-TestRef([string]$Ref) {
 function Write-ShapedRecipe([string]$FileName, [string[]]$Rows, $Map, [string]$ResultRef, [int]$ResultCount) {
     foreach ($symbol in @($Map.Keys)) { Assert-ItemRef $Map[$symbol] 'Ingredient' }
     Assert-ItemRef $ResultRef 'Result'
+    Assert-RecipeData $ResultRef 'Result'
+    foreach ($symbol in @($Map.Keys)) { Assert-RecipeData $Map[$symbol] 'Ingredient' }
     $resultId = ConvertTo-ItemId $ResultRef
     $resultJson = '{ "item": "' + $resultId + '"' + $(if ($ResultRef -match '@(\d+)$') { ', "data": ' + $Matches[1] } else { '' }) + $(if ($ResultCount -gt 1) { ', "count": ' + $ResultCount } else { '' }) + ' }'
     $keyJson = ($Map.Keys | ForEach-Object { '    "' + $_ + '": ' + (ConvertTo-Ingredient $Map[$_]) }) -join ",`n"
@@ -777,8 +794,9 @@ function Build-Recipe {
     } elseif ($Ingredients) {
         $items = @($Ingredients -split ',' | Where-Object { $_ })
         if ($items.Count -lt 1 -or $items.Count -gt 9) { throw '-Ingredients takes 1 to 9 items' }
-        foreach ($i in $items) { Assert-ItemRef $i 'Ingredient' }
+        foreach ($i in $items) { Assert-ItemRef $i 'Ingredient'; Assert-RecipeData $i 'Ingredient' }
         Assert-ItemRef $Result 'Result'
+        Assert-RecipeData $Result 'Result'
         $resultId = ConvertTo-ItemId $Result
         $resultJson = '{ "item": "' + $resultId + '"' + $(if ($Result -match '@(\d+)$') { ', "data": ' + $Matches[1] } else { '' }) + $(if ($countRange[0] -gt 1) { ', "count": ' + $countRange[0] } else { '' }) + ' }'
         Write-New (Join-Path $project.assets "recipes/$Name.json") ("{`n  `"type`": `"minecraft:crafting_shapeless`",`n  `"ingredients`": [ " + (($items | ForEach-Object { ConvertTo-Ingredient $_ }) -join ', ') + " ],`n  `"result`": $resultJson`n}`n")

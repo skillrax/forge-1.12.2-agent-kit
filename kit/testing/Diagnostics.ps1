@@ -89,7 +89,8 @@ function Get-KitClientOnlyNames([string]$Root) {
     return $client
 }
 
-# Calls to client-only members from code a server runs (src/main outside client code, and all of src/gametest).
+# Side mistakes that compile: calls to client-only members from code a server runs (src/main outside client code, and
+# all of src/gametest), and spawnEntity in both-sides hooks without an isRemote test (client ghosts).
 # They compile, then throw NoSuchMethodError on a dedicated server and in every game test.
 function Get-KitClientOnlyCalls([string]$Root) {
     $names = Get-KitClientOnlyNames $Root
@@ -105,6 +106,7 @@ function Get-KitClientOnlyCalls([string]$Root) {
     $declared = @{}
     foreach ($lines in $sources.Values) { foreach ($line in $lines) { $m = $declaration.Match($line); if ($m.Success) { $declared[$m.Groups[1].Value] = $true } } }
     $found = New-Object 'System.Collections.Generic.List[string]'
+    $bothSides = [regex]'^\s*(?:@\w+\s+)*(?:public|protected)\s+[\w<>\[\], ]+\s+(onItemRightClick|onPlayerStoppedUsing|onItemUse|onItemUseFirst|onItemUseFinish|onUsingTick|onUpdate|onBlockActivated|onEntityWalk|onEntityCollision|onBlockClicked|onImpact|onHit)\s*\('
     foreach ($file in $files) {
         $relative = $file.Substring($Root.Length).TrimStart('\', '/').Replace('\', '/')
         $text = [string]::Join("`n", $sources[$file])
@@ -116,7 +118,7 @@ function Get-KitClientOnlyCalls([string]$Root) {
             ($sideOnly -ge 0 -and $firstType.Success -and $sideOnly -lt $firstType.Index)
         $test = $relative -like 'src/gametest/*'
         if ($clientFile -and -not $test) { continue }
-        $depth = 0; $clientDepth = -1; $pending = $false; $opening = $false
+        $depth = 0; $clientDepth = -1; $pending = $false; $opening = $false; $sideHook = $null; $sideTested = $false
         for ($i = 0; $i -lt $sources[$file].Length; $i++) {
             $code = $sources[$file][$i]
             if ($code.TrimStart().StartsWith('*') -or $code.TrimStart().StartsWith('/*')) { continue }
@@ -126,6 +128,14 @@ function Get-KitClientOnlyCalls([string]$Root) {
             if (-not $test -and ($code -match '@SideOnly\(\s*Side\.CLIENT\s*\)' -or $code -match '\b(?:onDataPacket|handleUpdateTag)\s*\(\s*\w')) { $pending = $true }
             if ($pending -and -not $annotationOnly -and $clientDepth -lt 0) { $clientDepth = $depth; $pending = $false; $opening = $true }
             $inClient = $clientDepth -ge 0
+            # Hooks that run on both sides: a spawn there without an isRemote test also spawns a client-only ghost.
+            $hook = $bothSides.Match($code)
+            if ($hook.Success) { $sideHook = $hook.Groups[1].Value; $sideTested = $false }
+            elseif ($code -match '^\s*(?:public|protected|private)\s' -and $declaration.IsMatch($code)) { $sideHook = $null }
+            if ($code -match 'isRemote') { $sideTested = $true }
+            if (-not $test -and -not $inClient -and $sideHook -and -not $sideTested -and $code -match '\bspawnEntity\s*\(') {
+                $found.Add(('WARN {0}:{1}: spawnEntity in {2}, which runs on the client and the server: without if (!world.isRemote) the client also spawns a ghost copy (visible, does nothing)' -f $relative, ($i + 1), $sideHook))
+            }
             if (-not $inClient) {
                 foreach ($m in [regex]::Matches($code, '\.\s*(\w+)\s*\(')) {
                     $name = $m.Groups[1].Value

@@ -294,6 +294,19 @@ public final class SnippetTests {
             });
         }
     }
+    /** TESTING.md: craft takes all 9 cells, or only the ingredients of a shapeless recipe; a short grid with blanks is an error. */
+    @GameTest("craft-grid-rule")
+    public static final class CraftGrid implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("short grid with an empty cell is rejected", () -> {
+                boolean rejected = false;
+                try { t.craft("minecraft:stick", "", "minecraft:stick"); } catch (IllegalArgumentException expected) { rejected = true; }
+                t.require(rejected, "a miscounted shaped grid must fail loudly");
+                t.require(t.craft("minecraft:diamond_block").getCount() == 9, "shapeless short list still works");
+            });
+        }
+    }
+
     /** TESTING.md: t.targetPlayer() takes damage whose true source is a player (thrown projectiles, arrows). */
     @GameTest("target-player-hurt-by-player")
     public static final class TargetHurtByPlayer implements Scenario {

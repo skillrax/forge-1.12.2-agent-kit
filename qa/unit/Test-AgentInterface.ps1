@@ -61,7 +61,8 @@ if ($env:FAKE_MODE -eq 'test-fail') {
     # A game run whose test b fails at the step named in FAKE_PHASE.
     $out = ($args | Where-Object { $_ -like '-PkitCheckOut=*' } | Select-Object -First 1) -replace '^-PkitCheckOut=', ''
     'Done (1.0s)! For help, type "help"'
-    $report = @{ registered = @{ items = 1 }; lint = @(); tests = @(@{ id = 'b'; status = 'FAIL'; phase = $env:FAKE_PHASE; message = 'm' }) }
+    $status = if ($env:FAKE_PHASE -eq 'pass') { 'PASS' } else { 'FAIL' }
+    $report = @{ registered = @{ items = 1 }; lint = @(); tests = @(@{ id = 'b'; status = $status; phase = $env:FAKE_PHASE; message = 'm' }) }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $out) | Out-Null
     [IO.File]::WriteAllText($out, ($report | ConvertTo-Json -Depth 5))
     'KIT_HARNESS_DONE'
@@ -130,6 +131,10 @@ exit 0
     Assert ((Read-Text "$assets/recipes/opal_pickaxe.json") -match '"pattern": \[ "XXX", " # ", " # " \]') 'vanilla pickaxe shape'
     $generated = Read-Text 'src/gametest/java/com/example/demo/GeneratedContentTest.java'
     Assert ($generated -match 't\.craft\("demo:gem", "demo:gem", "demo:gem", "", "minecraft:stick"' -and $generated -match 't\.drops\("demo:gem_ore"' -and $generated -match 'getMaxDamage\(\) == 1561') 'generated checks'
+    $variant = Invoke-Agent @('new', 'recipe', 'plank_gem', '-Shape', '##', '-Key', '#=minecraft:planks', '-Result', 'gem') 1
+    Assert ($variant -match "Ingredient 'minecraft:planks' has variants.*minecraft:planks@0.*minecraft:planks@32767.*ore:plankWood" -and -not (Test-Path (Join-Path $fixture "$assets/recipes/plank_gem.json"))) "variant item without data: $variant"
+    Invoke-Agent @('new', 'recipe', 'plank_gem', '-Shape', '##', '-Key', '#=minecraft:planks@32767', '-Result', 'gem') | Out-Null
+    Assert ((Read-Text "$assets/recipes/plank_gem.json") -match '"item": "minecraft:planks", "data": 32767') 'variant item with data'
     $bad = Invoke-Agent @('new', 'recipe', 'bad', '-Ingredients', 'minecraft:iron_ingt', '-Result', 'gem') 1
     Assert ($bad -match 'not a Minecraft 1\.12\.2 item/block id') "vanilla typo: $bad"
     $missing = Invoke-Agent @('new', 'smelting', 'x', '-From', 'nothing_here', '-Result', 'gem') 1
@@ -168,6 +173,7 @@ exit 0
     $passed.Add('batch stops at first failure')
 
     $version = Invoke-Agent @('version', '1.2.3')
+    Assert ((Invoke-Agent @('version', '1.0.9') 1) -match 'lower than the current 1\.2\.3') 'version downgrade refused'
     Assert ((Read-Text 'build.gradle') -match "version = '1.2.3'" -and (Read-Text "$java/DemoMod.java") -match 'VERSION = "1.2.3"' -and (Read-Text 'src/main/resources/mcmod.info') -match '"version": "1.2.3"') "version: $version"
     $passed.Add('version sync')
 
@@ -207,11 +213,23 @@ exit 0
         '        readFromNBT(pkt.getNbtCompound());', '    }', '    @SideOnly(Side.CLIENT)',
         '    public int tint() { return net.minecraft.item.EnumDyeColor.RED.getColorValue(); }',
         '    public int serverTint() {', '        return net.minecraft.item.EnumDyeColor.RED.getColorValue();', '    }', '}') -join "`n"))
+    $shotFile = Join-Path $fixture "$java/ShotItem.java"
+    [IO.File]::WriteAllText($shotFile, (@(
+        'package com.example.demo;', 'import net.minecraft.entity.EntityLivingBase;', 'import net.minecraft.entity.projectile.EntitySnowball;',
+        'import net.minecraft.item.ItemStack;', 'import net.minecraft.world.World;',
+        'public class ShotItem extends net.minecraft.item.Item {', '    @Override',
+        '    public void onPlayerStoppedUsing(ItemStack stack, World world, EntityLivingBase user, int timeLeft) {',
+        '        world.spawnEntity(new EntitySnowball(world, user));', '    }', '    @Override',
+        '    public void onUsingTick(ItemStack stack, EntityLivingBase user, int count) {',
+        '        if (!user.world.isRemote) user.world.spawnEntity(new EntitySnowball(user.world, user));', '    }',
+        '    private void helper(World world, EntityLivingBase user) { world.spawnEntity(new EntitySnowball(world, user)); }', '}') -join "`n"))
     $clientMain = Invoke-Agent @('check')
     $warnings = @($clientMain -split "`n" | Where-Object { $_ -match 'client-only' })
     Assert ($warnings.Count -eq 1 -and $warnings[0] -match "^WARN $([regex]::Escape($java))/SyncTile\.java:12: EnumDyeColor\.getColorValue\(\)") "client-only call in common code: $clientMain"
-    Remove-Item -LiteralPath $tileFile
-    $passed.Add('client-only calls: test ERROR, common WARN, client regions skipped')
+    $ghosts = @($clientMain -split "`n" | Where-Object { $_ -match 'ghost copy' })
+    Assert ($ghosts.Count -eq 1 -and $ghosts[0] -match "^WARN $([regex]::Escape($java))/ShotItem\.java:9: spawnEntity in onPlayerStoppedUsing") "ghost spawn: $clientMain"
+    Remove-Item -LiteralPath $tileFile, $shotFile
+    $passed.Add('client-only calls: test ERROR, common WARN, client regions skipped; unguarded spawn in a both-sides hook')
     } else { $passed.Add('SKIPPED client-only calls and block-item hint (no kit/.kit/api-index.tsv: run kit/agent.ps1 check environment)') }
 
     $env:FAKE_MODE = 'compile-error'
@@ -245,9 +263,14 @@ exit 0
     $env:FAKE_MODE = 'test-fail'
     foreach ($n in 1..5) { $env:FAKE_PHASE = "setup $n"; $game = Invoke-Agent @('check', 'game') 1; if ($n -eq 4) { Assert ($game -notmatch 'STUCK') "early STUCK: $game" } }
     Assert ($game -match 'STUCK: test b failed 5 checks in a row') "test circuit breaker: $game"
+    # Fail at a step, pass, fail at the same step again: FLAKY (a PASS resets STUCK, not this).
+    $env:FAKE_PHASE = 'pass'; Invoke-Agent @('check', 'game') | Out-Null
+    $env:FAKE_PHASE = 'setup 5'; $flaky = Invoke-Agent @('check', 'game') 1
+    Assert ($flaky -match 'FLAKY: test b at setup 5 failed there before' -and $flaky -notmatch 'STUCK') "flaky signal: $flaky"
+    $env:FAKE_PHASE = 'setup 6'; Assert ((Invoke-Agent @('check', 'game') 1) -notmatch 'FLAKY') 'no FLAKY at a new step'
     $env:FAKE_MODE = 'ok'
     Invoke-Agent @('check') | Out-Null
-    $passed.Add('circuit breaker after 3 identical failures or 5 failures of one test')
+    $passed.Add('circuit breaker after 3 identical failures or 5 failures of one test; FLAKY after fail-pass-fail at one step')
 
     $export = Invoke-Agent @('export') 1
     Assert ($export -match 'check server') "export gate: $export"

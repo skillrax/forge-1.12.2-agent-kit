@@ -142,6 +142,27 @@ function Update-FailureStreak($Result) {
     return $count
 }
 
+# Recent outcomes per test, kept across PASSes: a test that failed at a step, passed, then failed there again is flaky.
+function Update-TestHistory($Result) {
+    $tests = @(@($Result.harness.tests) | Where-Object { $_ })
+    if (-not $tests.Count) { return @() }
+    $path = Join-Path $reportRoot 'test-history.json'
+    $history = @{}
+    if ([IO.File]::Exists($path)) { try { ([IO.File]::ReadAllText($path) | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $history[$_.Name] = @($_.Value) } } catch { $history = @{} } }
+    $flaky = @()
+    foreach ($t in $tests) {
+        $past = @($history[[string]$t.id] | Where-Object { $_ })
+        $now = if ($t.status -eq 'PASS') { 'PASS' } else { 'FAIL ' + $t.phase }
+        if ($now -ne 'PASS') {
+            $lastSame = [array]::LastIndexOf([object[]]$past, $now)
+            if ($lastSame -ge 0 -and @($past[$lastSame..($past.Count - 1)] | Where-Object { $_ -eq 'PASS' }).Count) { $flaky += $t }
+        }
+        $history[[string]$t.id] = @(@($past) + $now | Select-Object -Last 6)
+    }
+    [IO.File]::WriteAllText($path, ($history | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+    return @($flaky | ForEach-Object { '{0} at {1}' -f $_.id, $_.phase })
+}
+
 function Format-Check($Result) {
     $info = Get-ModInfo
     $head = '{0} {1} ({2}s)' -f $Result.status, $Result.profile, [int]$Result.elapsedSeconds
@@ -164,7 +185,11 @@ function Format-Check($Result) {
         $key = Get-FailureKey $Result
         if ($key -like 'test *') { $out += ('STUCK: {0} failed the same way {1} checks in a row. Stop changing code to guess. Read the area lines; move this behavior into its own @GameTest with only its own setup and rerun it with -Test; if it still fails, finish with a partial report (AGENTS.md).' -f $key, $Result.repeatedFailures) }
         else { $out += ('STUCK: the same problem {0} checks in a row: {1}. Look up the exact signature (agent.ps1 api Class.member) or write it another way; if it still fails, finish with a partial report (AGENTS.md).' -f $Result.repeatedFailures, $key) }
-    } elseif ($Result.testFailures -ge 5) {
+    }
+    foreach ($f in @($Result.flakyTests)) {
+        if ($f) { $out += ('FLAKY: test {0} failed there before, then passed, and fails again. If your last change did not touch this behavior, the test depends on world noise: mobs burning in the always-day test world, the hurt cooldown after any damage (hits during it do nothing; arrows bounce), random ticks, mob AI. Read the area lines (mob hp, burning, hurt cooldown), make the setup deterministic, then rerun it twice with -Test.' -f $f) }
+    }
+    if ($Result.repeatedFailures -lt 3 -and $Result.testFailures -ge 5) {
         $test = @(@($Result.harness.tests) | Where-Object { $_ -and $_.status -ne 'PASS' }) | Select-Object -First 1
         $out += ('STUCK: test {0} failed {1} checks in a row. Stop changing the setup. Reduce it to the one behavior that fails, compare the area lines with what you expected, look up that behavior (agent.ps1 api); if it still fails, finish with a partial report (AGENTS.md).' -f $test.id, $Result.testFailures)
     }
@@ -291,10 +316,12 @@ function ConvertTo-Splat([object[]]$Tokens) {
     return @{ named = $named; positional = $positional }
 }
 
-function Set-ModVersion([string]$Version) {
+function Set-ModVersion([string]$Version, [bool]$Force) {
     if ($Version -notmatch '^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$') { throw 'Usage: agent.ps1 version <major.minor.patch>' }
     $info = Get-ModInfo
     if (-not $info) { throw 'No mod found.' }
+    $old = $info.version -replace '-.*$', ''; $new = $Version -replace '-.*$', ''
+    if (-not $Force -and $old -match '^\d+\.\d+\.\d+$' -and [version]$new -lt [version]$old) { throw "$Version is lower than the current $($info.version); versions only go up (a typo?). Pass -Force to go back on purpose." }
     $utf8 = New-Object Text.UTF8Encoding($false)
     $changes = @()
     $buildPath = Join-Path $root 'build.gradle'
@@ -412,6 +439,7 @@ try {
             $result | Add-Member -NotePropertyName runId -NotePropertyValue ([IO.Path]::GetFileNameWithoutExtension($result.report))
             $result | Add-Member -NotePropertyName problems -NotePropertyValue @(Get-Problems $result)
             $result | Add-Member -NotePropertyName repeatedFailures -NotePropertyValue (Update-FailureStreak $result)
+            $result | Add-Member -NotePropertyName flakyTests -NotePropertyValue @(Update-TestHistory $result)
             $resultJson = $result | ConvertTo-Json -Depth 8 -Compress
             Set-Content -LiteralPath $result.report -Value $resultJson -Encoding UTF8
             Set-Content -LiteralPath (Join-Path $reportRoot 'latest.json') -Value $resultJson -Encoding UTF8
@@ -477,7 +505,7 @@ try {
             & (Join-Path $root 'tools/New-Content.ps1') @named
             $exitCode = $LASTEXITCODE
         }
-        'version' { Set-ModVersion $Target }
+        'version' { Set-ModVersion $Target (@($Rest) -contains '-Force') }
         'batch' {
             # .NET resolves relative paths against the process directory, not the PowerShell location.
             $batchFile = if ($Target -and -not [IO.Path]::IsPathRooted($Target)) { Join-Path (Get-Location).Path $Target } else { $Target }

@@ -86,4 +86,4 @@ Blocks with properties also need `createBlockState`, `getStateFromMeta`, `getMet
 - Time: 20 ticks = 1 second. `world.getTotalWorldTime()` for timers.
 - Effects: `new PotionEffect(MobEffects.SPEED, ticks, amplifier)`; amplifier 0 = level I.
 
-Names from newer versions or older mappings are wrong here: `setTranslationKey` (not setUnlocalizedName), `CreativeTabs.MATERIALS`, `EntityPlayer`, `EnumHand`, `EnumFacing`, `NBTTagCompound`, `IBlockState`, `world.getChunk`, `MathHelper.floor`. The compiler hints list more.
+Names from newer versions or older mappings are wrong here: `setTranslationKey` (not setUnlocalizedName), `CreativeTabs.MATERIALS`, `EntityPlayer`, `EnumHand`, `EnumFacing`, `NBTTagCompound`, `IBlockState`, `world.getChunk`, `MathHelper.floor`. The compiler hints list more. Vanilla translation keys often differ from registry names (dye is `item.dyePowder.<colour>.name`): never assemble one; take it from a stack, `stack.getTranslationKey() + ".name"` (or `stack.getDisplayName()` on the client).

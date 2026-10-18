@@ -101,9 +101,14 @@ public final class TestContext {
         int at = id.indexOf('@');
         return at < 0 ? new ItemStack(item(id), count) : new ItemStack(item(id.substring(0, at)), count, Integer.parseInt(id.substring(at + 1)));
     }
-    /** Result of the crafting grid, row-major 3x3; "" or null = empty cell. Fewer than 9 cells fill from the top-left. */
+    /**
+     * Result of the crafting grid, row-major 3x3; "" or null = empty cell. A shapeless check may list just the
+     * ingredients (they fill from the top-left); a grid with empty cells must give all 9.
+     */
     public ItemStack craft(String... cells) {
         if (cells.length > 9) throw new IllegalArgumentException("A crafting grid has 9 cells");
+        if (cells.length < 9) for (String cell : cells) if (cell == null || cell.isEmpty())
+            throw new IllegalArgumentException("craft got " + cells.length + " cells with an empty one: give all 9 cells, row-major (\"\" = empty), or only the ingredients of a shapeless recipe");
         InventoryCrafting grid = new InventoryCrafting(new Container() {
             @Override public boolean canInteractWith(EntityPlayer player) { return false; }
         }, 3, 3);
@@ -337,7 +342,15 @@ public final class TestContext {
                 lines.add(describe(world, pos));
             }
             Map<String, Integer> entities = new TreeMap<>();
+            List<String> mobs = new ArrayList<>();
             for (Entity entity : world.getEntitiesWithinAABB(Entity.class, new AxisAlignedBB(origin.add(0, -1, 0), origin.add(16, 16, 16)))) {
+                // Health, fire and hurt cooldown explain refused hits (a hit during the cooldown does nothing; arrows bounce).
+                if (entity instanceof net.minecraft.entity.EntityLivingBase && mobs.size() < 6) {
+                    net.minecraft.entity.EntityLivingBase mob = (net.minecraft.entity.EntityLivingBase) entity;
+                    mobs.add(String.format(Locale.ROOT, "%s at (%.1f,%.1f,%.1f): hp %.1f/%.1f%s, hurt cooldown %d", mob.getName(),
+                            mob.posX - origin.getX(), mob.posY - origin.getY(), mob.posZ - origin.getZ(), mob.getHealth(), mob.getMaxHealth(),
+                            mob.isBurning() ? ", burning" : "", mob.hurtResistantTime));
+                }
                 ResourceLocation key = EntityList.getKey(entity);
                 String name = entity instanceof EntityItem ? "item " + id(((EntityItem) entity).getItem())
                         : entity instanceof EntityPlayer ? "player " + entity.getName()
@@ -349,6 +362,7 @@ public final class TestContext {
                 for (Map.Entry<String, Integer> e : entities.entrySet()) line.append(' ').append(e.getValue()).append("x ").append(e.getKey()).append(',');
                 lines.add(cut(line.substring(0, line.length() - 1)));
             }
+            for (String mob : mobs) lines.add(cut(mob));
         } catch (Throwable error) {
             lines.add("area snapshot failed: " + error);
         }

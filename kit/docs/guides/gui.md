@@ -76,4 +76,4 @@ A settings or info screen extends `GuiScreen` (client only), opened from client 
 
 ## Test
 
-Construct the container in a game test (`new RubyBoxContainer(player.inventory, tile)`) and call `transferStackInSlot`; `player.openGui` does nothing for a FakePlayer. Layout and textures need the client.
+Construct the container in a game test (`new RubyBoxContainer(player.inventory, tile)`, or `new ModGuiHandler().getServerGuiElement(id, player, world, x, y, z)` to test the handler, vanilla containers included) and call `transferStackInSlot`; `player.openGui` does nothing for a FakePlayer. Layout and textures need the client.

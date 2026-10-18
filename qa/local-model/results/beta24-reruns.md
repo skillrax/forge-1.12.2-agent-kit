@@ -23,6 +23,9 @@ Setup: as series 2 from S4 (no control vector, temp 0.35, top_p 0.9, top_k 40, m
 - Export failure text lists three files to edit instead of `agent.ps1 version x.y.z`, and says `check server` although a passing `check game` also counts; `version` accepted a downgrade (1.0.1 -> 1.0.0) silently.
 - Docs: TESTING.md line 17 floor "y=3" (absolute) vs table "y -1" (relative) confused this model too (second sighting); `t.player(name)` UUID is stable per name (`nameUUIDFromBytes`), not stated; testing a GUI built by your `IGuiHandler`: call `getServerGuiElement(...)` and assert on the container; the test server never translates, so assert on keys (TESTING.md says it as a footnote).
 
+## Applied in kit 0.5.0-beta.25
+All 11. Fix 11 measured first: "spawnEntity with no isRemote in the method" flagged 4 of 18 spawns in the series 2 mods, reruns, fixtures and examples, all false positives (tile helpers, a dispenser behavior); limited to hooks that run on both sides (item use/release/tick, block activation/collision, entity update/impact) it flags 0 and still catches the original S3 bug. FLAKY does not count toward STUCK; it prints its own stop-and-look message.
+
 ## Candidate fixes (apply after the S5 rerun)
 1. Flaky signal (S3; the S3 beta.23 run looped too): keep per-test step outcomes across checks (not cleared by PASS); when one test has passed and failed at the same step within the last ~6 checks, print `FLAKY` naming world noise as the likely cause (burning mobs, hurt cooldown, random ticks, mob AI) and count it toward STUCK.
 2. Area dump: living entities with health, burning and hurt cooldown (`1x zombie (hp 17/20, burning, hurt 6)`), so a refused hit is visible in one read.

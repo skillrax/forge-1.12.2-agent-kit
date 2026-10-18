@@ -37,6 +37,8 @@ if ($reports.Count) {
     "  sequence (upper = PASS; e environment, b build, s server, g game): $sequence"
     $stuck = @($reports | Where-Object { $_.repeatedFailures -ge 3 -or $_.testFailures -ge 5 })
     if ($stuck.Count) { "  STUCK printed $($stuck.Count)x, first after check $([array]::IndexOf($reports, $stuck[0]) + 1)" } else { '  STUCK: never' }
+    $flaky = @($reports | Where-Object { @($_.flakyTests | Where-Object { $_ }).Count })
+    if ($flaky.Count) { "  FLAKY printed $($flaky.Count)x: " + ((@($flaky | ForEach-Object { @($_.flakyTests)[0] }) | Select-Object -Unique) -join '; ') }
     $failedTests = @($reports | ForEach-Object { foreach ($t in @($_.harness.tests)) { if ($t -and $t.status -ne 'PASS') { $t } } })
     $withArea = @($failedTests | Where-Object { @($_.area).Count }).Count
     if ($failedTests.Count) {
