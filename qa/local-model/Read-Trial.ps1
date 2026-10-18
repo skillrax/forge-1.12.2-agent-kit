@@ -1,6 +1,6 @@
 # Summary of an unattended trial run, read from the trial folder afterwards (nobody has to watch it):
 # kit usage log (reports/agent-log.jsonl, kit 0.5.0-beta.19+), every check report, kit files changed
-# against the release manifest, the mod's files and TASK.md.
+# against the release manifest, the mod's files and TASK.md, then the model side from OpenCode's session store (Read-OpenCode.py).
 # Usage: powershell -NoProfile -File qa/local-model/Read-Trial.ps1 -Path <trial folder>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Path)
@@ -94,3 +94,8 @@ $jars = @(Get-ChildItem -Path (Join-Path $trial 'releases') -Filter '*.jar' -Err
 'exported: ' + $(if ($jars.Count) { ($jars.Name -join ', ') } else { 'no jar' })
 $task = Join-Path $trial 'TASK.md'
 if ([IO.File]::Exists($task)) { 'TASK.md:'; [IO.File]::ReadAllLines($task) | Where-Object { $_.Trim() } | Select-Object -First 12 | ForEach-Object { '  ' + $(if ($_.Length -gt 160) { $_.Substring(0, 160) + '...' } else { $_ }) } }
+
+# The model side (OpenCode's session store): generating time, output mix, compactions, tool errors.
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($python) { & $python.Source -I (Join-Path $PSScriptRoot 'Read-OpenCode.py') $trial }
+else { 'opencode: python not found; run qa/local-model/Read-OpenCode.py <trial> for the model side' }
