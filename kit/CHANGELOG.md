@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5 (2026-10-20)
+
+- Restart tests report the checks of both halves ("3 assertions, 40 ticks, across a server restart") instead of "0 assertions".
+- `new test <id> -Restart` on an existing test says how to add `afterRestart` by hand.
+- Docs: `check client` opens no screens (GUIs, Mods > Config, HUDs), so say those are untested; agents that can view images look at the screenshots; player persisted data also survives a death without keepInventory.
+
 ## 0.5.4 (2026-10-20)
 
 - Guide fixes found by the new hidden acceptance tests: a command for everyone needs `checkPermission` returning true (level 0 alone refuses non-ops on a server); the ore dictionary has no coal item entry (use `Items.COAL` or `TileEntityFurnace.isItemFuel`); swords, hoes and shears are not `ItemTool` (use `isDamageable` / BREAKABLE for "any tool").

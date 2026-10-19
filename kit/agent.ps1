@@ -99,7 +99,7 @@ function Get-Problems($Result) {
     if ($Result.harness) {
         foreach ($issue in @($Result.harness.lint)) { $lines.Add(('{0} {1}: {2}' -f $issue.level, $issue.subject, $issue.message)) }
         foreach ($t in @($Result.harness.tests)) {
-            if ($t.status -eq 'PASS') { $lines.Add(('PASS test {0} ({1} assertions, {2} ticks)' -f $t.id, $t.assertions, $t.ticks)) }
+            if ($t.status -eq 'PASS') { $lines.Add(('PASS test {0} ({1} assertions, {2} ticks{3})' -f $t.id, $t.assertions, $t.ticks, $(if ($t.restart) { ', across a server restart' } else { '' }))) }
             else {
                 $lines.Add(('FAIL test {0} at {1}: {2}' -f $t.id, $t.phase, $t.message))
                 foreach ($frame in @($t.stack)) { $lines.Add('    at ' + $frame) }

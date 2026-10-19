@@ -1157,6 +1157,11 @@ public final class ModEntities {
 function Build-Test {
     if ($Name -notmatch '^[a-z][a-z0-9-]*$') { throw 'Test ids are lowercase with dashes, e.g. ruby-ore-drops' }
     $pascal = (($Name.Split('-') | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '') + 'Test'
+    $testFile = Join-Path $project.tests "$pascal.java"
+    if ([IO.File]::Exists($testFile)) {
+        $add = if ($Restart) { 'add the afterRestart method by hand (docs/TESTING.md, "survives leaving and rejoining")' } else { 'edit it' }
+        throw "$(Get-Rel $testFile) already exists: $add, or delete it and run new test again."
+    }
     $restartPart = if (-not $Restart) { '' } else { @"
 
     /** Runs after the server saved the world, stopped and started again: same area, same t.origin(). */

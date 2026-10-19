@@ -172,7 +172,11 @@ try {
             foreach ($entry in @($first.tests)) {
                 $after = @($second.tests | Where-Object { $_.id -eq $entry.id }) | Select-Object -First 1
                 if ($entry.id -in $restartIds -and -not $after) { $after = [pscustomobject]@{ id = $entry.id; status = 'FAIL'; phase = 'after restart'; assertions = 0; ticks = 0; message = 'no result after the restart (see the log)' } }
-                $merged += $(if ($after -and $after.status -ne 'PASS') { $after } else { $entry })
+                if ($after -and $after.status -eq 'PASS') {
+                    # Both halves passed: one result counting the checks of both.
+                    $after = [pscustomobject]@{ id = $entry.id; status = 'PASS'; phase = $after.phase; assertions = [int]$entry.assertions + [int]$after.assertions; ticks = [int]$entry.ticks + [int]$after.ticks; message = 'ok'; restart = $true }
+                }
+                $merged += $(if ($after) { $after } else { $entry })
             }
             $first.tests = $merged
             [IO.File]::WriteAllText($harnessPath, ($first | ConvertTo-Json -Depth 12), (New-Object Text.UTF8Encoding($false)))

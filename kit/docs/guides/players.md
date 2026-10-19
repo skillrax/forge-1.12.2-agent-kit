@@ -2,7 +2,7 @@
 
 ## Saved per-player values
 
-Small values: a compound under the player's persisted NBT. It survives logout, restart and respawn (EntityPlayerMP.copyFrom copies it; no clone handler needed).
+Small values: a compound under the player's persisted NBT. It survives logout, restart and respawn (EntityPlayerMP.copyFrom copies it; no clone handler needed), also a death without keepInventory: if your data stands for items that should drop on death, clear it yourself (e.g. in `PlayerDropsEvent`).
 
 ```java
 static NBTTagCompound data(EntityPlayer player) {                        // read

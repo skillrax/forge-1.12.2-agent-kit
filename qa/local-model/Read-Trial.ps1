@@ -30,11 +30,11 @@ if ($calls.Count) {
 # Check reports: one per run, with problems and failed tests.
 $reports = @(Get-ChildItem -Path (Join-Path $trial 'reports/testing-tools') -Filter '*.json' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*latest*' -and $_.Name -match '^\d{8}T' } | Sort-Object Name | ForEach-Object { Read-Json $_.FullName })
 if ($reports.Count) {
-    $letters = @{ environment = 'e'; build = 'b'; unit = 'u'; server = 's'; game = 'g' }
+    $letters = @{ environment = 'e'; build = 'b'; unit = 'u'; server = 's'; game = 'g'; client = 'c' }
     $sequence = ($reports | ForEach-Object { $l = $letters[[string]$_.profile]; if (-not $l) { $l = '?' }; if ($_.status -eq 'PASS') { $l.ToUpperInvariant() } else { $l } }) -join ''
     $t0 = Get-RunTime $reports[0].runId; $t1 = Get-RunTime $reports[-1].runId
     "checks: $($reports.Count) between $($t0.ToLocalTime().ToString('HH:mm')) and $($t1.ToLocalTime().ToString('HH:mm')) ($([int]($t1 - $t0).TotalMinutes) min)"
-    "  sequence (upper = PASS; e environment, b build, s server, g game): $sequence"
+    "  sequence (upper = PASS; e environment, b build, s server, g game, c client): $sequence"
     $stuck = @($reports | Where-Object { $_.repeatedFailures -ge 3 -or $_.testFailures -ge 5 })
     if ($stuck.Count) { "  STUCK printed $($stuck.Count)x, first after check $([array]::IndexOf($reports, $stuck[0]) + 1)" } else { '  STUCK: never' }
     $flaky = @($reports | Where-Object { @($_.flakyTests | Where-Object { $_ }).Count })

@@ -115,6 +115,7 @@ exit 0
     Invoke-Agent @('new', 'test', 'gem-box-kept', '-Restart') | Out-Null
     Assert ((Read-Text 'src/gametest/java/com/example/demo/GemBoxKeptTest.java') -match 'public void afterRestart\(TestContext t\)' -and (Read-Text 'src/gametest/java/com/example/demo/GemOreDropsTest.java') -notmatch 'afterRestart') 'test -Restart scaffold'
     Remove-Item -LiteralPath (Join-Path $fixture 'src/gametest/java/com/example/demo/GemBoxKeptTest.java')
+    Assert ((Invoke-Agent @('new', 'test', 'gem-ore-drops', '-Restart') 1) -match 'add the afterRestart method by hand') 'existing test + -Restart names the fix'
     $items = Read-Text "$java/ModItems.java"; $blocks = Read-Text "$java/ModBlocks.java"; $main = Read-Text "$java/DemoMod.java"
     Assert ($items -match 'GEM = item\("gem", new Item\(\)\)\.setCreativeTab\(CreativeTabs\.MATERIALS\)\.setMaxStackSize\(16\);') 'item declaration'
     Assert ($items -match 'new ItemFood\(6, 0\.3F, false\)\)\.setPotionEffect\(new PotionEffect\(MobEffects\.SPEED, 200, 1\), 1\.0F\)') 'food declaration'

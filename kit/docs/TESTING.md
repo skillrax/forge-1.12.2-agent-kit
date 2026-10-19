@@ -11,7 +11,7 @@
 
 Output is a few lines: `PASS|FAIL <profile> (<s>): summary`, then problems. `errors` reprints the last result; `errors -Full` adds the log tail. Lint lines are `WARN`/`ERROR <subject>: <message>`; ERROR fails the check, WARN means something looks broken in the client (missing texture, raw translation key). Fix or deliberately justify every WARN.
 
-`check client` proves models and textures load and takes screenshots; whether they look right, GUI layout and animations still need a person (the screenshots, or `gradlew.bat runClient`); say so when reporting.
+`check client` proves models and textures load and takes screenshots of placed blocks and of items; it opens no screens (GUIs, the Mods > Config screen, HUDs), so those stay untested: say so. Whether things look right, GUI layout and animations still need a person (the screenshots, or `gradlew.bat runClient`); say so when reporting.
 
 ## Game tests
 
