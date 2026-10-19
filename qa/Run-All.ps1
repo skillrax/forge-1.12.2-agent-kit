@@ -42,7 +42,7 @@ foreach ($name in $suites.Keys) {
             $output | Out-File -LiteralPath $log -Encoding utf8 -Append
         }
     } else {
-        $extra = if ($name -like 'samples*client*') { @('-Client') } else { @() }
+        $extra = @(if ($name -like 'samples*client*') { '-Client' })   # @(...) keeps a one-item array an array
         $output = & $shell -NoProfile -File (Join-Path $repo $suites[$name][0]) @extra 2>&1
         $code = $LASTEXITCODE
         $output | Out-File -LiteralPath $log -Encoding utf8

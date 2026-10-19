@@ -63,7 +63,7 @@ public class RubyCommand extends CommandBase {
 @Mod.EventHandler public void serverStarting(FMLServerStartingEvent event) { event.registerServerCommand(new RubyCommand()); }
 ```
 
-Tab completion: override `getTabCompletions(...)` with `getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames())`. Permission 0 = everyone.
+Tab completion: override `getTabCompletions(...)` with `getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames())`. A command for everyone, non-ops on a server included: override `checkPermission(MinecraftServer server, ICommandSender sender)` to return true. Permission level 0 alone is not enough: `CommandBase.checkPermission` asks `EntityPlayerMP.canUseCommand`, which refuses every non-op on a dedicated server except for tell, help, me and trigger (it only looks like it works in single-player, where you are op).
 
 ## Keybinds and personal screens (client)
 

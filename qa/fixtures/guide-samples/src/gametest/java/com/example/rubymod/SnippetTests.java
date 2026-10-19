@@ -142,6 +142,41 @@ public final class SnippetTests {
         }
     }
 
+    /** players.md, recipes.md, effects-enchantments.md: three 1.12.2 facts the acceptance tests caught. */
+    @GameTest("permission-coal-tools-facts")
+    public static final class OneTwelveFacts implements Scenario {
+        @Override public void plan(TestContext t) {
+            t.then("level 0 still refuses a non-op; checkPermission true does not", () -> {
+                FakePlayer p = t.player("nonop");
+                net.minecraft.command.CommandBase levelZero = new net.minecraft.command.CommandBase() {
+                    @Override public String getName() { return "levelzero"; }
+                    @Override public String getUsage(net.minecraft.command.ICommandSender sender) { return "/levelzero"; }
+                    @Override public int getRequiredPermissionLevel() { return 0; }
+                    @Override public void execute(net.minecraft.server.MinecraftServer server, net.minecraft.command.ICommandSender sender, String[] args) { }
+                };
+                net.minecraft.command.CommandBase everyone = new net.minecraft.command.CommandBase() {
+                    @Override public String getName() { return "everyone"; }
+                    @Override public String getUsage(net.minecraft.command.ICommandSender sender) { return "/everyone"; }
+                    @Override public boolean checkPermission(net.minecraft.server.MinecraftServer server, net.minecraft.command.ICommandSender sender) { return true; }
+                    @Override public void execute(net.minecraft.server.MinecraftServer server, net.minecraft.command.ICommandSender sender, String[] args) { }
+                };
+                t.require(!levelZero.checkPermission(t.server(), p), "level 0 let a non-op run it");
+                t.require(everyone.checkPermission(t.server(), p), "checkPermission override refused");
+            });
+            t.then("no ore dictionary entry for coal; isItemFuel knows both", () -> {
+                t.require(!net.minecraftforge.oredict.OreDictionary.doesOreNameExist("coal"), "ore name coal exists");
+                t.require(net.minecraft.tileentity.TileEntityFurnace.isItemFuel(new ItemStack(Items.COAL, 1, 1)), "charcoal not fuel");
+            });
+            t.then("swords, hoes and shears are not ItemTool; BREAKABLE takes them", () -> {
+                for (Item item : new Item[]{Items.IRON_SWORD, Items.IRON_HOE, Items.SHEARS}) {
+                    t.require(!(item instanceof net.minecraft.item.ItemTool), item + " is an ItemTool");
+                    t.require(net.minecraft.enchantment.EnumEnchantmentType.BREAKABLE.canEnchantItem(item), item + " not BREAKABLE");
+                }
+                t.require(Items.IRON_PICKAXE instanceof net.minecraft.item.ItemTool, "pickaxe not an ItemTool");
+            });
+        }
+    }
+
     @GameTest("zombie-entity")
     public static final class Zombie implements Scenario {
         @Override public void plan(TestContext t) {

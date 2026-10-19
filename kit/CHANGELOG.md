@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 (2026-10-20)
+
+- Guide fixes found by the new hidden acceptance tests: a command for everyone needs `checkPermission` returning true (level 0 alone refuses non-ops on a server); the ore dictionary has no coal item entry (use `Items.COAL` or `TileEntityFurnace.isItemFuel`); swords, hoes and shears are not `ItemTool` (use `isDamageable` / BREAKABLE for "any tool").
+
 ## 0.5.3 (2026-10-19)
 
 - `check client`: starts a real client in a flat world, fails when a block state or item renders purple-black (missing model, blockstate variant or texture), warns on missing names, and saves screenshots of every block and item for you to look at (paths printed). AGENTS.md makes it part of "done".

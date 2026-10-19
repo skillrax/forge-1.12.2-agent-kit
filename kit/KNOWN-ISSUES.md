@@ -1,4 +1,4 @@
-# Known issues and limits (0.5.3)
+# Known issues and limits (0.5.4)
 
 - **Looks are checked, not judged.** `check client` proves every block and item has a model and its textures, and saves screenshots; whether they look right, GUIs, particles and HUDs need your eyes (the screenshots or `gradlew.bat runClient`). It needs a desktop session: it opens a game window for about 40 seconds.
 - **Player data across a restart is untested.** Test players do not survive a restart, so player-held data is not covered by `afterRestart` tests; world data (tile contents, block states, saved data) is.
