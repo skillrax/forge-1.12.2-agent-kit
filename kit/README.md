@@ -15,4 +15,6 @@ A workspace where an AI coding agent (Claude Code, Codex, a local-model agent, .
 | `examples/` | larger working mods to copy from: machines, GUIs, energy networks, static models |
 | `tools/`, `testing/` | scripts behind agent.ps1 |
 
-Versions: [kit.json](kit.json). Third-party notices: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Versions: [kit.json](kit.json). License: MIT ([LICENSE](LICENSE)); third-party notices: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Limits: Windows 10/11 x64 only. Checks run on a server, so how things look (textures, models, GUIs) is only seen in `runClient`. Strong agents (Claude Code, Codex) finish most requests on their own; small local models finish simpler ones and may need a nudge.

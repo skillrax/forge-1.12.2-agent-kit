@@ -41,8 +41,8 @@ try {
     $sha = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
     [long]$sourceBytes = 0
     foreach ($file in $entries) { $sourceBytes += [long]$file['bytes'] }
-    $releaseState=if($version -match '-(alpha|beta)\.\d+$'){'private-'+$Matches[1]+'-candidate'}else{'private-candidate'}
-    $manifest = [ordered]@{ schemaVersion=1; version=$version; releaseState=$releaseState; archive=$zipPath; archiveRoot=$name; archiveSha256=$sha; compressedBytes=(Get-Item $zipPath).Length; sourceBytes=$sourceBytes; fileCount=@($entries).Count; files=@($entries); limits='Exact candidate content/checksums; separate-PC setup, agent client connection and installed gameplay remain unverified. Private distribution only.' }
+    $releaseState=if($version -match '-(alpha|beta)\.\d+$'){'private-'+$Matches[1]+'-candidate'}else{'release'}
+    $manifest = [ordered]@{ schemaVersion=1; version=$version; releaseState=$releaseState; archive=$zipPath; archiveRoot=$name; archiveSha256=$sha; compressedBytes=(Get-Item $zipPath).Length; sourceBytes=$sourceBytes; fileCount=@($entries).Count; files=@($entries); limits=$(if($releaseState -eq 'release'){'Exact content/checksums. MIT for the kit''s own files (LICENSE); graphical gameplay is checked by hand with runClient.'}else{'Exact candidate content/checksums; separate-PC setup, agent client connection and installed gameplay remain unverified. Private distribution only.'}) }
     $json = $manifest | ConvertTo-Json -Depth 8 -Compress
     [IO.File]::WriteAllText((Join-Path $destination 'manifest.json'), $json)
     [IO.File]::WriteAllText(($zipPath + '.sha256'), ($sha + '  ' + [IO.Path]::GetFileName($zipPath) + "`n"))
