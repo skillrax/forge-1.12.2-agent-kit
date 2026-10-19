@@ -124,6 +124,24 @@ public final class SnippetTests {
         }
     }
 
+    @GameTest("box-survives-restart")
+    public static final class BoxRestart implements Scenario {
+        @Override public void plan(TestContext t) {
+            BlockPos box = t.origin().add(2, 0, 2);
+            t.then("fill the box", () -> {
+                t.place(box, "rubymod:ruby_box");
+                t.tile(box, RubyBoxTile.class).inventory.setStackInSlot(0, new ItemStack(ModItems.RUBY, 5).setStackDisplayName("Kept"));
+            });
+        }
+        @Override public void afterRestart(TestContext t) {
+            BlockPos box = t.origin().add(2, 0, 2);
+            t.check("contents-kept", () -> {
+                ItemStack kept = t.tile(box, RubyBoxTile.class).inventory.getStackInSlot(0);
+                return kept.getItem() == ModItems.RUBY && kept.getCount() == 5 && "Kept".equals(kept.getDisplayName());
+            }, () -> "slot 0 after restart: " + t.tile(box, RubyBoxTile.class).inventory.getStackInSlot(0));
+        }
+    }
+
     @GameTest("zombie-entity")
     public static final class Zombie implements Scenario {
         @Override public void plan(TestContext t) {

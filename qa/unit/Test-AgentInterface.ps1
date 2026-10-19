@@ -112,6 +112,9 @@ exit 0
     Assert ((Invoke-Agent @('new', 'mob', 'gem_cow', '-Like', 'cow', '-Attack', '3') 1) -match '-Attack does not apply to a cow') 'mob attack on animal rejected'
     Assert ((Invoke-Agent @('new', 'mob', 'gem_cow', '-Like', 'zombie', '-BiomeTypes', 'netherr') 1) -match "Unknown -BiomeTypes 'NETHERR'") 'mob biome type typo rejected'
     Invoke-Agent @('new', 'test', 'gem-ore-drops') | Out-Null
+    Invoke-Agent @('new', 'test', 'gem-box-kept', '-Restart') | Out-Null
+    Assert ((Read-Text 'src/gametest/java/com/example/demo/GemBoxKeptTest.java') -match 'public void afterRestart\(TestContext t\)' -and (Read-Text 'src/gametest/java/com/example/demo/GemOreDropsTest.java') -notmatch 'afterRestart') 'test -Restart scaffold'
+    Remove-Item -LiteralPath (Join-Path $fixture 'src/gametest/java/com/example/demo/GemBoxKeptTest.java')
     $items = Read-Text "$java/ModItems.java"; $blocks = Read-Text "$java/ModBlocks.java"; $main = Read-Text "$java/DemoMod.java"
     Assert ($items -match 'GEM = item\("gem", new Item\(\)\)\.setCreativeTab\(CreativeTabs\.MATERIALS\)\.setMaxStackSize\(16\);') 'item declaration'
     Assert ($items -match 'new ItemFood\(6, 0\.3F, false\)\)\.setPotionEffect\(new PotionEffect\(MobEffects\.SPEED, 200, 1\), 1\.0F\)') 'food declaration'

@@ -28,7 +28,7 @@ Generators insert code above those `// kit:` markers; keep the markers. Hand-wri
 | `smelting` | `-From item -Result item -Count 1 -Xp 0.7` | `GameRegistry.addSmelting` line in init |
 | `tile` | `-Ticking` `-Inventory n` | `<Name>Block` + `<Name>Tile` (NBT save, client sync, optional ITickable and item capability, drops contents), registration |
 | `mob` | `-Like zombie\|skeleton\|spider\|creeper\|blaze\|ghast\|cow\|pig\|chicken` (required; movement, AI, model) `-Health` `-Attack` (zombie, skeleton, spider, blaze) `-Speed` (not ghast) `-Drops item -Count 0-2` `-Egg rrggbb,rrggbb` `-Biomes plains,desert` `-BiomeTypes NETHER,FOREST` `-Weight 10` `-Group 1-3` | `<Name>` entity extending the base, ModEntities registration with spawn egg and spawns, vanilla renderer in ClientEvents, loot table, lang; checks for stats, egg, drop range and spawn biomes |
-| `test` | name like `ruby-ore-drops` | `src/gametest/.../<Name>Test.java` scaffold whose placeholder check fails until you replace it |
+| `test` | name like `ruby-ore-drops`; `-Restart` adds `afterRestart` (checks after a server restart on the same world) | `src/gametest/.../<Name>Test.java` scaffold whose placeholder check fails until you replace it |
 
 `-Like` sets every value from a vanilla material; any explicit option overrides it. "Iron stats with diamond durability": `new tools gron -Only all -Like iron -Durability diamond`.
 

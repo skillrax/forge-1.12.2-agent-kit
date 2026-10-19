@@ -313,6 +313,7 @@ tasks.withType(JavaExec).configureEach {
         classpath += sourceSets.kitHarness.output + sourceSets.gametest.output
         systemProperty 'kit.check.out', kitCheckOut.get()
         systemProperty 'kit.gametests', providers.gradleProperty('kitGameTests').getOrElse('')
+        systemProperty 'kit.restart.from', providers.gradleProperty('kitRestartFrom').getOrElse('')
     }
     if (name == 'runServer') {
         standardInput = System.in

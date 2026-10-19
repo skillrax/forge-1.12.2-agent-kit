@@ -26,6 +26,10 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
 public final class HarnessMod {
     private static final String OUT = System.getProperty("kit.check.out");
     private static final String FILTER = System.getProperty("kit.gametests", "");
+    /** Phase 2 runs afterRestart() of the tests listed in the phase-1 report, on the same saved world. */
+    private static final String RESTART_FROM = System.getProperty("kit.restart.from", "");
+    private final JsonArray restart = new JsonArray();
+    private String[] currentEntry;
     private final List<String[]> pending = new ArrayList<>();
     private final JsonArray results = new JsonArray();
     private JsonObject report;
@@ -37,7 +41,19 @@ public final class HarnessMod {
 
     @Mod.EventHandler public void preInit(FMLPreInitializationEvent event) {
         if (OUT == null) return;
-        if (!FILTER.isEmpty()) {
+        if (!RESTART_FROM.isEmpty()) {
+            try (Reader reader = Files.newBufferedReader(Paths.get(RESTART_FROM), StandardCharsets.UTF_8)) {
+                JsonObject first = new JsonParser().parse(reader).getAsJsonObject();
+                for (JsonElement element : first.getAsJsonArray("restart")) {
+                    JsonObject entry = element.getAsJsonObject();
+                    JsonArray origin = entry.getAsJsonArray("origin");
+                    pending.add(new String[]{entry.get("id").getAsString(), entry.get("class").getAsString(), entry.get("maxTicks").getAsString(),
+                            origin.get(0).getAsString(), origin.get(1).getAsString(), origin.get(2).getAsString()});
+                }
+            } catch (IOException | RuntimeException error) {
+                throw new IllegalStateException("Cannot read the phase-1 report " + RESTART_FROM, error);
+            }
+        } else if (!FILTER.isEmpty()) {
             Set<String> wanted = new HashSet<>(Arrays.asList(FILTER.split(",")));
             for (ASMDataTable.ASMData data : event.getAsmData().getAll(GameTest.class.getName())) {
                 Object id = data.getAnnotationInfo().get("value");
@@ -54,10 +70,13 @@ public final class HarnessMod {
         if (OUT == null) return;
         server = FMLCommonHandler.instance().getMinecraftServerInstance();
         report = new JsonObject();
-        try { report = new AssetLint(server).run(); }
-        catch (Throwable error) { report.addProperty("lintError", error.toString()); }
+        if (RESTART_FROM.isEmpty()) {
+            try { report = new AssetLint(server).run(); }
+            catch (Throwable error) { report.addProperty("lintError", error.toString()); }
+        }
         report.add("tests", results);
-        if (!FILTER.isEmpty() && pending.isEmpty()) report.addProperty("testError", "*".equals(FILTER)
+        report.add("restart", restart);
+        if (RESTART_FROM.isEmpty() && !FILTER.isEmpty() && pending.isEmpty()) report.addProperty("testError", "*".equals(FILTER)
                 ? "No game tests yet: write one per requested behavior with agent.ps1 new test <id> (agent.ps1 check server only compiles and lints)"
                 : "No @GameTest scenarios matched '" + FILTER + "' in src/gametest/java");
         server.getWorld(0).getGameRules().setOrCreateGameRule("doMobSpawning", "false");
@@ -77,18 +96,37 @@ public final class HarnessMod {
                 if (pending.isEmpty()) { finish(); return; }
                 String[] next = pending.remove(0);
                 currentId = next[0];
-                BlockPos spawn = server.getWorld(0).getSpawnPoint();
-                // Separate 16x16 areas, all inside the spawn chunks that stay loaded.
-                int slot = started % 36;
-                BlockPos origin = new BlockPos(spawn.getX() + 8 + (slot % 6) * 20, 4, spawn.getZ() - 52 + (slot / 6) * 20);
-                started++;
-                current = new TestContext(server, origin, Integer.parseInt(next[2]));
-                current.prepareArea();
+                currentEntry = next;
                 Scenario scenario = (Scenario) Class.forName(next[1]).getConstructor().newInstance();
-                scenario.plan(current);
+                if (next.length > 3) {
+                    // Phase 2: the area as the first server saved it.
+                    BlockPos origin = new BlockPos(Integer.parseInt(next[3]), Integer.parseInt(next[4]), Integer.parseInt(next[5]));
+                    current = new TestContext(server, origin, Integer.parseInt(next[2]));
+                    scenario.afterRestart(current);
+                } else {
+                    BlockPos spawn = server.getWorld(0).getSpawnPoint();
+                    // Separate 16x16 areas, all inside the spawn chunks that stay loaded.
+                    int slot = started % 36;
+                    BlockPos origin = new BlockPos(spawn.getX() + 8 + (slot % 6) * 20, 4, spawn.getZ() - 52 + (slot / 6) * 20);
+                    started++;
+                    current = new TestContext(server, origin, Integer.parseInt(next[2]));
+                    current.prepareArea();
+                    current.checksAfterRestart = declaresRestart(next[1]);
+                    scenario.plan(current);
+                }
             }
             if (current.tick()) {
                 record(true, current.phase(), "ok", null);
+                if (currentEntry.length == 3 && declaresRestart(currentEntry[1])) {
+                    JsonObject entry = new JsonObject();
+                    entry.addProperty("id", currentEntry[0]);
+                    entry.addProperty("class", currentEntry[1]);
+                    entry.addProperty("maxTicks", currentEntry[2]);
+                    JsonArray origin = new JsonArray();
+                    origin.add(current.origin().getX()); origin.add(current.origin().getY()); origin.add(current.origin().getZ());
+                    entry.add("origin", origin);
+                    restart.add(entry);
+                }
                 current.cleanup();
                 current = null;
             }
@@ -104,11 +142,16 @@ public final class HarnessMod {
         }
     }
 
+    private static boolean declaresRestart(String className) {
+        try { return Class.forName(className).getMethod("afterRestart", TestContext.class).getDeclaringClass() != Scenario.class; }
+        catch (ReflectiveOperationException error) { return false; }
+    }
+
     private void record(boolean passed, String phase, String message, Throwable error) {
         JsonObject result = new JsonObject();
         result.addProperty("id", currentId);
         result.addProperty("status", passed ? "PASS" : "FAIL");
-        result.addProperty("phase", phase);
+        result.addProperty("phase", RESTART_FROM.isEmpty() ? phase : "after restart: " + phase);
         result.addProperty("assertions", current == null ? 0 : current.assertions());
         result.addProperty("ticks", current == null ? 0 : current.ticks());
         result.addProperty("message", message.length() > 600 ? message.substring(0, 600) : message);

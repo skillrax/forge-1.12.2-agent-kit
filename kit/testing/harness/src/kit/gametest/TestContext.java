@@ -79,6 +79,8 @@ public final class TestContext {
     public WorldServer world() { return server.getWorld(0); }
     /** This scenario's own area on the flat test world: ground level, inside always-loaded spawn chunks. Use a 16x16 footprint. */
     public BlockPos origin() { return origin; }
+    /** Set by the harness for the first half of a test with afterRestart(): its checks may all come after the restart. */
+    boolean checksAfterRestart;
     public long ticks() { return ticks; }
 
     public Block block(String id) {
@@ -322,7 +324,7 @@ public final class TestContext {
         if (cursor < steps.size()) return false;
         assertionCount += invariants.size();
         phase = "complete";
-        if (assertionCount == 0) throw new AssertionError("scenario finished without any assertions");
+        if (assertionCount == 0 && !checksAfterRestart) throw new AssertionError("scenario finished without any assertions");
         return true;
     }
     String phase() { return phase; }

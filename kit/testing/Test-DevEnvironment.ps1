@@ -64,76 +64,104 @@ try {
         }
     }
     if($Profile -in @('build','server','game') -and $cleanReason){$taskArgs='clean '+$taskArgs}
-    $start = New-Object Diagnostics.ProcessStartInfo
-    $start.FileName = $env:ComSpec
-    $start.Arguments = '/d /s /c ""' + (Join-Path $projectRoot 'gradlew.bat') + '" ' + $taskArgs + ' --console=plain --no-daemon"'
-    $start.WorkingDirectory = $projectRoot
-    $start.UseShellExecute = $false
-    $start.CreateNoWindow = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    $start.RedirectStandardInput = $true
-    $process = New-Object Diagnostics.Process
-    $process.StartInfo = $start
-    $writer = New-Object IO.StreamWriter($logPath, $false, (New-Object Text.UTF8Encoding($false)))
-    $writer.AutoFlush = $true
-    $writer.WriteLine('PROFILE: ' + $Profile + '; TASKS: ' + $taskArgs)
-    if (-not $process.Start()) { throw 'Could not start the Gradle wrapper.' }
-    $processStarted = $true
-    [Console]::Error.WriteLine('Starting '+$Profile+' check. Full log: '+$logPath)
-    $reads = @($process.StandardOutput.ReadLineAsync(), $process.StandardError.ReadLineAsync())
-    $streams = @($process.StandardOutput, $process.StandardError)
-    $ended = @($false, $false)
-    while (-not ($process.HasExited -and $ended[0] -and $ended[1])) {
-        for ($index = 0; $index -lt 2; $index++) {
-            if (-not $ended[$index] -and $reads[$index].IsCompleted) {
-                $line = $reads[$index].GetAwaiter().GetResult()
-                if ($null -eq $line) { $ended[$index] = $true }
-                else {
-                    $writer.WriteLine($line)
-                    $lastOutputAt=$watch.Elapsed.TotalSeconds
-                    # Latest meaningful line (Mavenizer steps, downloads), shown with progress so long steps are visible.
-                    $trimmed=$line.Trim()
-                    # Progress shows the stage and a recent normal line; exceptions (often FML's harmless dev-jar scan noise) are reported at the end.
-                    if($trimmed -and $trimmed -notmatch '^(at |\.\.\.|Cache miss|\.+\d+%|Caused by|[\w.$]+(Exception|Error))' -and $trimmed -notmatch 'Exception|Unable to read a class file|problem reading the entry|failed to read properly' -and $trimmed -ne $observedStage){$lastDetail=$trimmed.Substring(0,[Math]::Min(110,$trimmed.Length))}
-                    if($line -match '^> Task |^> Configure |^Downloading |^Fetching distribution|^Processing Minecraft dependency:'){$observedStage=$line.Substring(0,[Math]::Min(150,$line.Length));$lastDetail=''}
-                    if ($usesServer -and $line -match 'Encountered an unexpected exception|Exception in server tick loop|Caught exception from|[A-Z0-9_]+_ASSERTIONS_FAIL:') {
-                        $serverFatalError = $true
+    # One Gradle run with live progress; dot-sourced so its flags land in this scope. A second run reuses it.
+    $runGradle = {
+        $start = New-Object Diagnostics.ProcessStartInfo
+        $start.FileName = $env:ComSpec
+        $start.Arguments = '/d /s /c ""' + (Join-Path $projectRoot 'gradlew.bat') + '" ' + $taskArgs + ' --console=plain --no-daemon"'
+        $start.WorkingDirectory = $projectRoot
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $start.RedirectStandardOutput = $true
+        $start.RedirectStandardError = $true
+        $start.RedirectStandardInput = $true
+        $process = New-Object Diagnostics.Process
+        $process.StartInfo = $start
+        $writer = New-Object IO.StreamWriter($logPath, $appendLog, (New-Object Text.UTF8Encoding($false)))
+        $writer.AutoFlush = $true
+        $writer.WriteLine('PROFILE: ' + $Profile + '; TASKS: ' + $taskArgs)
+        if (-not $process.Start()) { throw 'Could not start the Gradle wrapper.' }
+        $processStarted = $true
+        [Console]::Error.WriteLine('Starting '+$Profile+' check. Full log: '+$logPath)
+        $reads = @($process.StandardOutput.ReadLineAsync(), $process.StandardError.ReadLineAsync())
+        $streams = @($process.StandardOutput, $process.StandardError)
+        $ended = @($false, $false)
+        while (-not ($process.HasExited -and $ended[0] -and $ended[1])) {
+            for ($index = 0; $index -lt 2; $index++) {
+                if (-not $ended[$index] -and $reads[$index].IsCompleted) {
+                    $line = $reads[$index].GetAwaiter().GetResult()
+                    if ($null -eq $line) { $ended[$index] = $true }
+                    else {
+                        $writer.WriteLine($line)
+                        $lastOutputAt=$watch.Elapsed.TotalSeconds
+                        # Latest meaningful line (Mavenizer steps, downloads), shown with progress so long steps are visible.
+                        $trimmed=$line.Trim()
+                        # Progress shows the stage and a recent normal line; exceptions (often FML's harmless dev-jar scan noise) are reported at the end.
+                        if($trimmed -and $trimmed -notmatch '^(at |\.\.\.|Cache miss|\.+\d+%|Caused by|[\w.$]+(Exception|Error))' -and $trimmed -notmatch 'Exception|Unable to read a class file|problem reading the entry|failed to read properly' -and $trimmed -ne $observedStage){$lastDetail=$trimmed.Substring(0,[Math]::Min(110,$trimmed.Length))}
+                        if($line -match '^> Task |^> Configure |^Downloading |^Fetching distribution|^Processing Minecraft dependency:'){$observedStage=$line.Substring(0,[Math]::Min(150,$line.Length));$lastDetail=''}
+                        if ($usesServer -and $line -match 'Encountered an unexpected exception|Exception in server tick loop|Caught exception from|[A-Z0-9_]+_ASSERTIONS_FAIL:') {
+                            $serverFatalError = $true
+                        }
+                        if ($usesServer -and $line -match 'Done \([0-9.,]+s\)!') { $serverReady = $true; $doneAt = $watch.Elapsed.TotalSeconds }
+                        # The harness lints, runs requested game tests, writes its report, then stops the server itself.
+                        if ($usesServer -and $line -match 'KIT_HARNESS_DONE') { $harnessDone = $true; $stopSent = $true }
+                        $reads[$index] = $streams[$index].ReadLineAsync()
                     }
-                    if ($usesServer -and $line -match 'Done \([0-9.,]+s\)!') { $serverReady = $true; $doneAt = $watch.Elapsed.TotalSeconds }
-                    # The harness lints, runs requested game tests, writes its report, then stops the server itself.
-                    if ($usesServer -and $line -match 'KIT_HARNESS_DONE') { $harnessDone = $true; $stopSent = $true }
-                    $reads[$index] = $streams[$index].ReadLineAsync()
                 }
             }
+            if ($Profile -eq 'server' -and $doneAt -and -not $stopSent -and $watch.Elapsed.TotalSeconds -ge ($doneAt + 60) -and -not $process.HasExited) {
+                # Harness missing or stuck: stop normally so the run still ends cleanly.
+                $process.StandardInput.WriteLine('stop'); $process.StandardInput.Flush(); $stopSent = $true
+            }
+            if($watch.Elapsed.TotalSeconds -ge ($progressAt+15)){
+                $quiet=[int]($watch.Elapsed.TotalSeconds-$lastOutputAt)
+                $detail=$(if($lastDetail){' | '+$lastDetail}else{''})+$(if($quiet -ge 60){' (working; no new output for '+$quiet+'s)'}else{''})
+                [Console]::Error.WriteLine(('[{0}s] {1}: {2}{3}' -f [int]$watch.Elapsed.TotalSeconds,$Profile,$observedStage,$detail))
+                $progressAt=$watch.Elapsed.TotalSeconds
+            }
+            if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+                $exitCode = 2
+                throw "Timeout after $TimeoutSeconds seconds. The wrapper process tree will be terminated."
+            }
+            Start-Sleep -Milliseconds 20
         }
-        if ($Profile -eq 'server' -and $doneAt -and -not $stopSent -and $watch.Elapsed.TotalSeconds -ge ($doneAt + 60) -and -not $process.HasExited) {
-            # Harness missing or stuck: stop normally so the run still ends cleanly.
-            $process.StandardInput.WriteLine('stop'); $process.StandardInput.Flush(); $stopSent = $true
+        $process.WaitForExit()
+        $gradleExit = $process.ExitCode
+        if ($gradleExit -ne 0) { throw "Gradle exited with code $gradleExit. Read the saved log." }
+        if ($usesServer -and $serverFatalError) {
+            throw 'Server reported a fatal startup/runtime exception.'
         }
-        if($watch.Elapsed.TotalSeconds -ge ($progressAt+15)){
-            $quiet=[int]($watch.Elapsed.TotalSeconds-$lastOutputAt)
-            $detail=$(if($lastDetail){' | '+$lastDetail}else{''})+$(if($quiet -ge 60){' (working; no new output for '+$quiet+'s)'}else{''})
-            [Console]::Error.WriteLine(('[{0}s] {1}: {2}{3}' -f [int]$watch.Elapsed.TotalSeconds,$Profile,$observedStage,$detail))
-            $progressAt=$watch.Elapsed.TotalSeconds
+        if ($usesServer -and -not $serverReady) {
+            throw 'Server exited before finishing startup.'
         }
-        if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
-            $exitCode = 2
-            throw "Timeout after $TimeoutSeconds seconds. The wrapper process tree will be terminated."
+        if ($usesServer -and -not $harnessDone) {
+            throw 'The check harness did not report; see the log.'
         }
-        Start-Sleep -Milliseconds 20
     }
-    $process.WaitForExit()
-    $gradleExit = $process.ExitCode
-    if ($gradleExit -ne 0) { throw "Gradle exited with code $gradleExit. Read the saved log." }
-    if ($usesServer -and $serverFatalError) {
-        throw 'Server reported a fatal startup/runtime exception.'
-    }
-    if ($usesServer -and -not $serverReady) {
-        throw 'Server exited before finishing startup.'
-    }
-    if ($usesServer -and -not $harnessDone) {
-        throw 'The check harness did not report; see the log.'
+    $appendLog = $false
+    . $runGradle
+    # Tests with afterRestart(): start the server again on the saved world, then fold those results in.
+    if ($Profile -eq 'game' -and $harnessPath -and [IO.File]::Exists($harnessPath)) {
+        $first = [IO.File]::ReadAllText($harnessPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        $restartIds = @($first.restart | Where-Object { $_ } | ForEach-Object { $_.id })
+        if ($restartIds.Count) {
+            $process.Dispose(); $process = $null; $processStarted = $false; $writer.Dispose(); $writer = $null
+            [Console]::Error.WriteLine('Restarting the server on the same world for ' + $restartIds.Count + ' afterRestart test(s).')
+            $restartPath = Join-Path $serverDir 'kit-check-restart.json'
+            $taskArgs = 'runServer "-PtestingToolsServerDir=' + $serverDir + '" "-PkitCheckOut=' + $restartPath + '" "-PkitRestartFrom=' + $harnessPath + '"'
+            $serverReady = $false; $harnessDone = $false; $stopSent = $false; $serverFatalError = $false; $doneAt = $null
+            $appendLog = $true
+            . $runGradle
+            $second = [IO.File]::ReadAllText($restartPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+            $merged = @()
+            foreach ($entry in @($first.tests)) {
+                $after = @($second.tests | Where-Object { $_.id -eq $entry.id }) | Select-Object -First 1
+                if ($entry.id -in $restartIds -and -not $after) { $after = [pscustomobject]@{ id = $entry.id; status = 'FAIL'; phase = 'after restart'; assertions = 0; ticks = 0; message = 'no result after the restart (see the log)' } }
+                $merged += $(if ($after -and $after.status -ne 'PASS') { $after } else { $entry })
+            }
+            $first.tests = $merged
+            [IO.File]::WriteAllText($harnessPath, ($first | ConvertTo-Json -Depth 12), (New-Object Text.UTF8Encoding($false)))
+        }
     }
     $exitCode = 0
     $reason = switch ($Profile) {

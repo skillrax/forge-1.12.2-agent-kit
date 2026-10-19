@@ -1,7 +1,7 @@
-# Known issues and limits (0.5.1)
+# Known issues and limits (0.5.2)
 
 - **Looks are untested.** Checks run on a dedicated server, so textures, models, GUIs, particles and HUDs are only seen in `gradlew.bat runClient`. Look before you share a mod.
-- **No save/restart test.** Every check starts a new world. Data that must survive leaving and rejoining (tile contents, player data) is checked by an NBT round trip at most; confirm it in the client by saving, quitting and reloading.
+- **Player data across a restart is untested.** Test players do not survive a restart, so player-held data is not covered by `afterRestart` tests; world data (tile contents, block states, saved data) is.
 - **No multiplayer sync test.** Nothing runs a real client against a server, so client/server desync (ghost items, GUIs out of step) can slip through. Test on a LAN world with two clients if your mod has GUIs or synced data.
 - **Exported jars are not tested in a modpack.** The jar is built and reobfuscated, but not loaded next to other mods.
 - **Windows 10/11 x64 only.**

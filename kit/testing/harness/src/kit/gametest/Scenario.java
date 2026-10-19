@@ -6,4 +6,11 @@ package kit.gametest;
  */
 public interface Scenario {
     void plan(TestContext t) throws Exception;
+
+    /**
+     * Optional second half, run after the server saved the world, stopped and started again on the same
+     * world (same area, same {@code t.origin()}). Declare steps here as in plan(); check what must survive
+     * a restart: tile contents, block states, saved data. Players from plan() are gone; make new ones.
+     */
+    default void afterRestart(TestContext t) throws Exception {}
 }

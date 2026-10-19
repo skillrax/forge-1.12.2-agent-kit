@@ -67,4 +67,14 @@ Things that bite:
 - Random ticks run (crops grow, grass spreads, leaves decay), so "X did not happen" can fail by chance. Assert on state your code owns (a counter, an inventory) instead of on world noise.
 - The test world is always day (`doDaylightCycle` off: `world.getWorldTime()` stands still, `getTotalWorldTime()` still counts every tick): zombies and skeletons burn. Use other mobs, or give them fire resistance, when measuring health. After any damage a mob ignores hits for its hurt cooldown (~10 ticks), and an arrow-type projectile bounces off instead of hitting: hit fresh mobs, one hit per mob or wait it out. `spawn` skips `onInitialSpawn`, so mobs have no equipment.
 - Other dimensions exist: `t.server().getWorld(-1)` (Nether) and `getWorld(1)` (End) load on demand, and `entity.changeDimension(dim)` works, so cross-dimension behavior can be tested.
-- Each run uses a new world, so save/load across restarts is not tested. A tile's `writeToNBT`/`readFromNBT` round trip can be checked directly.
+- Each check starts a new world. For "survives leaving and rejoining" (tile contents, block states, saved data) add `afterRestart` to the test (`new test <id> -Restart` writes it): after `plan()` passes, the server saves, stops and starts again on the same world, then runs `afterRestart` in the same area. Players from `plan()` are gone; checks may all be in `afterRestart`.
+
+```java
+@Override public void afterRestart(TestContext t) {
+    BlockPos box = t.origin().add(2, 0, 2);
+    t.check("contents-kept", () -> {
+        ItemStack kept = t.tile(box, RubyBoxTile.class).inventory.getStackInSlot(0);
+        return kept.getItem() == ModItems.RUBY && kept.getCount() == 5 && "Kept".equals(kept.getDisplayName());
+    }, () -> "slot 0 after restart: " + t.tile(box, RubyBoxTile.class).inventory.getStackInSlot(0));
+}
+```

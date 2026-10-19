@@ -47,6 +47,7 @@ param(
     [string]$Result,
     [string]$From,
     [switch]$Ticking,
+    [switch]$Restart,
     [int]$Inventory = 0,
     [double]$Health,
     [double]$Attack,
@@ -85,7 +86,7 @@ $kindOptions = @{
     smelting = @('From', 'Result', 'Count', 'Xp')
     tile     = @('Ticking', 'Inventory')
     mob      = @('Like', 'Health', 'Attack', 'Speed', 'Drops', 'Count', 'Egg', 'Biomes', 'BiomeTypes', 'Weight', 'Group')
-    test     = @()
+    test     = @('Restart')
 }
 
 # Vanilla values (net.minecraft.item.Item.ToolMaterial, ItemArmor.ArmorMaterial, ItemAxe).
@@ -1156,6 +1157,16 @@ public final class ModEntities {
 function Build-Test {
     if ($Name -notmatch '^[a-z][a-z0-9-]*$') { throw 'Test ids are lowercase with dashes, e.g. ruby-ore-drops' }
     $pascal = (($Name.Split('-') | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '') + 'Test'
+    $restartPart = if (-not $Restart) { '' } else { @"
+
+    /** Runs after the server saved the world, stopped and started again: same area, same t.origin(). */
+    @Override
+    public void afterRestart(TestContext t) {
+        BlockPos pos = t.origin().add(2, 0, 2);
+        // KIT-SCAFFOLD: check what must survive leaving and rejoining (tile contents, block state, saved data).
+        t.check("kept-after-restart", () -> false, () -> "KIT-SCAFFOLD placeholder: check what survives a restart in $pascal.java");
+    }
+"@ }
     Write-New (Join-Path $project.tests "$pascal.java") @"
 package $($project.package);
 
@@ -1183,7 +1194,7 @@ public class $pascal implements Scenario {
         // so an unfinished test can never report PASS.
         t.check("expected-outcome", () -> false, () -> "KIT-SCAFFOLD placeholder: write the real steps and checks in $pascal.java");
     }
-}
+$restartPart}
 "@
 }
 
