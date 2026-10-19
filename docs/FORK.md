@@ -1,6 +1,6 @@
 # Independent agent-neutral development fork
 
-Created 2026-10-16 from the current working files in ../Agentic-Codex-projects, including uncommitted source. Original Git HEAD: 06d058350906fc5ac9dc6445b350cb63dcc945a4. This fork has its own repository, no remote, a baseline snapshot commit and a separate refactor commit. The baseline records the copied working state, not merely that original HEAD.
+Created 2026-10-16 from the current working files in ../Agentic-Codex-projects, including uncommitted source. Original Git HEAD: 06d058350906fc5ac9dc6445b350cb63dcc945a4. This fork has its own repository (since 2026-10-19 backed up to a private GitHub remote, `origin`: github.com/skillrax/agentic-minecraft-kit; push main and tags after each commit), a baseline snapshot commit and a separate refactor commit. The baseline records the copied working state, not merely that original HEAD.
 
 Active kit, packaging, docs, QA sources, examples, wrappers, licenses and dependency lockfiles were copied. Generated caches, build/run/report directories, releases, evidence, downloaded external test inputs, historical archive and old prototypes remain in the original workspace. No runtime paths or copied PASS reports establish fresh validation. Historical evidence links in capability/reference documents still describe original results; resolve those in the original folder when needed. Their absence here does not revoke those results or prove new ones.
 

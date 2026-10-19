@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "projectId": "agentic-minecraft-kit",
   "displayName": "Agentic Minecraft Kit",
-  "developmentPolicy": "local-private-no-remote",
+  "developmentPolicy": "private-github-backup",
   "activeSource": "kit",
   "targetQADirectory": "qa",
   "kitMetadata": "kit/kit.json",
