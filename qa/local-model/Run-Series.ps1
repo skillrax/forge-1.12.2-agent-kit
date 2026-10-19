@@ -1,10 +1,12 @@
 # Runs held-out trial prompts unattended: fresh kit copy per trial, the agent, at most one nudge, the
-# feedback prompt, an independent `check game`, Read-Trial, and one summary row per trial.
+# feedback prompt, an independent `check game`, Read-Trial, the hidden acceptance tests (qa/acceptance; the agent
+# never sees them) and one summary row per trial.
 # Usage (from the repo root; the local model server must be running for -Agent opencode):
 #   powershell -NoProfile -File qa/local-model/Run-Series.ps1 -Prompts qa/local-model/PROMPTS-3.md -Ids S0,S1 -Runs 2
 #   ... -Agent claude -Model sonnet          (control run with Claude Code; uses the user's Claude plan)
 #   ... -Context 65536 -Buffer 20000         (64k regression pass)
-# Results: <Out>/<series>-<agent>/<id>-r<n>/ (the trial folder, extracted outside the repo) and summary.md beside them.
+# Results: <Out>/<series>-<agent>/<id>-r<n>/ (the trial folder, extracted outside the repo) and summary.md beside them;
+# <id>-r<n>.acceptance.json has each acceptance test's result.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Prompts,
@@ -149,7 +151,7 @@ if ($Agent -eq 'opencode') {
 
 $summary = Join-Path $root 'summary.md'
 if (-not [IO.File]::Exists($summary)) {
-    [IO.File]::WriteAllText($summary, "# $series, $Agent ($Model), kit $version, context $Context`n`n| Trial | check game | Agent min | Nudges | Questions | Stopped | Folder |`n|---|---|---|---|---|---|---|`n", (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($summary, "# $series, $Agent ($Model), kit $version, context $Context`n`n| Trial | check game | Acceptance | Agent min | Nudges | Questions | Stopped | Folder |`n|---|---|---|---|---|---|---|---|`n", (New-Object Text.UTF8Encoding($false)))
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($id in $Ids) {
@@ -201,10 +203,16 @@ foreach ($id in $Ids) {
         $verdict = (($check.text -split "`n") | Select-Object -First 1)
         $trial = & powershell -NoProfile -File (Join-Path $PSScriptRoot 'Read-Trial.ps1') -Path $dir 2>&1
         [IO.File]::WriteAllText((Join-Path $root "$name.trial.txt"), "check game: $verdict`n`n" + ($trial -join "`n") + "`n", (New-Object Text.UTF8Encoding($false)))
+        # Hidden acceptance tests, written from the prompt only: copied in, run, removed again (the trial's own history is restored).
+        Write-Host '   acceptance tests'
+        try {
+            $acc = & (Join-Path $repo 'qa/acceptance/Invoke-Acceptance.ps1') -Trial $dir -Id $id -Series $series -Out (Join-Path $root "$name.acceptance.json")
+            $acceptance = if (-not $acc.total) { 'none' } elseif ($acc.note) { "0/$($acc.total) (not run)" } else { "$($acc.passed)/$($acc.total)" }
+        } catch { $acceptance = 'error'; Write-Host "   acceptance error: $_" }
         $stop = @($(if ($turn.stopped) { $turn.stopped }), $(if ($fresh) { "$fresh new session" })) | Where-Object { $_ }
-        $row = "| $name | $verdict | $minutes | $nudged | $questions | $(if ($stop) { $stop -join ', ' } else { 'no' }) | $name |`n"
+        $row = "| $name | $verdict | $acceptance | $minutes | $nudged | $questions | $(if ($stop) { $stop -join ', ' } else { 'no' }) | $name |`n"
         [IO.File]::AppendAllText($summary, $row, (New-Object Text.UTF8Encoding($false)))
-        Write-Host "   $verdict ($minutes min)"
+        Write-Host "   $verdict, acceptance $acceptance ($minutes min)"
     }
 }
 Write-Host "summary: $summary"
