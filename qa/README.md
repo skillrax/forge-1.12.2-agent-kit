@@ -4,6 +4,7 @@ Run what the change affects (docs/DEVELOPMENT.md). From the repository root:
 
 | Check | Command | Covers |
 |---|---|---|
+| **Release gate** | `powershell -NoProfile -File qa/Run-All.ps1 [-Quick]` | runs the suites below that cover recipient content (agent interface, runner, snippets, packaging, samples, a fresh ZIP) and prints one PASS/FAIL table; required before a version bump |
 | Agent interface | `powershell -NoProfile -File qa/unit/Test-AgentInterface.ps1` | status, init, all generators, version, compact/JSON output, compiler hints, errors, export gate (fake Gradle) |
 | Runner contract | `powershell -NoProfile -File qa/unit/Test-TestingTools.ps1` | exit codes, server/harness handshake, lint ERROR and failed game tests, timeout (fake Gradle) |
 | Guide snippets | `powershell -NoProfile -File qa/unit/Test-GuideSnippets.ps1 [-Detail]` | every ```java block in kit/docs occurs in fixtures/guide-samples (~1 s; also run first by Test-KitSamples) |

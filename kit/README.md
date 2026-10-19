@@ -17,4 +17,14 @@ A workspace where an AI coding agent (Claude Code, Codex, a local-model agent, .
 
 Versions: [kit.json](kit.json). License: MIT ([LICENSE](LICENSE)); third-party notices: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-Limits: Windows 10/11 x64 only. Checks run on a server, so how things look (textures, models, GUIs) is only seen in `runClient`. Strong agents (Claude Code, Codex) finish most requests on their own; small local models finish simpler ones and may need a nudge.
+What changed: [CHANGELOG.md](CHANGELOG.md). Limits and how to report a problem: [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
+
+## Your first mod (about 15 minutes after setup)
+
+1. Open this folder in your agent app and type something like: *"Make a mod called Ruby Tools: a ruby ore that spawns underground, rubies that smelt from it, and ruby tools a bit better than iron."*
+2. The agent writes the request into TASK.md, runs `./agent.ps1 init` and the generators, then `check`, `check server` and `check game` until they pass. You will see short PASS/FAIL lines; a FAIL is normal mid-way, the agent fixes it. It may ask you a question when a choice changes gameplay.
+3. When it says it is done, read its summary: what was tested, and what to look at in the game.
+4. Look at it: run `gradlew.bat runClient` in this folder (first start takes a minute), create a creative world, find the items in the creative menu, and try them. Anything that looks wrong (a purple-black texture, a missing name): tell the agent what you saw.
+5. The finished mod is `releases/<modid>-<version>.jar`. Put it in the `mods` folder of a Forge 1.12.2-14.23.5.2859 installation to play it normally.
+
+Next requests go into the same folder ("add a ruby block", "make the pickaxe mine 3x3"). For a second, separate mod, extract a fresh copy of the kit.

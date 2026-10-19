@@ -32,4 +32,4 @@ The kit's job: let an AI agent, including small local models, turn a user's desc
 
 ## Releases
 
-Change kit/kit.json version for changed recipient content. Regenerate packaging/files.json from the kit tree (packaging/README.md), build with packaging/Build-KitZip.ps1 and verify the extracted ZIP builds. Preserve exports and pinned dependencies. Public publishing is a separate user decision.
+Change kit/kit.json version for changed recipient content, after `qa/Run-All.ps1` passes (all suites; `-Quick` for unit suites only while iterating), and add a kit/CHANGELOG.md entry; keep kit/KNOWN-ISSUES.md current. Regenerate packaging/files.json from the kit tree (packaging/README.md), build with packaging/Build-KitZip.ps1 and verify the extracted ZIP builds. Preserve exports and pinned dependencies. Public publishing is a separate user decision.

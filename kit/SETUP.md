@@ -40,3 +40,10 @@ Custom JDK locations: `tools/Setup.ps1 -GradleJavaHome <jdk17+> -Java8Home <jdk8
 | Scripts blocked | Use `powershell -NoProfile -ExecutionPolicy Bypass -File ...` (affects that process only) |
 
 More detail (JDK discovery rules, logs): docs/DEPENDENCIES.md. Agent apps: docs/HOSTS.md.
+
+## Removing the kit
+
+1. Delete the kit folder (your mods live in it: copy `src/` and `releases/` out first).
+2. Gradle's cache, about 1-2 GB including Minecraft and Forge: `%USERPROFILE%\.gradle` (or `GRADLE_USER_HOME` if you set it). Other Gradle projects use it too.
+3. If you answered Y in Setup.cmd: your previous system PATH and JAVA_HOME are saved in `reports/setup/environment-before-*.json`; restore them under Windows Settings > System > About > Advanced system settings > Environment Variables.
+4. The JDKs Setup installed: Windows Settings > Apps, "Eclipse Temurin JDK 25" and "Eclipse Temurin JDK 8" (or `winget uninstall --id EclipseAdoptium.Temurin.25.JDK` and `.8.JDK`).
