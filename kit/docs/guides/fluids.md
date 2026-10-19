@@ -14,7 +14,18 @@
 
 - Register the `Fluid` before creating its block: `FluidRegistry.registerFluid(fluid)`, then `FluidRegistry.addBucketForFluid(fluid)`; call `FluidRegistry.enableUniversalBucket()` early (static initializer of the main class).
 - `BlockFluidClassic`: viscosity is copied into its tick rate in the constructor (`viscosity / 200`), so set viscosity first. `setTickRate(n)` overrides the interval; `setQuantaPerBlock(n)` controls how far it spreads (4 = three cells beyond the source on flat ground). `canCreateSources` defaults false.
-- Rendering (client): a state mapper ignoring the level property and a `forge:fluid` model naming the fluid. Contact damage runs on the server with a cadence and a height check.
+- Textures: the `Fluid` constructor's still and flowing `ResourceLocation`s (`modid:blocks/syrup_still` = textures/blocks/syrup_still.png); vanilla `minecraft:blocks/water_still`/`water_flow` plus `setColor(0xFFRRGGBB)` needs no files.
+- Rendering (client, in `ModelRegistryEvent`): every level state maps to one `forge:fluid` model:
+
+```java
+ModelLoader.setCustomStateMapper(ModBlocks.SYRUP, new StateMapperBase() {
+    @Override protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
+        return new ModelResourceLocation(MyMod.MODID + ":syrup", "fluid");
+    }
+});
+```
+`blockstates/syrup.json`: `{"forge_marker":1,"variants":{"fluid":{"model":"forge:fluid","custom":{"fluid":"syrup"}}}}` (the fluid's registered name; no model file).
+- Contact damage runs on the server with a cadence and a height check.
 
 ## Wrench pickup keeping machine contents
 

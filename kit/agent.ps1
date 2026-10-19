@@ -303,6 +303,17 @@ function Invoke-Api {
 
 # Options after the subcommand are forwarded: -Name value pairs, bare -Switches, positionals.
 # PowerShell turns unquoted a,b,c into an array; join it back so "3,8,6,3" and 3,8,6,3 behave the same.
+# One kit command that writes or builds at a time: generators edit shared files (ModItems, lang, GeneratedContentTest).
+function Enter-KitLock([int]$WaitSeconds) {
+    New-Item -ItemType Directory -Force -Path $reportRoot | Out-Null
+    $until = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
+    while ($true) {
+        try { return [IO.File]::Open((Join-Path $reportRoot 'agent.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
+        catch { if ([DateTime]::UtcNow -gt $until) { throw 'Another agent.ps1 check/init/new is running in this project. Run kit commands one at a time (several generators: batch).' } }
+        Start-Sleep -Milliseconds 200
+    }
+}
+
 function ConvertTo-Splat([object[]]$Tokens) {
     $named = @{}; $positional = New-Object 'System.Collections.Generic.List[string]'
     $flat = @(foreach ($token in $Tokens) { if ($token -is [array]) { ($token | ForEach-Object { "$_" }) -join ',' } else { "$token" } })
@@ -377,9 +388,7 @@ try {
             $selected = if ($Profile) { $Profile } elseif ($Target) { $Target } else { 'build' }
             if ($selected -in @('mod', 'all')) { $selected = 'build' }
             if ($selected -notin @('environment', 'build', 'unit', 'server', 'game')) { throw "Unknown profile '$selected'. Use build, server, game, unit or environment." }
-            New-Item -ItemType Directory -Force -Path $reportRoot | Out-Null
-            try { $lock = [IO.File]::Open((Join-Path $reportRoot 'agent.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
-            catch { throw 'Another check is running in this project. Wait for it to finish.' }
+            $lock = Enter-KitLock 0
             $bomFixed = @(Remove-KitBom)
             # The first build on a PC downloads and decompiles Minecraft/Forge (10-30 min on a laptop); allow for it.
             $gradleHome = if ($env:GRADLE_USER_HOME) { $env:GRADLE_USER_HOME } else { Join-Path $env:USERPROFILE '.gradle' }
@@ -446,6 +455,8 @@ try {
             Set-Content -LiteralPath (Join-Path $reportRoot ($selected + '-latest.json')) -Value $resultJson -Encoding UTF8
             if ($Json) { $resultJson } else {
                 Format-Check $result
+                $taskFile = Join-Path $root 'TASK.md'
+                if ($selected -eq 'game' -and [IO.File]::Exists($taskFile) -and [IO.File]::ReadAllText($taskFile).Contains("request, in their words)")) { 'note: TASK.md is still the placeholder: write the request and decisions there (they outlast your context).' }
                 if ($bomFixed.Count) { 'note: removed a UTF-8 byte-order mark from ' + ($bomFixed -join ', ') + '. Write files with your edit tool or [IO.File]::WriteAllText, not Set-Content/Out-File.' }
             }
         }
@@ -456,6 +467,7 @@ try {
             $stale = $false
             if ($last) { $stale = (Get-NewestSourceTime) -gt [IO.File]::GetLastWriteTimeUtc($last.report) }
             $task = if ([IO.File]::Exists((Join-Path $root 'TASK.md'))) { [IO.File]::ReadAllText((Join-Path $root 'TASK.md')) } else { '' }
+            $taskPlaceholder = $task.Contains("request, in their words)")
             # Test scaffolds from `new test` still contain a placeholder check until someone writes the real one.
             $scaffolds = @()
             $gametest = Join-Path $root 'src/gametest'
@@ -467,6 +479,7 @@ try {
                 elseif (-not $last -or $stale) { 'Run agent.ps1 check (then check server before finishing).' }
                 elseif ($last.status -ne 'PASS') { 'Fix the last failure (agent.ps1 errors), then rerun agent.ps1 check ' + $last.profile + '.' }
                 elseif ($scaffolds.Count) { 'Fill in the placeholder check in ' + ($scaffolds -join ', ') + ', then agent.ps1 check game.' }
+                elseif ($taskPlaceholder) { 'Write the request, decisions and acceptance checks into TASK.md (AGENTS.md step 2).' }
                 else { 'Continue TASK.md.' }
             if ($Json) {
                 [ordered]@{ schemaVersion = 1; action = 'status'; projectRoot = $root; mod = $info; java = $javaSelection; lastRun = if ($last) { $last | Select-Object runId, profile, status, message, log } else { $null }; lastRunStale = $stale; task = $task; nextAction = $next } | ConvertTo-Json -Depth 6 -Compress
@@ -476,6 +489,7 @@ try {
                 'java: ' + $java
                 'last check: ' + $(if ($last) { '{0} {1} {2}{3}' -f $last.status, $last.profile, ([IO.File]::GetLastWriteTime($last.report).ToString('yyyy-MM-dd HH:mm')), $(if ($stale) { ' (source changed since)' } else { '' }) } else { 'none' })
                 if ($scaffolds.Count) { 'tests: placeholder check not filled in: ' + ($scaffolds -join ', ') }
+                if ($taskPlaceholder) { 'task: TASK.md is still the placeholder' }
                 'next: ' + $next
                 # Gradle/Java fail with "Unable to access jarfile" once nested paths pass Windows' 260-character limit.
                 if ($root.Length -gt 150) { "warning: project path is $($root.Length) characters; builds can fail past Windows' 260-character limit. Move the folder somewhere short (e.g. C:\mods\mykit)." }
@@ -495,6 +509,7 @@ try {
             $split = ConvertTo-Splat $Rest
             $named = $split.named; $named['ModId'] = $Target
             if ($split.positional.Count) { $named['Name'] = $split.positional[0] }
+            $lock = Enter-KitLock 60
             & (Join-Path $root 'tools/Initialize-Mod.ps1') @named
             $exitCode = $LASTEXITCODE
         }
@@ -502,6 +517,7 @@ try {
             $split = ConvertTo-Splat $Rest
             $named = $split.named; $named['Kind'] = $Target
             if ($split.positional.Count) { $named['Name'] = $split.positional[0] }
+            $lock = Enter-KitLock 60
             & (Join-Path $root 'tools/New-Content.ps1') @named
             $exitCode = $LASTEXITCODE
         }

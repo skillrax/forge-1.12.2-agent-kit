@@ -46,6 +46,7 @@ public final class ModItems {
     public static final Item WAND = item("wand", new WandItem());
     public static final Item REGION_TOOL = item("region_tool", new RegionToolItem());
     public static final Item RUBY_SEEDS = item("ruby_seeds", new ItemSeeds(ModBlocks.RUBY_CROP, Blocks.FARMLAND)).setCreativeTab(RubymodMod.TAB);
+    public static final Item AMBER_SEEDS = item("amber_seeds", new ItemSeeds(ModBlocks.AMBER_CROP, Blocks.FARMLAND)).setCreativeTab(RubymodMod.TAB);
     // kit:items
 
     /** Sets registry name modid:name and translation key item.modid.name (lang: item.modid.name.name=...). */

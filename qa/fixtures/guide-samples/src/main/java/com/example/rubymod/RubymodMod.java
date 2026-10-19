@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import net.minecraftforge.fml.common.registry.GameRegistry;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidRegistry;
 
 @Mod(modid = RubymodMod.MODID, name = RubymodMod.NAME, version = RubymodMod.VERSION, acceptedMinecraftVersions = "[1.12.2]")
 public class RubymodMod {
@@ -31,6 +32,8 @@ public class RubymodMod {
 
     @Mod.Instance(MODID)
     public static RubymodMod INSTANCE;
+
+    static { FluidRegistry.enableUniversalBucket(); }
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {

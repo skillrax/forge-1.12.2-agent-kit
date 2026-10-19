@@ -3,7 +3,7 @@
 # Usage (from the repo root; the local model server must be running for -Agent opencode):
 #   powershell -NoProfile -File qa/local-model/Run-Series.ps1 -Prompts qa/local-model/PROMPTS-3.md -Ids S0,S1 -Runs 2
 #   ... -Agent claude -Model sonnet          (control run with Claude Code; uses the user's Claude plan)
-#   ... -Context 65536                       (64k regression pass)
+#   ... -Context 65536 -Buffer 20000         (64k regression pass)
 # Results: <Out>/<series>-<agent>/<id>-r<n>/ (the trial folder, extracted outside the repo) and summary.md beside them.
 [CmdletBinding()]
 param(
@@ -15,6 +15,7 @@ param(
     [string]$Variant = 'high',
     [int]$Context = 131072,
     [int]$Output = 32768,
+    [int]$Buffer = 32768,                               # room left for the compaction summary (thinking included)
     [ValidateRange(5, 600)][int]$TrialMinutes = 90,     # all work turns of one trial together (feedback has its own)
     [ValidateRange(5, 120)][int]$IdleMinutes = 20,      # no agent.ps1 call and no changed file for this long: stop
     [ValidateRange(2, 60)][int]$FeedbackMinutes = 15,
@@ -61,7 +62,13 @@ if ($Agent -eq 'opencode') {
     try { Invoke-RestMethod -Uri 'http://127.0.0.1:8080/v1/models' -TimeoutSec 10 | Out-Null } catch { throw 'The local model server is not answering on http://127.0.0.1:8080 (start Strata first).' }
     # Per-run limits without touching the global config; a private server (--standalone) so the variable applies.
     $modelId = ($Model -split '/', 2)[1]
-    $env:OPENCODE_CONFIG_CONTENT = (@{ provider = @{ local = @{ models = @{ $modelId = @{ limit = @{ context = $Context; output = $Output } } } } } } | ConvertTo-Json -Depth 8 -Compress)
+    # Compaction summarizes the whole context in what is left of it: with a small buffer a thinking model runs out
+    # mid-summary ("Compaction summary reached the output token limit") and every later turn fails the same way.
+    # Text-only input: the server has no vision, and an image read (a texture) fails the request.
+    $env:OPENCODE_CONFIG_CONTENT = (@{
+        compaction = @{ auto = $true; keep = @{ tokens = 12000 }; buffer = $Buffer }
+        provider = @{ local = @{ models = @{ $modelId = @{ limit = @{ context = $Context; output = $Output }; modalities = @{ input = @('text'); output = @('text') } } } } }
+    } | ConvertTo-Json -Depth 8 -Compress)
 }
 
 # Last sign of work in a trial folder: the kit's call log or any file the agent wrote (build output and reports excluded).
@@ -80,7 +87,7 @@ function Get-LastActivity([string]$Dir) {
 }
 
 # One agent turn until it ends, the deadline passes or the trial shows no activity for IdleMinutes.
-# Returns @{ session; text; stopped = '' | 'time budget' | 'no progress' }.
+# Returns @{ session; text; error (last OpenCode error type); stopped = '' | 'time budget' | 'no progress' }.
 function Invoke-AgentTurn([string]$Dir, [string]$Message, [string]$Session, [string]$Log, [DateTime]$Deadline) {
     $start = New-Object Diagnostics.ProcessStartInfo
     # OpenCode takes its project folder from PWD (which Git Bash exports), not from the working directory: set both.
@@ -109,13 +116,14 @@ function Invoke-AgentTurn([string]$Dir, [string]$Message, [string]$Session, [str
     }
     $raw = $stdout.Result
     [IO.File]::AppendAllText($Log, $raw + "`n", (New-Object Text.UTF8Encoding($false)))
-    $result = @{ session = $Session; text = ''; stopped = $stopped }
+    $result = @{ session = $Session; text = ''; error = ''; stopped = $stopped }
     if ($Agent -eq 'opencode') {
         foreach ($line in ($raw -split "`n")) {
             if (-not $line.Trim().StartsWith('{')) { continue }
             try { $e = $line | ConvertFrom-Json } catch { continue }
             if ($e.sessionID) { $result.session = $e.sessionID }
-            if ($e.type -eq 'text' -and $e.part.text) { $result.text = $e.part.text }
+            if ($e.type -eq 'text' -and $e.part.text) { $result.text = $e.part.text; $result.error = '' }
+            if ($e.type -eq 'error' -and $e.error) { $result.error = [string]$e.error.type }
         }
     } else {
         try { $j = $raw | ConvertFrom-Json; $result.session = $j.session_id; $result.text = [string]$j.result } catch { }
@@ -156,7 +164,7 @@ foreach ($id in $Ids) {
         $log = Join-Path $root "$name.agent.jsonl"
         $repoBefore = (& git -C $repo status --porcelain) -join "`n"
         $watch = [Diagnostics.Stopwatch]::StartNew()
-        $questions = 0; $nudged = 0
+        $questions = 0; $nudged = 0; $fresh = 0
         $deadline = [DateTime]::Now.AddMinutes($TrialMinutes)
         Write-Host "   prompt sent ($Agent $Model)"
         $turn = Invoke-AgentTurn $dir $all[$id] $null $log $deadline
@@ -166,6 +174,12 @@ foreach ($id in $Ids) {
             if ([IO.Path]::GetFullPath($where.Trim()) -ne [IO.Path]::GetFullPath($dir)) { throw "Trial $name ran in '$where', not in its trial folder: series stopped. Check that folder for changes." }
         }
         while (-not $turn.stopped) {
+            # A failed compaction leaves the session unusable: carry on once in a new session from what is on disk.
+            if ($turn.error -eq 'compaction.failed' -and $fresh -lt 1) {
+                $fresh++; Write-Host '   context full: new session'
+                $turn = Invoke-AgentTurn $dir ("Your previous session in this folder ran out of context and was lost. Its work is on disk: read TASK.md, run ./agent.ps1 status and look at src/, then finish the request below.`n`n" + $all[$id]) $null $log $deadline
+                continue
+            }
             # A question gets the standard answer; a run without a passing game check gets one nudge.
             if ($turn.text.TrimEnd().EndsWith('?') -and $questions -lt 2) { $questions++; $turn = Invoke-AgentTurn $dir $answerText $turn.session $log $deadline; continue }
             if ($nudged -lt $Nudges -and (Invoke-Kit $dir @('check', 'game')).exit -ne 0) { $nudged++; $turn = Invoke-AgentTurn $dir $nudgeText $turn.session $log $deadline; continue }
@@ -174,9 +188,11 @@ foreach ($id in $Ids) {
         if (((& git -C $repo status --porcelain) -join "`n") -ne $repoBefore) { throw "Trial $name changed files in the repository (git status differs): series stopped." }
         $minutes = [int]$watch.Elapsed.TotalMinutes
         if ($turn.stopped) { Write-Host "   stopped: $($turn.stopped)" }
-        if ($turn.session) {
+        if ($turn.error -eq 'compaction.failed') { $turn.session = $null }
+        if ($turn.session -or $Agent -eq 'opencode') {
             # A stopped run still gives feedback: where it went round in circles is the most useful part.
             $ask = if ($turn.stopped) { "The run was stopped ($($turn.stopped) after $([int]$watch.Elapsed.TotalMinutes) minutes). Leave the mod as it is.`n" + $feedback } else { $feedback }
+            if (-not $turn.session) { $ask = "An agent session in this folder ran out of context; answer from reports/agent-log.jsonl, TASK.md and the code.`n" + $ask }
             Write-Host '   feedback'
             Invoke-AgentTurn $dir $ask $turn.session $log ([DateTime]::Now.AddMinutes($FeedbackMinutes)) | Out-Null
         }
@@ -185,7 +201,8 @@ foreach ($id in $Ids) {
         $verdict = (($check.text -split "`n") | Select-Object -First 1)
         $trial = & powershell -NoProfile -File (Join-Path $PSScriptRoot 'Read-Trial.ps1') -Path $dir 2>&1
         [IO.File]::WriteAllText((Join-Path $root "$name.trial.txt"), "check game: $verdict`n`n" + ($trial -join "`n") + "`n", (New-Object Text.UTF8Encoding($false)))
-        $row = "| $name | $verdict | $minutes | $nudged | $questions | $(if ($turn.stopped) { $turn.stopped } else { 'no' }) | $name |`n"
+        $stop = @($(if ($turn.stopped) { $turn.stopped }), $(if ($fresh) { "$fresh new session" })) | Where-Object { $_ }
+        $row = "| $name | $verdict | $minutes | $nudged | $questions | $(if ($stop) { $stop -join ', ' } else { 'no' }) | $name |`n"
         [IO.File]::AppendAllText($summary, $row, (New-Object Text.UTF8Encoding($false)))
         Write-Host "   $verdict ($minutes min)"
     }

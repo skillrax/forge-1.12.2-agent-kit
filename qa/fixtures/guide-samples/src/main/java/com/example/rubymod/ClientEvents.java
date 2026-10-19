@@ -6,7 +6,9 @@ import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.lwjgl.input.Keyboard;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
+import net.minecraft.client.renderer.block.statemap.StateMapperBase;
 import net.minecraft.client.renderer.entity.RenderZombie;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.client.registry.RenderingRegistry;
@@ -34,6 +36,11 @@ public final class ClientEvents {
         }
         RenderingRegistry.registerEntityRenderingHandler(RubyZombie.class, RenderZombie::new);
         ClientRegistry.registerKeyBinding(OPEN);
+        ModelLoader.setCustomStateMapper(ModBlocks.SYRUP, new StateMapperBase() {
+            @Override protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
+                return new ModelResourceLocation(RubymodMod.MODID + ":syrup", "fluid");
+            }
+        });
         // kit:models
     }
 

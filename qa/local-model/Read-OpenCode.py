@@ -33,7 +33,8 @@ def summarize(rows):
         'output': sum(m.get('tokens', {}).get('output', 0) for m in assistant),
         'big_turns': sum(1 for m in assistant if m.get('tokens', {}).get('output', 0) > 4000),
         'cut': sum(1 for m in assistant if m.get('finish') == 'length'),
-        'compactions': sum(1 for kind, _ in msgs if kind == 'compaction'),
+        'compactions': sum(1 for kind, m in msgs if kind == 'compaction' and m.get('status') != 'failed'),
+        'failed': sum(1 for kind, m in msgs if kind == 'compaction' and m.get('status') == 'failed'),
         'chars': {'thinking': 0, 'file writes': 0, 'text': 0, 'tool calls': 0},
         'tools': {}, 'errors': {}, 'repeats': 0,
     }
@@ -67,8 +68,8 @@ def report(label, s):
     print('%s: %.0f min wall, %.0f min generating (%.0f%%), %d model turns, %d user messages'
           % (label, s['wall'], s['model'], 100 * s['model'] / s['wall'] if s['wall'] else 0, s['turns'], s['users']))
     print('  output: %dk tokens (%.0f tok/s while generating); %s' % (s['output'] / 1000, rate, mix))
-    print('  compactions %d; answers cut at the output limit %d; turns over 4k tokens %d; repeated identical reads %d'
-          % (s['compactions'], s['cut'], s['big_turns'], s['repeats']))
+    print('  compactions %d (failed %d); answers cut at the output limit %d; turns over 4k tokens %d; repeated identical reads %d'
+          % (s['compactions'], s['failed'], s['cut'], s['big_turns'], s['repeats']))
     print('  tool errors: %s' % errors)
 
 

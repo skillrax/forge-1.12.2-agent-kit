@@ -8,7 +8,7 @@ You build Forge 1.12.2 mods (Forge 14.23.5.2859, MCP stable_39, Java 8) from the
 | `init <modid> "<Name>"` | mod skeleton |
 | `new <kind> <name> [options]` | item block ore food tools armor recipe smelting tile mob test: docs/GENERATORS.md |
 | `check [server\|game [-Test id]]` | compile ~10 s; + asset lint; + game tests (docs/TESTING.md) |
-| `api <Class>[.member\|.new]`, `api -Find <text>` | signatures and source of any Minecraft/Forge class |
+| `api <Class>[.member\|.new] [-Full]`, `api -Find <text>` | signatures and source of any Minecraft/Forge class (`-Full`: whole body; read a vanilla analogue whole rather than member by member) |
 | `batch <file>`, `version <x.y.z>`, `export` | run lines in order; bump version; copy the checked jar to releases/ (once per version) |
 
 ## Loop

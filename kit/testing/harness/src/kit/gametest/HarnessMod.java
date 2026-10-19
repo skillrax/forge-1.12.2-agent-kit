@@ -57,7 +57,9 @@ public final class HarnessMod {
         try { report = new AssetLint(server).run(); }
         catch (Throwable error) { report.addProperty("lintError", error.toString()); }
         report.add("tests", results);
-        if (!FILTER.isEmpty() && pending.isEmpty()) report.addProperty("testError", "No @GameTest scenarios matched '" + FILTER + "' in src/gametest/java");
+        if (!FILTER.isEmpty() && pending.isEmpty()) report.addProperty("testError", "*".equals(FILTER)
+                ? "No game tests yet: write one per requested behavior with agent.ps1 new test <id> (agent.ps1 check server only compiles and lints)"
+                : "No @GameTest scenarios matched '" + FILTER + "' in src/gametest/java");
         server.getWorld(0).getGameRules().setOrCreateGameRule("doMobSpawning", "false");
         server.getWorld(0).getGameRules().setOrCreateGameRule("doDaylightCycle", "false");
         if (pending.isEmpty()) finish();

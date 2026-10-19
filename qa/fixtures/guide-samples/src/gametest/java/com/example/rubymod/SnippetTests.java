@@ -19,6 +19,9 @@ import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.fluids.FluidTank;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraft.init.Blocks;
@@ -85,6 +88,39 @@ public final class SnippetTests {
             t.then("harvest", () -> t.world().destroyBlock(soil.up(), true));
             t.check("rubies-dropped", () -> t.world().getEntitiesWithinAABB(EntityItem.class, new AxisAlignedBB(soil).grow(2)).stream()
                     .anyMatch(e -> e.getItem().getItem() == ModItems.RUBY), () -> "no ruby");
+        }
+    }
+
+    @GameTest("crop-four-stages")
+    public static final class FourStageCrop implements Scenario {
+        @Override public void plan(TestContext t) {
+            BlockPos soil = t.origin().add(5, -1, 5);
+            t.then("plant, grow to the end, harvest", () -> {
+                t.place(soil, Blocks.FARMLAND.getDefaultState());
+                FakePlayer p = t.player("farmer");
+                p.setHeldItem(EnumHand.MAIN_HAND, new ItemStack(ModItems.AMBER_SEEDS));
+                t.require(t.useOnBlock(p, soil, EnumFacing.UP, EnumHand.MAIN_HAND) == EnumActionResult.SUCCESS, "planting failed");
+                t.require(t.state(soil.up()).getValue(AmberCrop.AGE) == 0, "planted at " + t.state(soil.up()));
+                BlockCrops crop = (BlockCrops) ModBlocks.AMBER_CROP;
+                for (int i = 0; i < 4; i++) crop.grow(t.world(), soil.up(), t.state(soil.up()));
+                t.require(t.state(soil.up()).getValue(AmberCrop.AGE) == 3 && crop.isMaxAge(t.state(soil.up())), "after bonemeal: " + t.state(soil.up()));
+                t.require(crop.getStateFromMeta(crop.getMetaFromState(t.state(soil.up()))) == t.state(soil.up()), "meta round trip");
+                t.world().destroyBlock(soil.up(), true);
+            });
+            t.check("ripe-drops-crop", () -> t.world().getEntitiesWithinAABB(EntityItem.class, new AxisAlignedBB(soil).grow(2)).stream()
+                    .anyMatch(e -> e.getItem().getItem() == ModItems.RUBY), () -> "no ruby from a ripe 4-stage crop");
+        }
+    }
+
+    @GameTest("syrup-fluid")
+    public static final class Syrup implements Scenario {
+        @Override public void plan(TestContext t) {
+            BlockPos source = t.origin().add(8, 0, 8);
+            t.then("pour a source", () -> {
+                t.require(!FluidUtil.getFilledBucket(new FluidStack(ModBlocks.SYRUP_FLUID, Fluid.BUCKET_VOLUME)).isEmpty(), "no syrup bucket");
+                t.place(source, ModBlocks.SYRUP.getDefaultState());
+            });
+            t.waitUntil("syrup-flows", 200, () -> t.state(source.east()).getBlock() == ModBlocks.SYRUP, () -> "east of the source: " + t.state(source.east()));
         }
     }
 

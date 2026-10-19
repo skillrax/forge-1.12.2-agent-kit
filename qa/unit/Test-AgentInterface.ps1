@@ -81,12 +81,19 @@ exit 0
     Assert ($status -match 'mod: none' -and $status -match 'next: .*init') "fresh status: $status"
     $passed.Add('fresh status')
 
+    $task = "# Task`nGoal: a demo item`n"
+    [IO.File]::WriteAllText((Join-Path $fixture 'TASK.md'), $task)
     $init = Invoke-Agent @('init', 'demo', 'Demo Mod')
-    Assert ($init -match 'created demo 1.0.0') "init: $init"
+    Assert ($init -match 'created demo 1.0.0' -and $init -match 'kept your TASK.md') "init: $init"
+    Assert ((Read-Text 'TASK.md') -eq $task) 'init keeps a TASK.md the agent wrote'
     Assert ((Read-Text 'build.gradle') -match "version = '1.0.0'" -and (Read-Text 'build.gradle') -match "archivesName = 'demo'") 'init build.gradle'
     Assert ((Invoke-Agent @('status')) -match 'mod: demo 1.0.0') 'status after init'
     Invoke-Agent @('init', 'other') 1 | Out-Null
-    $passed.Add('init and refusal on existing mod')
+    # The shipped placeholder is replaced, and status says so until the request is written down.
+    Copy-Item -LiteralPath (Join-Path $kit 'TASK.md') -Destination $fixture -Force
+    Assert ((Invoke-Agent @('status')) -match 'task: TASK.md is still the placeholder') 'status placeholder reminder'
+    [IO.File]::WriteAllText((Join-Path $fixture 'TASK.md'), $task)
+    $passed.Add('init keeps TASK.md, placeholder reminder, refusal on existing mod')
 
     $java = 'src/main/java/com/example/demo'
     $assets = 'src/main/resources/assets/demo'
@@ -126,6 +133,13 @@ exit 0
     $dup = Invoke-Agent @('new', 'item', 'gem') 1
     Assert ($dup -match 'already declared') 'duplicate rejected'
     $passed.Add('generators: item block ore food tools armor recipe smelting tile mob test, duplicate refusal')
+
+    # Agents issue tool calls in parallel: concurrent generators must wait for each other, not interleave edits.
+    $parallel = foreach ($name in @('pearl', 'shard', 'sliver')) { Start-Process -FilePath $shell -ArgumentList @('-NoProfile', '-File', (Join-Path $fixture 'agent.ps1'), 'new', 'item', $name) -WindowStyle Hidden -PassThru }
+    $parallel | ForEach-Object { $_.WaitForExit(); Assert ($_.ExitCode -eq 0) "parallel new item exit $($_.ExitCode)" }
+    $items = Read-Text "$java/ModItems.java"; $lang = Read-Text "$assets/lang/en_us.lang"
+    foreach ($name in @('pearl', 'shard', 'sliver')) { Assert ($items -match "item\(`"$name`"" -and $lang.Contains("item.demo.$name.name=")) "parallel generators lost $name" }
+    $passed.Add('parallel generators serialized')
 
     # Presets, recipe sets, generated checks, reference validation.
     $tools = Invoke-Agent @('new', 'tools', 'opal', '-Only', 'all', '-Like', 'iron', '-Durability', 'diamond', '-Repair', 'gem', '-Recipes')

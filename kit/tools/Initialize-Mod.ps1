@@ -233,13 +233,16 @@ public final class ClientEvents {
     Write-KitFile (Join-Path $main 'resources/mcmod.info') $metadata
     Write-KitFile (Join-Path $main 'resources/pack.mcmeta') ('{"pack":{"pack_format":3,"description":"' + $Name + ' resources"}}')
     [IO.File]::WriteAllText($buildPath, $build, $utf8)
+    # AGENTS.md has the request written into TASK.md before init: keep it; replace only the shipped placeholder.
     $task = Join-Path $root 'TASK.md'
-    Write-KitFile $task "# Task`nGoal: (user's request, in their words)`nDecisions: (choices made, defaults assumed)`nDone: skeleton for $ModId ($Version)`nNext: add content (agent.ps1 new ...), then agent.ps1 check server`n"
+    $taskKept = [IO.File]::Exists($task) -and -not [IO.File]::ReadAllText($task).Contains("request, in their words)")
+    if (-not $taskKept) { Write-KitFile $task "# Task`nGoal: (user's request, in their words)`nDecisions: (choices made, defaults assumed)`nDone: skeleton for $ModId ($Version)`nNext: add content (agent.ps1 new ...), then agent.ps1 check server`n" }
 
     if ($Json) { [ordered]@{ schemaVersion = 1; status = 'PASS'; modId = $ModId; package = $Package; mainClass = $mainClass; version = $Version } | ConvertTo-Json -Compress }
     else {
-        "created $ModId $Version in $Package ($mainClass, ModItems, ModBlocks, BasicBlock, ClientEvents)"
-        'next: agent.ps1 new <item|block|ore|food|tools|armor|recipe|smelting> ...  then agent.ps1 check'
+        "created $ModId $Version in $Package ($mainClass, ModItems, ModBlocks, BasicBlock, ClientEvents; unused ones can stay)"
+        if ($taskKept) { 'kept your TASK.md' } else { 'TASK.md: write the request, decisions and acceptance checks there' }
+        'next: agent.ps1 new <item|block|ore|food|tools|armor|recipe|smelting|tile|mob|test> ...  then agent.ps1 check'
     }
 } catch {
     if ($Json) { [ordered]@{ schemaVersion = 1; status = 'FAIL'; message = $_.Exception.Message } | ConvertTo-Json -Compress } else { 'FAIL: ' + $_.Exception.Message }

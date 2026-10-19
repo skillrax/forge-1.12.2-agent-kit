@@ -46,7 +46,7 @@ Several properties: keys like `"facing=north,lit=true"` with property names in a
 
 - Right-click: `onBlockActivated(...)` returns true on both sides; change things only when `!world.isRemote`. While sneaking it is only called if both hands are empty (or both held items return true from `doesSneakBypassUse`); otherwise the held item is used instead (a block item gets placed). So "sneak + right-click" interactions need an empty hand.
 - Timed behavior: `world.scheduleUpdate(pos, this, delayTicks)` then `updateTick`; random ticks: `setTickRandomly(true)` (crop-like).
-- Redstone input: `world.isBlockPowered(pos)` in `neighborChanged`. Output: `canProvidePower` true + `getWeakPower`. Comparator output is on the Block: `hasComparatorInputOverride(state)` true + `getComparatorInputOverride(state, world, pos)` returning 0-15 (`ItemHandlerHelper.calcRedstoneFromInventory(handler)` for an inventory); the tile's `markDirty()` tells comparators to re-read it.
+- Redstone input: `world.isBlockPowered(pos)` in `neighborChanged` (any side); one side only: `world.getRedstonePower(pos.offset(side), side)`. Output: `canProvidePower` true + `getWeakPower(state, world, pos, side)`, where `side` points from the block reading the power toward yours (it powers `pos.offset(side.getOpposite())`); after the output changes call `world.notifyNeighborsOfStateChange(pos, this, false)`. Vanilla diodes (repeater, comparator) name their input side `FACING`, output on `FACING.getOpposite()`, placed as `placer.getHorizontalFacing().getOpposite()` so the signal runs the way the player looked. Comparator output is on the Block: `hasComparatorInputOverride(state)` true + `getComparatorInputOverride(state, world, pos)` returning 0-15 (`ItemHandlerHelper.calcRedstoneFromInventory(handler)` for an inventory); the tile's `markDirty()` tells comparators to re-read it.
 - Light: `.light(1.0F)` on BasicBlock; for a lit/unlit state override `getLightValue(IBlockState, IBlockAccess, BlockPos)`.
 - Change state: `world.setBlockState(pos, state.withProperty(LIT, true), 3)` (3 = notify + send to clients).
 
@@ -65,7 +65,7 @@ public class RubyCrop extends BlockCrops implements ModBlocks.NoItem {   // the 
 // ModItems: item("ruby_seeds", new ItemSeeds(ModBlocks.RUBY_CROP, Blocks.FARMLAND))
 ```
 
-Blockstate needs `age=0` ... `age=7`; models can use parent `block/crop` with texture key `crop`. Mature harvest drops the crop item plus 0-3 seeds.
+Blockstate needs `age=0` ... `age=7`. Another stage count: a `static final PropertyInteger AGE = PropertyInteger.create("age", 0, 3)` (static, because the BlockCrops constructor already reads it) returned by overrides of `getAgeProperty()`, `getMaxAge()` (3) and `createBlockState()` (`new BlockStateContainer(this, AGE)`); more than 8 stages also needs `getBoundingBox` (vanilla indexes an 8-entry table). Growth needs light 9+ above the crop (`getLightFromNeighbors(pos.up())`); with light under 8 and no sky the crop pops off (`canBlockStay`). Models can use parent `block/crop` with texture key `crop`. Mature harvest drops the crop item plus 0-3 seeds.
 
 ## Test
 

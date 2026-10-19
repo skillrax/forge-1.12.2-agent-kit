@@ -1,0 +1,6 @@
+{ "variants": {
+  "age=0": { "model": "rubymod:ruby_crop_stage0" },
+  "age=1": { "model": "rubymod:ruby_crop_stage1" },
+  "age=2": { "model": "rubymod:ruby_crop_stage2" },
+  "age=3": { "model": "rubymod:ruby_crop_stage3" }
+} }
