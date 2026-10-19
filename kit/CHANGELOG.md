@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3 (2026-10-19)
+
+- `check client`: starts a real client in a flat world, fails when a block state or item renders purple-black (missing model, blockstate variant or texture), warns on missing names, and saves screenshots of every block and item for you to look at (paths printed). AGENTS.md makes it part of "done".
+
 ## 0.5.2 (2026-10-19)
 
 - Restart tests: a game test can add `afterRestart(TestContext t)` (`new test <id> -Restart`). After `plan()` passes, `check game` saves the world, stops the server, starts it again on the same world and runs `afterRestart` in the same area, so tile contents, block states and saved data are checked across a real restart.

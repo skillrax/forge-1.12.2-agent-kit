@@ -1,7 +1,7 @@
 # Windows PowerShell 5.1+ and PowerShell 7+. Invoke from any directory.
 [CmdletBinding()]
 param(
-    [ValidateSet('environment', 'build', 'unit', 'server', 'game')]
+    [ValidateSet('environment', 'build', 'unit', 'server', 'game', 'client')]
     [string] $Profile = 'build',
     [ValidatePattern('^[a-z0-9*,-]*$')][string]$Test = '*',
     [switch]$Clean,
@@ -36,6 +36,8 @@ $harnessDone = $false
 $doneAt = $null
 $harnessPath = $null
 $usesServer = $Profile -in @('server', 'game')
+$usesClient = $Profile -eq 'client'
+$clientCrash = $false
 $progressAt=0;$observedStage='starting Gradle wrapper';$lastDetail='';$lastOutputAt=0
 try {
     $sourcePaths=@(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {$_.FullName.Substring($projectRoot.Length)} | Sort-Object)
@@ -50,6 +52,14 @@ try {
         'environment' { 'verifyEnvironment --rerun-tasks' }
         'build' { 'verifyAll' + $requireMod }
         'unit' { 'cleanTest verifyUnitTests --rerun-tasks' }
+        'client' {
+            # A real client (visible window) with the client check mod: models, textures, screenshots, then it quits.
+            $clientDir = Join-Path $projectRoot ('run/testing-client/' + $runId)
+            New-Item -ItemType Directory -Force -Path $clientDir | Out-Null
+            Set-Content -LiteralPath (Join-Path $clientDir 'options.txt') -Encoding ASCII -Value @('tutorialStep:none', 'narrator:0', 'pauseOnLostFocus:false', 'renderDistance:4', 'soundCategory_master:0.0')
+            $harnessPath = Join-Path $clientDir 'kit-client.json'
+            'verifyModJar' + $requireMod + ' runClient "-PtestingToolsClientDir=' + $clientDir + '" "-PkitClientOut=' + $harnessPath + '"'
+        }
         default {
             # server/game: build + jar inspection, then a fresh flat-world dev server with the check harness.
             $serverDir = Join-Path $projectRoot ('run/testing-server/' + $runId)
@@ -63,7 +73,7 @@ try {
             'verifyModJar' + $requireMod + ' runServer "-PtestingToolsServerDir=' + $serverDir + '" "-PkitCheckOut=' + $harnessPath + '"' + $gameTests
         }
     }
-    if($Profile -in @('build','server','game') -and $cleanReason){$taskArgs='clean '+$taskArgs}
+    if($Profile -in @('build','server','game','client') -and $cleanReason){$taskArgs='clean '+$taskArgs}
     # One Gradle run with live progress; dot-sourced so its flags land in this scope. A second run reuses it.
     $runGradle = {
         $start = New-Object Diagnostics.ProcessStartInfo
@@ -105,6 +115,8 @@ try {
                         if ($usesServer -and $line -match 'Done \([0-9.,]+s\)!') { $serverReady = $true; $doneAt = $watch.Elapsed.TotalSeconds }
                         # The harness lints, runs requested game tests, writes its report, then stops the server itself.
                         if ($usesServer -and $line -match 'KIT_HARNESS_DONE') { $harnessDone = $true; $stopSent = $true }
+                        if ($usesClient -and $line -match 'KIT_CLIENT_DONE') { $harnessDone = $true }
+                        if ($usesClient -and $line -match '---- Minecraft Crash Report ----|Reported exception thrown!') { $clientCrash = $true }
                         $reads[$index] = $streams[$index].ReadLineAsync()
                     }
                 }
@@ -137,6 +149,9 @@ try {
         if ($usesServer -and -not $harnessDone) {
             throw 'The check harness did not report; see the log.'
         }
+        if ($usesClient -and ($clientCrash -or -not $harnessDone)) {
+            throw $(if ($clientCrash) { 'The client crashed; the crash report is in the log.' } else { 'The client check did not report (window closed early, no display, or a startup error); see the log.' })
+        }
     }
     $appendLog = $false
     . $runGradle
@@ -167,6 +182,7 @@ try {
     $reason = switch ($Profile) {
         'server' { 'Server started, content linted, clean shutdown.' }
         'game' { 'Game tests ran.' }
+        'client' { 'Client started, models and textures checked, screenshots taken.' }
         default { 'Gradle checks passed.' }
     }
 }
@@ -244,8 +260,9 @@ if ($harnessPath -and [IO.File]::Exists($harnessPath)) {
         $lintErrors = @($harness.lint | Where-Object { $_.level -eq 'ERROR' })
         if ($harness.testError) { $exitCode = 1; $reason = $harness.testError }
         elseif ($failedTests.Count) { $exitCode = 1; $reason = ('{0} of {1} game tests failed.' -f $failedTests.Count, @($harness.tests).Count) }
-        elseif ($lintErrors.Count) { $exitCode = 1; $reason = ('{0} content error(s) found by the harness.' -f $lintErrors.Count) }
+        elseif ($lintErrors.Count) { $exitCode = 1; $reason = ('{0} content error(s) found {1}.' -f $lintErrors.Count, $(if ($usesClient) { 'in the client' } else { 'by the harness' })) }
         elseif ($Profile -eq 'game') { $reason = ('{0} game tests passed.' -f @($harness.tests).Count) }
+        elseif ($Profile -eq 'client') { $reason = ('{0} blocks and {1} items have models and textures; look at the screenshots.' -f $harness.checked.blocks, $harness.checked.items) }
     }
 }
 $result = [ordered]@{
@@ -257,6 +274,7 @@ $result = [ordered]@{
         'unit' { 'unit tests (at least one required)' }
         'server' { 'build + dedicated server startup + registry/asset lint' }
         'game' { 'build + dedicated server + game tests' }
+        'client' { 'build + real client: models, textures, translations, screenshots' }
     }
     status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
     exitCode = $exitCode
@@ -274,7 +292,7 @@ $result = [ordered]@{
     inspectedArtifact = $inspectedArtifact
     sourcePaths = $sourcePaths
     buildIdentity = $buildIdentity
-    cleanReason = if($Profile -in @('build','server','game')){$cleanReason}else{$null}
+    cleanReason = if($Profile -in @('build','server','game','client')){$cleanReason}else{$null}
     log = $logPath
     report = $resultPath
 }

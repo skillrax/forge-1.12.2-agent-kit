@@ -111,6 +111,7 @@ function Get-Problems($Result) {
             }
         }
         if ($Result.harness.lintError) { $lines.Add('harness lint crashed: ' + $Result.harness.lintError) }
+        foreach ($shot in @($Result.harness.screenshots)) { if ($shot) { $lines.Add('screenshot: ' + (Get-Relative $shot)) } }
     }
     if ($Result.status -ne 'PASS' -and -not $lines.Count) { foreach ($l in (Get-BoundedDiagnostics $Result.log)) { $lines.Add($l) } }
     return $lines
@@ -387,7 +388,7 @@ try {
         'check' {
             $selected = if ($Profile) { $Profile } elseif ($Target) { $Target } else { 'build' }
             if ($selected -in @('mod', 'all')) { $selected = 'build' }
-            if ($selected -notin @('environment', 'build', 'unit', 'server', 'game')) { throw "Unknown profile '$selected'. Use build, server, game, unit or environment." }
+            if ($selected -notin @('environment', 'build', 'unit', 'server', 'game', 'client')) { throw "Unknown profile '$selected'. Use build, server, game, client, unit or environment." }
             $lock = Enter-KitLock 0
             $bomFixed = @(Remove-KitBom)
             # The first build on a PC downloads and decompiles Minecraft/Forge (10-30 min on a laptop); allow for it.

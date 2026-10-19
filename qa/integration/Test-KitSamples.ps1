@@ -1,7 +1,8 @@
 # Maintainer regression with real Minecraft (~2 min): every guide snippet is in the guide samples;
 # generator output and the guide samples compile, lint clean and pass their game tests in fresh checkouts of kit/.
+# -Client also runs `check client` on the guide samples (opens a Minecraft window for ~40 s).
 [CmdletBinding()]
-param([string]$Work)
+param([string]$Work, [switch]$Client)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $kit = Join-Path $repo 'kit'
@@ -62,9 +63,15 @@ try {
     $guide = Invoke-Kit $samples @('check', 'game')
     if ($guide -match '(?m)^(WARN|ERROR) ') { throw "guide samples have lint findings:`n$guide" }
 
+    if ($Client) {
+        $clientRun = Invoke-Kit $samples @('check', 'client')
+        if ($clientRun -match '(?m)^(WARN|ERROR) ') { throw "guide samples have client findings:`n$clientRun" }
+    }
+
     "$snippets"
     "PASS generators: $(($generators -split "`n")[0])"
     "PASS guide samples: $(($guide -split "`n")[0])"
+    if ($Client) { "PASS guide samples client: $(($clientRun -split "`n")[0])" }
     exit 0
 } catch {
     "FAIL: $($_.Exception.Message)"

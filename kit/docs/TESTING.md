@@ -5,12 +5,13 @@
 | `check` (= build) | compiles; jar has an @Mod, Java 8 bytecode, valid JSON, versions in sync; unit tests pass if any; calls to client-only members (ERROR in game tests, WARN in common code); `spawnEntity` in a both-sides hook without an `isRemote` test (WARN) | ~10 s |
 | `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants, enchantments and effects their translation; tile entities registered; recipes whose ingredients match nothing | ~25 s |
 | `check game [-Test a,b]` | server + your `@GameTest` scenarios | ~25 s + test time |
+| `check client` | build + a real client (a game window for ~40 s): every block state and item of the mod has a model and no missing (purple-black) texture, items have names; screenshots of all blocks and items for a person, paths printed. Run last | ~40 s |
 | `check unit` | JUnit 4 tests in src/test/java (plain Java logic only; no Minecraft registries) | ~10 s |
 | `check environment` | toolchain and Minecraft API compile | ~10 s |
 
 Output is a few lines: `PASS|FAIL <profile> (<s>): summary`, then problems. `errors` reprints the last result; `errors -Full` adds the log tail. Lint lines are `WARN`/`ERROR <subject>: <message>`; ERROR fails the check, WARN means something looks broken in the client (missing texture, raw translation key). Fix or deliberately justify every WARN.
 
-Nothing here can see the screen. GUI layout, model appearance and animations need the user (`gradlew.bat runClient`); say so when reporting.
+`check client` proves models and textures load and takes screenshots; whether they look right, GUI layout and animations still need a person (the screenshots, or `gradlew.bat runClient`); say so when reporting.
 
 ## Game tests
 

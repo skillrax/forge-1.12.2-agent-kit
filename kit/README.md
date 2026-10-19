@@ -24,7 +24,7 @@ What changed: [CHANGELOG.md](CHANGELOG.md). Limits and how to report a problem: 
 1. Open this folder in your agent app and type something like: *"Make a mod called Ruby Tools: a ruby ore that spawns underground, rubies that smelt from it, and ruby tools a bit better than iron."*
 2. The agent writes the request into TASK.md, runs `./agent.ps1 init` and the generators, then `check`, `check server` and `check game` until they pass. You will see short PASS/FAIL lines; a FAIL is normal mid-way, the agent fixes it. It may ask you a question when a choice changes gameplay.
 3. When it says it is done, read its summary: what was tested, and what to look at in the game.
-4. Look at it: run `gradlew.bat runClient` in this folder (first start takes a minute), create a creative world, find the items in the creative menu, and try them. Anything that looks wrong (a purple-black texture, a missing name): tell the agent what you saw.
+4. Look at it: the agent's last check (`check client`) opens a game window briefly and saves screenshots of every block and item; it prints their paths. To play with it, run `gradlew.bat runClient` in this folder (first start takes a minute), create a creative world and find the items in the creative menu. Anything that looks wrong: tell the agent what you saw.
 5. The finished mod is `releases/<modid>-<version>.jar`. Put it in the `mods` folder of a Forge 1.12.2-14.23.5.2859 installation to play it normally.
 
 Next requests go into the same folder ("add a ruby block", "make the pickaxe mine 3x3"). For a second, separate mod, extract a fresh copy of the kit.

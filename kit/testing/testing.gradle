@@ -26,6 +26,11 @@ sourceSets {
         java.srcDir 'testing/harness/src'
         compileClasspath = sourceSets.main.compileClasspath
     }
+    // Client half: `agent.ps1 check client` (models, textures, screenshots in a real client).
+    kitClient {
+        java.srcDir 'testing/client/src'
+        compileClasspath = sourceSets.main.compileClasspath
+    }
     // Project behavior tests: src/gametest/java, run by `agent.ps1 check game`.
     gametest {
         compileClasspath = sourceSets.main.output + sourceSets.kitHarness.output + sourceSets.main.compileClasspath
@@ -304,6 +309,19 @@ tasks.named('compileJava') { dependsOn tasks.named('kitApiIndex') }
 minecraft.runs.named('server') {
     if (providers.gradleProperty('testingToolsServerDir').isPresent()) {
         workingDir = file(providers.gradleProperty('testingToolsServerDir').get())
+    }
+}
+minecraft.runs.named('client') {
+    if (providers.gradleProperty('testingToolsClientDir').isPresent()) {
+        workingDir = file(providers.gradleProperty('testingToolsClientDir').get())
+    }
+}
+def kitClientOut = providers.gradleProperty('kitClientOut')
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runClient' && kitClientOut.isPresent()) {
+        dependsOn tasks.named('kitClientClasses')
+        classpath += sourceSets.kitClient.output
+        systemProperty 'kit.client.out', kitClientOut.get()
     }
 }
 def kitCheckOut = providers.gradleProperty('kitCheckOut')

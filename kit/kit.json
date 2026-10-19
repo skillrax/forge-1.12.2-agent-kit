@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "agentic-minecraft-kit",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "status": "private-beta",
   "platform": "windows",
   "minecraft": "1.12.2",

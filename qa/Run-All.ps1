@@ -2,9 +2,10 @@
 # Required before a kit version bump (docs/DEVELOPMENT.md). From the repository root:
 #   powershell -NoProfile -File qa/Run-All.ps1            (all, ~4 min warm: real Minecraft builds)
 #   powershell -NoProfile -File qa/Run-All.ps1 -Quick     (no Minecraft: unit suites only, ~2 min)
+#   ... -NoClient                                          (skip `check client`, which opens a Minecraft window)
 # The ZIP check builds a fresh archive of the current kit into .work/ (releases/ is left alone).
 [CmdletBinding()]
-param([switch]$Quick)
+param([switch]$Quick, [switch]$NoClient)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $shell = (Get-Process -Id $PID).Path
@@ -18,7 +19,7 @@ $suites = [ordered]@{
     'packaging'       = @('qa/unit/Test-Packaging.ps1')
 }
 if (-not $Quick) {
-    $suites['samples (game)'] = @('qa/integration/Test-KitSamples.ps1')
+    $suites['samples (game' + $(if ($NoClient) { ')' } else { ', client)' })] = @('qa/integration/Test-KitSamples.ps1')
     $suites['kit ZIP'] = 'zip'
 }
 
@@ -41,7 +42,8 @@ foreach ($name in $suites.Keys) {
             $output | Out-File -LiteralPath $log -Encoding utf8 -Append
         }
     } else {
-        $output = & $shell -NoProfile -File (Join-Path $repo $suites[$name][0]) 2>&1
+        $extra = if ($name -like 'samples*client*') { @('-Client') } else { @() }
+        $output = & $shell -NoProfile -File (Join-Path $repo $suites[$name][0]) @extra 2>&1
         $code = $LASTEXITCODE
         $output | Out-File -LiteralPath $log -Encoding utf8
     }

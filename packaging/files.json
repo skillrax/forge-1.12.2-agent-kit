@@ -153,6 +153,7 @@
     "testing/Diagnostics.ps1",
     "testing/InstalledRuntime.ps1",
     "testing/Test-DevEnvironment.ps1",
+    "testing/client/src/kit/clientcheck/ClientCheckMod.java",
     "testing/harness/src/kit/gametest/AssetLint.java",
     "testing/harness/src/kit/gametest/GameTest.java",
     "testing/harness/src/kit/gametest/HarnessMod.java",
