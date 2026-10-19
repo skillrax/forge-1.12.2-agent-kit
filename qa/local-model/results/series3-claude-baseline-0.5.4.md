@@ -25,3 +25,11 @@ First run with the hidden acceptance tests (qa/acceptance/series3) scored by Run
 
 ## Left (single sightings)
 - `new tile` placeholder cube model for non-cube blocks is not flagged by `check client` (S2).
+
+## Human playtest (runClient, user, 2026-10-20)
+All five mods tried work as requested; nothing found that the checks missed.
+- S1 glowberries: plant, grow, harvest, eat for night vision.
+- S3 enchantments: Config button in the Mods list opens the screen; changes apply after a restart (normal for @Config); Gathering works, and stops when turned off.
+- S4 maple syrup: syrup is brown and flows slowly; the tank keeps its contents when broken and placed again.
+- S6 tool belt: R cycles the tools through 3 slots; HUD row shown.
+- S7 blast kiln: builds, smelts, takes hopper input and gives hopper output.
