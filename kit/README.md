@@ -1,4 +1,4 @@
-# Agentic Minecraft 1.12.2 mod kit
+# Forge 1.12.2 Agent Kit
 
 A workspace where an AI coding agent (Claude Code, Codex, a local-model agent, ...) builds Forge 1.12.2 mods from your description.
 

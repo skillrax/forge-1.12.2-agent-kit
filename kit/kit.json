@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "agentic-minecraft-kit",
+  "id": "forge-1.12.2-agent-kit",
   "version": "0.5.7",
   "status": "private-beta",
   "platform": "windows",

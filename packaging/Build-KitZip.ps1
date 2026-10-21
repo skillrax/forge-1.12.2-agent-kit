@@ -13,7 +13,7 @@ try {
     if (-not $OutputDirectory) { $OutputDirectory = Join-Path $root ('releases/' + $version) }
     $destination = [IO.Path]::GetFullPath($OutputDirectory)
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    $name = 'agentic-mc1.12.2-kit-' + $version + '-windows'
+    $name = 'forge-1.12.2-agent-kit-' + $version + '-windows'
     $zipPath = Join-Path $destination ($name + '.zip')
     if (Test-Path -LiteralPath $zipPath) { throw 'Archive already exists; never overwrite a release candidate.' }
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)

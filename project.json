@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "projectId": "agentic-minecraft-kit",
-  "displayName": "Agentic Minecraft Kit",
+  "projectId": "forge-1.12.2-agent-kit",
+  "displayName": "Forge 1.12.2 Agent Kit",
   "developmentPolicy": "private-github-backup",
   "activeSource": "kit",
   "targetQADirectory": "qa",

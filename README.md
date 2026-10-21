@@ -1,4 +1,4 @@
-# Agentic Minecraft mod development kit (maintainer workspace)
+# Forge 1.12.2 Agent Kit (maintainer workspace)
 
 A Windows kit for AI-assisted Minecraft 1.12.2 / Forge mod development. **Recipients start with [kit/README.md](kit/README.md). Maintainers start with [TASK.md](TASK.md) and [AGENTS.md](AGENTS.md).** Version: [kit/kit.json](kit/kit.json).
 
