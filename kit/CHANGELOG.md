@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.7 (2026-10-21)
+
+- `check client` tests GUI container sync. Game tests cannot: their FakePlayers have no client. The real player right-clicks every mod block and item that overrides `onBlockActivated` or `onItemRightClick`. For each container that opens, the check compares the client's slots with the server's: count, which inventory slot each index stands for, stacks and cursor. It compares after opening, after the server fills the slots, and after three real clicks. A difference is a `FAIL test gui block|item <id>` line, and so is a container open on only one side or a container screen that pauses the game. A slot at a different position is a WARN. It also takes a screenshot of each GUI.
+
 ## 0.5.6 (2026-10-21)
 
 From a large Claude-built port (about 760 files, 57 game tests):

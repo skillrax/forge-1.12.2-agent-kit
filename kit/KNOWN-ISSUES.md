@@ -1,8 +1,8 @@
-# Known issues and limits (0.5.6)
+# Known issues and limits (0.5.7)
 
-- **Looks are checked, not judged.** `check client` proves every block and item has a model and its textures, and saves screenshots; whether they look right, GUIs, particles and HUDs need your eyes (the screenshots or `gradlew.bat runClient`). It needs a desktop session: it opens a game window for about 40 seconds.
+- **Looks are checked, not judged.** `check client` proves every block and item has a model and its textures, and saves screenshots; whether they look right, GUIs, particles and HUDs need your eyes (the screenshots or `gradlew.bat runClient`). It needs a desktop session: it opens a game window for about a minute.
 - **Player data across a restart is untested.** Test players do not survive a restart, so player-held data is not covered by `afterRestart` tests; world data (tile contents, block states, saved data) is.
-- **No multiplayer sync test.** Nothing runs a real client against a server, so client/server desync (ghost items, GUIs out of step) can slip through. Test on a LAN world with two clients if your mod has GUIs or synced data.
+- **Sync is tested only for GUI containers.** `check client` compares the client's and the server's slots for every container opened by right-clicking a mod block or item (docs/TESTING.md). Other synced data (tile entity fields, entity data, capabilities, packets), GUIs opened another way and two players at once are untested: test on a LAN world with two clients if your mod depends on them.
 - **Exported jars are not tested in a modpack.** The jar is built and reobfuscated, but not loaded next to other mods; optional mods (JEI, Baubles) are compile-only in the dev runs (guides/compat.md).
 - **Windows 10/11 x64 only.**
 - **Agent quality varies.** Claude Code passed its checks on all 8 requests of the last test series on its own; a small local model passed 10 of 16 attempts, and long sessions can lose track (see "Local models" below).

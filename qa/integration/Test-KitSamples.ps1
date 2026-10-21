@@ -1,6 +1,7 @@
 # Maintainer regression with real Minecraft (~2 min): every guide snippet is in the guide samples;
 # generator output and the guide samples compile, lint clean and pass their game tests in fresh checkouts of kit/.
-# -Client also runs `check client` on the guide samples (opens a Minecraft window for ~40 s).
+# -Client also runs `check client` on the guide samples (a Minecraft window for ~1 min), then again with a deliberately
+# desynced container (client slots differ from the server's), which must FAIL.
 [CmdletBinding()]
 param([string]$Work, [switch]$Client)
 $ErrorActionPreference = 'Stop'
@@ -66,12 +67,28 @@ try {
     if ($Client) {
         $clientRun = Invoke-Kit $samples @('check', 'client')
         if ($clientRun -match '(?m)^(WARN|ERROR) ') { throw "guide samples have client findings:`n$clientRun" }
+        if ($clientRun -notmatch '(?m)^PASS test gui block rubymod:ruby_box ') { throw "the container sync check did not test the ruby box GUI:`n$clientRun" }
+        # Deliberate desync: on the client only, the box's main-inventory slots stand for the hotbar.
+        $container = Join-Path $samples 'src/main/java/com/example/rubymod/RubyBoxContainer.java'
+        $source = [IO.File]::ReadAllText($container)
+        $broken = $source.Replace('col + row * 9 + 9, 8 + col * 18, 84', 'col + row * 9 + (playerInventory.player.world.isRemote ? 0 : 9), 8 + col * 18, 84')
+        if ($broken -eq $source) { throw 'desync patch did not apply to RubyBoxContainer.java' }
+        [IO.File]::WriteAllText($container, $broken, (New-Object Text.UTF8Encoding($false)))
+        $ErrorActionPreference = 'Continue'
+        $desync = (& $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $samples 'agent.ps1') check client 2>$null) -join "`n"
+        $desyncExit = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'
+        [IO.File]::WriteAllText($container, $source, (New-Object Text.UTF8Encoding($false)))
+        if ($desyncExit -eq 0 -or $desync -notmatch '(?m)^FAIL test gui block rubymod:ruby_box at after opening: slot 9 is player inventory #0') { throw "desynced container was not caught:`n$desync" }
     }
 
     "$snippets"
     "PASS generators: $(($generators -split "`n")[0])"
     "PASS guide samples: $(($guide -split "`n")[0])"
-    if ($Client) { "PASS guide samples client: $(($clientRun -split "`n")[0])" }
+    if ($Client) {
+        "PASS guide samples client: $(($clientRun -split "`n")[0])"
+        "PASS desynced container caught: $(($desync -split "`n" | Where-Object { $_ -like 'FAIL test gui*' } | Select-Object -First 1))"
+    }
     exit 0
 } catch {
     "FAIL: $($_.Exception.Message)"

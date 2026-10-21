@@ -186,7 +186,7 @@ try {
     $reason = switch ($Profile) {
         'server' { 'Server started, content linted, clean shutdown.' }
         'game' { 'Game tests ran.' }
-        'client' { 'Client started, models and textures checked, screenshots taken.' }
+        'client' { 'Client started, models, textures and GUI container sync checked, screenshots taken.' }
         default { 'Gradle checks passed.' }
     }
 }
@@ -263,10 +263,10 @@ if ($harnessPath -and [IO.File]::Exists($harnessPath)) {
         $failedTests = @($harness.tests | Where-Object { $_.status -ne 'PASS' })
         $lintErrors = @($harness.lint | Where-Object { $_.level -eq 'ERROR' })
         if ($harness.testError) { $exitCode = 1; $reason = $harness.testError }
-        elseif ($failedTests.Count) { $exitCode = 1; $reason = ('{0} of {1} game tests failed.' -f $failedTests.Count, @($harness.tests).Count) }
+        elseif ($failedTests.Count) { $exitCode = 1; $reason = ('{0} of {1} {2} failed.' -f $failedTests.Count, @($harness.tests).Count, $(if ($usesClient) { 'GUIs (client/server container sync)' } else { 'game tests' })) }
         elseif ($lintErrors.Count) { $exitCode = 1; $reason = ('{0} content error(s) found {1}.' -f $lintErrors.Count, $(if ($usesClient) { 'in the client' } else { 'by the harness' })) }
         elseif ($Profile -eq 'game') { $reason = ('{0} game tests passed.' -f @($harness.tests).Count) }
-        elseif ($Profile -eq 'client') { $reason = ('{0} blocks and {1} items have models and textures; look at the screenshots.' -f $harness.checked.blocks, $harness.checked.items) }
+        elseif ($Profile -eq 'client') { $reason = ('{0} blocks and {1} items have models and textures; {2} GUIs open with the client in sync with the server; look at the screenshots.' -f $harness.checked.blocks, $harness.checked.items, [int]$harness.checked.guis) }
     }
 }
 $result = [ordered]@{
@@ -278,7 +278,7 @@ $result = [ordered]@{
         'unit' { 'unit tests (at least one required)' }
         'server' { 'build + dedicated server startup + registry/asset lint' }
         'game' { 'build + dedicated server + game tests' }
-        'client' { 'build + real client: models, textures, translations, screenshots' }
+        'client' { 'build + real client: models, textures, translations, GUI container sync, screenshots' }
     }
     status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
     exitCode = $exitCode
