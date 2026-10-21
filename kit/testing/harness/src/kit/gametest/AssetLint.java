@@ -18,6 +18,8 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.ModContainer;
+import net.minecraftforge.fml.common.network.NetworkRegistry;
+import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.common.registry.EntityEntry;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.registries.IForgeRegistry;
@@ -70,6 +72,9 @@ final class AssetLint {
         for (net.minecraft.potion.Potion potion : ForgeRegistries.POTIONS) if (mine(potion)) guard("effect " + potion.getRegistryName(),
                 () -> langKey(potion.getRegistryName().getNamespace(), potion.getName(), "effect " + potion.getRegistryName()));
         for (net.minecraft.item.crafting.IRecipe recipe : ForgeRegistries.RECIPES) if (mine(recipe)) guard("recipe " + recipe.getRegistryName(), () -> recipe(recipe));
+        // Custom payload packets read the channel name with a 20-character limit; single player never sends it.
+        for (String channel : NetworkRegistry.INSTANCE.channelNamesFor(Side.SERVER))
+            if (channel.length() > 20) error("network channel " + channel, channel.length() + " characters; Minecraft allows 20, so clients on LAN or a dedicated server disconnect on its first packet (single player works). Pass a shorter name to newSimpleChannel");
 
         JsonObject report = new JsonObject();
         JsonArray mods = new JsonArray();

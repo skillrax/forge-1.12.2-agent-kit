@@ -36,7 +36,8 @@ public final class HarnessMod {
     private MinecraftServer server;
     private TestContext current;
     private String currentId;
-    private int started;
+    private static final int AREAS = 36;
+    private int started, restartAreas, restartTotal;
     private boolean done;
 
     @Mod.EventHandler public void preInit(FMLPreInitializationEvent event) {
@@ -76,6 +77,9 @@ public final class HarnessMod {
         }
         report.add("tests", results);
         report.add("restart", restart);
+        if (RESTART_FROM.isEmpty()) for (String[] entry : pending) if (declaresRestart(entry[1])) restartTotal++;
+        if (restartTotal > AREAS) report.addProperty("testError", restartTotal + " restart tests but only " + AREAS
+                + " test areas: they would overwrite each other before the save. Merge restart checks into fewer tests");
         if (RESTART_FROM.isEmpty() && !FILTER.isEmpty() && pending.isEmpty()) report.addProperty("testError", "*".equals(FILTER)
                 ? "No game tests yet: write one per requested behavior with agent.ps1 new test <id> (agent.ps1 check server only compiles and lints)"
                 : "No @GameTest scenarios matched '" + FILTER + "' in src/gametest/java");
@@ -106,7 +110,7 @@ public final class HarnessMod {
                 } else {
                     BlockPos spawn = server.getWorld(0).getSpawnPoint();
                     // Separate 16x16 areas, all inside the spawn chunks that stay loaded.
-                    int slot = started % 36;
+                    int slot = areaSlot(next[1]);
                     BlockPos origin = new BlockPos(spawn.getX() + 8 + (slot % 6) * 20, 4, spawn.getZ() - 52 + (slot / 6) * 20);
                     started++;
                     current = new TestContext(server, origin, Integer.parseInt(next[2]));
@@ -140,6 +144,14 @@ public final class HarnessMod {
             if (current != null) { try { current.cleanup(); } catch (Throwable ignored) { } }
             current = null;
         }
+    }
+
+    // Past 36 tests areas are reused (each test clears its area first), but a restart test keeps its own
+    // area until the save: a later test clearing it would look like contents lost across the restart.
+    private int areaSlot(String className) {
+        if (declaresRestart(className)) return restartAreas++ % AREAS;
+        int shared = Math.max(1, AREAS - restartTotal);
+        return Math.min(restartTotal, AREAS - 1) + (started - restartAreas) % shared;
     }
 
     private static boolean declaresRestart(String className) {

@@ -85,5 +85,6 @@ Blocks with properties also need `createBlockState`, `getStateFromMeta`, `getMet
 - Sounds: `world.playSound(null, pos, SoundEvents.X, SoundCategory.BLOCKS, 1.0F, 1.0F)` (null player = everyone hears it).
 - Time: 20 ticks = 1 second. `world.getTotalWorldTime()` for timers.
 - Effects: `new PotionEffect(MobEffects.SPEED, ticks, amplifier)`; amplifier 0 = level I.
+- `setHeldItem`/`setItemStackToSlot` play the equip sound; to move items silently set `player.inventory.mainInventory`/`armorInventory` entries. XP: `addExperience` cannot remove points (negative values break the bar); use `addExperienceLevel(-n)` or set `experienceLevel`, `experience` (bar 0-1) and `experienceTotal` together.
 
 Names from newer versions or older mappings are wrong here: `setTranslationKey` (not setUnlocalizedName), `CreativeTabs.MATERIALS`, `EntityPlayer`, `EnumHand`, `EnumFacing`, `NBTTagCompound`, `IBlockState`, `world.getChunk`, `MathHelper.floor`. The compiler hints list more. Vanilla translation keys often differ from registry names (dye is `item.dyePowder.<colour>.name`): never assemble one; take it from a stack, `stack.getTranslationKey() + ".name"` (or `stack.getDisplayName()` on the client).

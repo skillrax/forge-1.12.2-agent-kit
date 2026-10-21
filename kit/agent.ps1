@@ -6,7 +6,7 @@
 #   agent.ps1 init <modid> ["Name"]              (working mod skeleton)
 #   agent.ps1 new <kind> <name> [options]        (generators: docs/GENERATORS.md)
 #   agent.ps1 version <x.y.z>                    (build.gradle + @Mod + mcmod.info)
-#   agent.ps1 export                             (releases/<modid>-<version>.jar after a passing check server)
+#   agent.ps1 export [-Replace]                  (releases/<modid>-<version>.jar after a passing check server)
 #   agent.ps1 batch <file>                       (one command per line; stops at the first failure)
 [CmdletBinding(PositionalBinding = $false)]
 param(
@@ -20,7 +20,8 @@ param(
     [ValidatePattern('^[A-Za-z0-9-]+$')][string]$RunId,
     [switch]$Json,
     [switch]$Full,
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$Replace
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
@@ -180,8 +181,14 @@ function Format-Check($Result) {
         if ($Result.inspectedArtifact -and $Result.profile -eq 'build') { $parts += (Get-Relative $Result.inspectedArtifact) }
         if ($parts) { $summary = $parts -join '; ' }
     }
+    # One countable line, so nobody reruns a long check to count PASS lines.
+    $problems = @(Get-Problems $Result)
+    $tests = @(@($Result.harness.tests) | Where-Object { $_ })
+    if ($tests.Count) {
+        $summary = ([string]$summary).TrimEnd('.') + ('; tests {0}/{1} passed, {2} WARN' -f @($tests | Where-Object { $_.status -eq 'PASS' }).Count, $tests.Count, @($problems | Where-Object { $_ -like 'WARN *' }).Count)
+    }
     $out = @($head + ': ' + $summary)
-    $out += @(Get-Problems $Result)
+    $out += $problems
     if ($Result.repeatedFailures -ge 3) {
         $key = Get-FailureKey $Result
         if ($key -like 'test *') { $out += ('STUCK: {0} failed the same way {1} checks in a row. Stop changing code to guess. Read the area lines; move this behavior into its own @GameTest with only its own setup and rerun it with -Test; if it still fails, finish with a partial report (AGENTS.md).' -f $key, $Result.repeatedFailures) }
@@ -547,7 +554,7 @@ try {
             if ($exitCode -eq 0) { "batch done: $ran command(s)" }
         }
         'export' {
-            & (Join-Path $root 'tools/Export-Release.ps1') -Json:$Json
+            & (Join-Path $root 'tools/Export-Release.ps1') -Json:$Json -Replace:$Replace
             $exitCode = $LASTEXITCODE
         }
     }

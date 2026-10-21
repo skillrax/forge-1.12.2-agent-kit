@@ -70,6 +70,10 @@ Sync small integers with container listeners: override `addListener`/`detectAndS
 
 Screen buttons (`GuiButton` added in `initGui`, handled in `actionPerformed`) send `mc.playerController.sendEnchantPacket(inventorySlots.windowId, buttonId)`; the server gets `Container.enchantItem(EntityPlayer, int id)`: validate the id and change state there. Richer data needs a packet (guides/networking.md).
 
+## Tooltips
+
+`GuiScreen.getItemToolTip` gives the first line the rarity colour and every later line a `§7` prefix (`TextFormatting.GRAY`): find your own marker lines with `contains`, not `startsWith`.
+
 ## Screens without a container
 
 A settings or info screen extends `GuiScreen` (client only), opened from client code with `Minecraft.getMinecraft().displayGuiScreen(new MyScreen())`, e.g. from a keybind (guides/players.md). Override `doesGuiPauseGame()` to return false for a non-pausing screen.

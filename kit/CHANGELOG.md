@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.6 (2026-10-21)
+
+From a large Claude-built port (about 760 files, 57 game tests):
+- Game tests: past 36 tests, test areas were reused, and a later test could clear a `-Restart` test's area before the save (it looked like "contents lost after restart"). Restart tests now keep their own area; a reused area is also cleared of entities. Step labels over 96 characters are shortened instead of failing the test.
+- `check game` summary counts: `tests 57/57 passed, 0 WARN`.
+- `check server` fails on network channel names over 20 characters (clients on LAN or dedicated servers disconnect; single player hides it). `check` warns on a `GuiContainer` screen that never calls `drawDefaultBackground()` (no dimmed background; JEI draws over it).
+- `export -Replace` overwrites an already exported jar of the same version that nobody has yet.
+- New guide: guides/compat.md (JEI, Baubles and other optional mods: compile-only dependencies, optional code, how to test). Facts added: channel name and packet size limits, `ItemStackHandler.insertItem` skips `isItemValid`, blockless fluids need their sprites stitched, `renderItem(stack, TransformType)` turns blending off, tooltip lines after the first start with `§7`, equip sound from `setHeldItem`, removing XP, `SpecialSpawn` for spawn eggs.
+
 ## 0.5.5 (2026-10-20)
 
 - Restart tests report the checks of both halves ("3 assertions, 40 ticks, across a server restart") instead of "0 assertions".

@@ -2,20 +2,20 @@
 
 | Check | Proves | Time |
 |---|---|---|
-| `check` (= build) | compiles; jar has an @Mod, Java 8 bytecode, valid JSON, versions in sync; unit tests pass if any; calls to client-only members (ERROR in game tests, WARN in common code); `spawnEntity` in a both-sides hook without an `isRemote` test (WARN) | ~10 s |
-| `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants, enchantments and effects their translation; tile entities registered; recipes whose ingredients match nothing | ~25 s |
+| `check` (= build) | compiles; jar has an @Mod, Java 8 bytecode, valid JSON, versions in sync; unit tests pass if any; calls to client-only members (ERROR in game tests, WARN in common code); `spawnEntity` in a both-sides hook without an `isRemote` test (WARN); a `GuiContainer` screen without `drawDefaultBackground()` (WARN) | ~10 s |
+| `check server` | build + dedicated server starts and stops cleanly + **lint**: every registered item/block/entity/sound has its translation, model, textures and blockstate variants, enchantments and effects their translation; tile entities registered; recipes whose ingredients match nothing; network channel names over 20 characters | ~25 s |
 | `check game [-Test a,b]` | server + your `@GameTest` scenarios | ~25 s + test time |
 | `check client` | build + a real client (a game window for ~40 s): every block state and item of the mod has a model and no missing (purple-black) texture, items have names; screenshots of all blocks and items for a person, paths printed. Run last | ~40 s |
 | `check unit` | JUnit 4 tests in src/test/java (plain Java logic only; no Minecraft registries) | ~10 s |
 | `check environment` | toolchain and Minecraft API compile | ~10 s |
 
-Output is a few lines: `PASS|FAIL <profile> (<s>): summary`, then problems. `errors` reprints the last result; `errors -Full` adds the log tail. Lint lines are `WARN`/`ERROR <subject>: <message>`; ERROR fails the check, WARN means something looks broken in the client (missing texture, raw translation key). Fix or deliberately justify every WARN.
+Output is a few lines: `PASS|FAIL <profile> (<s>): summary` (with game tests: `tests 57/57 passed, 0 WARN`), then problems. `errors` reprints the last result; `errors -Full` adds the log tail. Lint lines are `WARN`/`ERROR <subject>: <message>`; ERROR fails the check, WARN means something looks broken in the client (missing texture, raw translation key). Fix or deliberately justify every WARN. WARN means these lines, not warnings in the raw game log (Forge logs harmless ones on every start).
 
 `check client` proves models and textures load and takes screenshots of placed blocks and of items; it opens no screens (GUIs, the Mods > Config screen, HUDs), so those stay untested: say so. Whether things look right, GUI layout and animations still need a person (the screenshots, or `gradlew.bat runClient`); say so when reporting.
 
 ## Game tests
 
-Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food/mob stats, mob eggs, drops and spawns); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (its placeholder check fails until you replace it). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor one block below `t.origin()`.
+Generators already append checks for what they create to `GeneratedContentTest.java` (recipes, smelting, ore drops, tool/armor/food/mob stats, mob eggs, drops and spawns); `check game` runs them. Write your own tests for behavior: `./agent.ps1 new test <id>` writes a scaffold in src/gametest/java (its placeholder check fails until you replace it). A test is a class with `@GameTest("id")` implementing `Scenario`. `plan(t)` declares steps; they run on real server ticks in a fresh flat world, each test in its own cleared 16x16 area with a stone floor one block below `t.origin()` (past 36 tests, areas are cleared and reused; a `-Restart` test keeps its own).
 
 ```java
 @GameTest("ore-drops-ruby")

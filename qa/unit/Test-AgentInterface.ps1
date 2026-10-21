@@ -245,13 +245,19 @@ exit 0
         '    public void onUsingTick(ItemStack stack, EntityLivingBase user, int count) {',
         '        if (!user.world.isRemote) user.world.spawnEntity(new EntitySnowball(user.world, user));', '    }',
         '    private void helper(World world, EntityLivingBase user) { world.spawnEntity(new EntitySnowball(world, user)); }', '}') -join "`n"))
+    $screenFile = Join-Path $fixture "$java/BoxScreen.java"
+    [IO.File]::WriteAllText($screenFile, "package com.example.demo;`npublic class BoxScreen`n        extends net.minecraft.client.gui.inventory.GuiContainer {`n    BoxScreen() { super(null); }`n}`n")
+    $dimmedFile = Join-Path $fixture "$java/DimScreen.java"
+    [IO.File]::WriteAllText($dimmedFile, "package com.example.demo;`npublic class DimScreen extends GuiContainer {`n    public void drawScreen(int x, int y, float p) { drawDefaultBackground(); super.drawScreen(x, y, p); }`n}`n")
     $clientMain = Invoke-Agent @('check')
     $warnings = @($clientMain -split "`n" | Where-Object { $_ -match 'client-only' })
     Assert ($warnings.Count -eq 1 -and $warnings[0] -match "^WARN $([regex]::Escape($java))/SyncTile\.java:12: EnumDyeColor\.getColorValue\(\)") "client-only call in common code: $clientMain"
     $ghosts = @($clientMain -split "`n" | Where-Object { $_ -match 'ghost copy' })
     Assert ($ghosts.Count -eq 1 -and $ghosts[0] -match "^WARN $([regex]::Escape($java))/ShotItem\.java:9: spawnEntity in onPlayerStoppedUsing") "ghost spawn: $clientMain"
-    Remove-Item -LiteralPath $tileFile, $shotFile
-    $passed.Add('client-only calls: test ERROR, common WARN, client regions skipped; unguarded spawn in a both-sides hook')
+    $screens = @($clientMain -split "`n" | Where-Object { $_ -match 'drawDefaultBackground' })
+    Assert ($screens.Count -eq 1 -and $screens[0] -match "^WARN $([regex]::Escape($java))/BoxScreen\.java:3: screen never calls drawDefaultBackground") "undimmed screen: $clientMain"
+    Remove-Item -LiteralPath $tileFile, $shotFile, $screenFile, $dimmedFile
+    $passed.Add('client-only calls: test ERROR, common WARN, client regions skipped; unguarded spawn in a both-sides hook; screen without drawDefaultBackground')
     } else { $passed.Add('SKIPPED client-only calls and block-item hint (no kit/.kit/api-index.tsv: run kit/agent.ps1 check environment)') }
 
     $env:FAKE_MODE = 'compile-error'
@@ -286,7 +292,8 @@ exit 0
     foreach ($n in 1..5) { $env:FAKE_PHASE = "setup $n"; $game = Invoke-Agent @('check', 'game') 1; if ($n -eq 4) { Assert ($game -notmatch 'STUCK') "early STUCK: $game" } }
     Assert ($game -match 'STUCK: test b failed 5 checks in a row') "test circuit breaker: $game"
     # Fail at a step, pass, fail at the same step again: FLAKY (a PASS resets STUCK, not this).
-    $env:FAKE_PHASE = 'pass'; Invoke-Agent @('check', 'game') | Out-Null
+    $env:FAKE_PHASE = 'pass'; $passGame = Invoke-Agent @('check', 'game')
+    Assert (($passGame -split "`n")[0] -match '; tests 1/1 passed, 0 WARN$') "game summary count: $passGame"
     $env:FAKE_PHASE = 'setup 5'; $flaky = Invoke-Agent @('check', 'game') 1
     Assert ($flaky -match 'FLAKY: test b at setup 5 failed there before' -and $flaky -notmatch 'STUCK') "flaky signal: $flaky"
     $env:FAKE_PHASE = 'setup 6'; Assert ((Invoke-Agent @('check', 'game') 1) -notmatch 'FLAKY') 'no FLAKY at a new step'

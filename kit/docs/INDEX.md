@@ -26,6 +26,7 @@ Read only what the current step needs.
 | [guides/automated-crafting.md](guides/automated-crafting.md) | autocrafters with saved patterns |
 | [guides/fluids.md](guides/fluids.md) | tanks, custom fluids, wrench pickup |
 | [guides/world-actions.md](guides/world-actions.md) | changing blocks safely (setBlockState side effects), moving blocks with their tile entities, block breakers/placers, fluid collectors |
+| [guides/compat.md](guides/compat.md) | working with other mods (JEI, Baubles, ...): compile-only dependencies, optional code, testing |
 | [guides/rendering.md](guides/rendering.md) | animated models, in-world previews and outlines, particles, imported 3D models |
 | [HOSTS.md](HOSTS.md) | setting up an agent app or local model |
 | [INSTALLED-TESTING.md](INSTALLED-TESTING.md) | rare: testing the exported jar in a separately installed server with other mods |

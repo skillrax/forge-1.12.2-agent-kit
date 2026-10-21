@@ -41,7 +41,7 @@ public final class ModEvents {
 | `entity.player.PlayerInteractEvent.RightClickBlock / RightClickItem / LeftClickBlock / EntityInteract` | clicks (both sides; see below) |
 | `entity.player.PlayerEvent.BreakSpeed`, `HarvestCheck`, `ItemCraftedEvent` (fml...gameevent.PlayerEvent), `PlayerLoggedInEvent` | mining speed, crafting, login |
 | `world.BlockEvent.BreakEvent`, `PlaceEvent`, `HarvestDropsEvent` | break/place permission, drops |
-| `entity.EntityJoinWorldEvent`, `entity.living.LivingSpawnEvent.CheckSpawn` | spawning |
+| `entity.EntityJoinWorldEvent`, `entity.living.LivingSpawnEvent.CheckSpawn` | spawning (`SpecialSpawn`: natural spawns, spawners and spawn eggs, before `onInitialSpawn` equips the mob) |
 | `fml.common.gameevent.TickEvent.ServerTickEvent / WorldTickEvent / PlayerTickEvent` | per-tick logic; check `event.phase == TickEvent.Phase.END` and `event.side`. 1.12.2 `ServerTickEvent` carries no server or world: for "every player each tick" use `WorldTickEvent` and `event.world.playerEntities` (includes the test `targetPlayer`; `PlayerTickEvent` never fires for test players, which do not tick) |
 | `AnvilUpdateEvent`, `furnace.FurnaceFuelBurnTimeEvent` | anvil recipes, fuel |
 | client only: `RenderGameOverlayEvent`, `GuiScreenEvent`, `InputEvent.KeyInputEvent`, `TickEvent.ClientTickEvent` | put in ClientEvents |

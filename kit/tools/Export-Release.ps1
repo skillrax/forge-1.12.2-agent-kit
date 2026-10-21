@@ -1,8 +1,9 @@
 # Copy the checked mod jar to releases/<modid>-<version>.jar.
 # Requires a server or game check that passed after the last source change.
-# Refuses to overwrite an exported version with different bytes: bump the version instead.
+# Refuses to overwrite an exported version with different bytes: bump the version instead,
+# or -Replace when that version was never given to anyone.
 [CmdletBinding()]
-param([switch]$Json)
+param([switch]$Json, [switch]$Replace)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 $root = Split-Path -Parent $PSScriptRoot
@@ -32,7 +33,8 @@ try {
     $hash = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash
     if ([IO.File]::Exists($destination)) {
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq $hash) { $note = 'already exported (identical)' }
-        else { throw "releases/$name already exists with different contents. Bump the version (agent.ps1 version <next>, which updates build.gradle, @Mod and mcmod.info), rerun check game or check server, then export." }
+        elseif ($Replace) { Copy-Item -LiteralPath $jar -Destination $destination -Force; $note = 'replaced' }
+        else { throw "releases/$name already exists with different contents. Bump the version (agent.ps1 version <next>, which updates build.gradle, @Mod and mcmod.info), rerun check game or check server, then export. Only if nobody has that jar yet: export -Replace." }
     } else {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
         Copy-Item -LiteralPath $jar -Destination $destination

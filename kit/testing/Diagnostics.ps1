@@ -117,6 +117,10 @@ function Get-KitClientOnlyCalls([string]$Root) {
         $clientFile = $relative -match '/client/' -or $clientParent -or [regex]::IsMatch($text, 'EventBusSubscriber\([^)]*Side\.CLIENT') -or
             ($sideOnly -ge 0 -and $firstType.Success -and $sideOnly -lt $firstType.Index)
         $test = $relative -like 'src/gametest/*'
+        # GuiContainer.drawScreen never dims the world, and JEI places its overlay from the event drawDefaultBackground fires.
+        if ($parent.Success -and $parent.Groups[1].Value -match '(^|\.)GuiContainer$' -and $text -notmatch '\bdrawDefaultBackground\s*\(') {
+            $found.Add(('WARN {0}:{1}: screen never calls drawDefaultBackground(): no dimmed background, and JEI draws over it. Start drawScreen with drawDefaultBackground(); super.drawScreen(...); renderHoveredToolTip(...) (guides/gui.md)' -f $relative, ($text.Substring(0, $parent.Index).Split("`n").Count)))
+        }
         if ($clientFile -and -not $test) { continue }
         $depth = 0; $clientDepth = -1; $pending = $false; $opening = $false; $sideHook = $null; $sideTested = $false
         for ($i = 0; $i -lt $sources[$file].Length; $i++) {

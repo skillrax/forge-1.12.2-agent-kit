@@ -257,8 +257,9 @@ public final class TestContext {
 
     /** Run an action as the next step. Use {@link #require} inside it for immediate assertions. */
     public void then(String label, Action action) {
-        if (label == null || label.isEmpty() || label.length() > 96) throw new IllegalArgumentException("Step label must be 1..96 characters");
-        add(() -> { phase = label; action.run(); return true; });
+        if (label == null || label.isEmpty()) throw new IllegalArgumentException("Step label must not be empty");
+        String shown = label.length() > 96 ? label.substring(0, 93) + "..." : label;
+        add(() -> { phase = shown; action.run(); return true; });
     }
     /** Named assertion evaluated as the next step. */
     public void check(String name, BooleanSupplier condition, Supplier<String> detail) {
@@ -406,9 +407,11 @@ public final class TestContext {
     private static String cut(String text) { return text.length() > 200 ? text.substring(0, 200) + "..." : text; }
     int assertions() { return assertionCount; }
 
-    /** Clears a 16x16x16 area at origin to air above a stone floor. */
+    /** Clears a 16x16x16 area at origin to air above a stone floor, without entities left by an earlier test there. */
     void prepareArea() {
         WorldServer world = world();
+        for (Entity entity : world.getEntitiesWithinAABB(Entity.class, new AxisAlignedBB(origin.add(0, -1, 0), origin.add(16, 16, 16))))
+            if (!(entity instanceof EntityPlayer)) world.removeEntityDangerously(entity);
         for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
             world.setBlockState(origin.add(x, -1, z), Blocks.STONE.getDefaultState(), 2);
             for (int y = 0; y < 16; y++) world.setBlockState(origin.add(x, y, z), Blocks.AIR.getDefaultState(), 2);

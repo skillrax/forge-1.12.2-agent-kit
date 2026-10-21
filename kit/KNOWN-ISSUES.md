@@ -1,9 +1,9 @@
-# Known issues and limits (0.5.5)
+# Known issues and limits (0.5.6)
 
 - **Looks are checked, not judged.** `check client` proves every block and item has a model and its textures, and saves screenshots; whether they look right, GUIs, particles and HUDs need your eyes (the screenshots or `gradlew.bat runClient`). It needs a desktop session: it opens a game window for about 40 seconds.
 - **Player data across a restart is untested.** Test players do not survive a restart, so player-held data is not covered by `afterRestart` tests; world data (tile contents, block states, saved data) is.
 - **No multiplayer sync test.** Nothing runs a real client against a server, so client/server desync (ghost items, GUIs out of step) can slip through. Test on a LAN world with two clients if your mod has GUIs or synced data.
-- **Exported jars are not tested in a modpack.** The jar is built and reobfuscated, but not loaded next to other mods.
+- **Exported jars are not tested in a modpack.** The jar is built and reobfuscated, but not loaded next to other mods; optional mods (JEI, Baubles) are compile-only in the dev runs (guides/compat.md).
 - **Windows 10/11 x64 only.**
 - **Agent quality varies.** Claude Code passed its checks on all 8 requests of the last test series on its own; a small local model passed 10 of 16 attempts, and long sessions can lose track (see "Local models" below).
 - **First build downloads about 1 GB** (Gradle, Minecraft, Forge) and takes 10-30 minutes once.

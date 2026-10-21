@@ -26,6 +26,7 @@ ModelLoader.setCustomStateMapper(ModBlocks.SYRUP, new StateMapperBase() {
 ```
 `blockstates/syrup.json`: `{"forge_marker":1,"variants":{"fluid":{"model":"forge:fluid","custom":{"fluid":"syrup"}}}}` (the fluid's registered name; no model file).
 - Contact damage runs on the server with a cadence and a height check.
+- Textures are only loaded through models (the fluid block, the universal bucket). A fluid without a block, drawn in a tank or GUI, shows the missing texture until you add its sprites in a client `TextureStitchEvent.Pre` handler: `event.getMap().registerSprite(fluid.getStill())`, same for `getFlowing()`.
 
 ## Wrench pickup keeping machine contents
 

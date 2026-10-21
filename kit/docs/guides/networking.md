@@ -62,6 +62,8 @@ Sending: client `ModNetwork.CHANNEL.sendToServer(new CountRequest(3))`; server `
 - The server trusts nothing from the client: send an action (button id, slot), not results; check ranges, distance to the block, that the right container is open (`player.openContainer`), and permissions.
 - Act only for the sending player (`ctx.getServerHandler().player`), never a player named in the packet.
 - Register the same message ids in the same order on both sides (the `init()` above runs on both).
+- The channel name is at most 20 characters (`check server` fails on longer ones): a longer mod id needs a shorter name. Single player never sends it, so only LAN or dedicated-server clients would disconnect.
+- Size: a client-to-server packet holds at most 32767 bytes, and `ByteBufUtils.readTag` refuses NBT over 2 MB. Send large inventories in parts, or only what changed.
 - `ByteBuf` read order must match write order exactly. Strings: `ByteBufUtils.writeUTF8String`/`readUTF8String`; NBT: `ByteBufUtils.writeTag`/`readTag`.
 
 ## Test
