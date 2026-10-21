@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "forge-1.12.2-agent-kit",
   "version": "0.5.7",
-  "status": "private-beta",
+  "status": "beta",
   "platform": "windows",
   "minecraft": "1.12.2",
   "forge": "14.23.5.2859",
